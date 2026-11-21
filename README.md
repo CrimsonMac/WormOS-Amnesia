@@ -7,9 +7,11 @@ installer, root cannot log in, and no disk is ever touched.
 
 Before the desktop, a start screen asks how to reach Tor (directly, or
 through snowflake, obfs4, meek or pasted bridges; Tor waits for the
-answer, so a network that blocks Tor never sees a direct attempt) and
-offers an administrator for this session only. Without one, the default,
-nothing can change the system or reach a disk. At shutdown the session is
+answer, so a network that blocks Tor never sees a direct attempt).
+There is no administrator at all: nothing can change the system or reach
+a disk, yet programs can still be installed into memory (`wh install`,
+`worm kit install`). `amnesia-update` brings the USB stick up to the latest
+release, downloading only what changed. At shutdown the session is
 deleted and its memory wiped as it is freed; pulling out the USB stick it
 started from shuts it down the same way.
 
@@ -21,7 +23,9 @@ applies here too.
 ```
 make iso-amnesia                       # out/wormos-amnesia.iso
 tests/editions-test.py amnesia         # boot it and check what Amnesia promises
-make release-amnesia VERSION=1.8       # the release ISO in out/release
+make release-amnesia VERSION=1.9       # the release ISO and its signed update manifest
+scripts/publish-amnesia.sh             # publish them for amnesia-update
+tests/amnesia-update-test.py OLD.iso NEW.iso   # check the updater
 ```
 
 ---

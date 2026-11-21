@@ -87,6 +87,11 @@ AMNESIA_CHECKS = [
      r"^GTK_THEME=WormOS-Amnesia\nWORM_SHELL_PANEL=bottom\nXDG_CONFIG_DIRS=/etc/xdg/amnesia:"),
     ("grey wallpaper", "tr '\\0' ' ' < /proc/$(pidof swaybg)/cmdline",
      r"wormos-amnesia\.png"),
+    ("the updater is there, for the user", "ls -l /usr/bin/amnesia-update", r"^-rwsr-xr-x .* root "),
+    ("no root, but the user installs programs into memory (through Tor)",
+     "for i in $(seq 90); do worm anon status | grep -q connected && break; sleep 2; done; "
+     "su live -c 'wh install tree' 2>&1 | tail -1; su live -c 'tree -d /etc/xdg | tail -1'",
+     r"Done: changed in the running system(.|\n)*directories"),
     ("welcome says what it is", "welcome | head -12",
      r"WormOS [\d.]+ Amnesia(.|\n)*Nothing here is kept"),
 ]
@@ -210,7 +215,7 @@ def main():
                 mon.key("ret")          # Start Amnesia: Tor directly, no administrator
             for name, cmd, pattern in checks:
                 if args.release:
-                    cmd = cmd.replace("su live -c 'worm anon status'", "worm anon status")
+                    cmd = re.sub(r"su live -c '([^']*)'", r"\1", cmd)
                 out = con.run(cmd, 180)
                 check(name, re.search(pattern, out, re.M) is not None, out)
 

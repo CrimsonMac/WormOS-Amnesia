@@ -58,19 +58,36 @@ second stage below is done.
   `/run/worm/anon-hold`, which `worm anon start` respects; wormlogin removes
   it and starts Tor), so a network that blocks Tor never sees a direct
   attempt. Without a graphics device there is no screen and Tor never
-  starts. The screen also offers an administrator password for this
-  session only; empty (the default) means none.
-- **No administrator by default.** `live-setup` gives the live user an
-  empty password but, unlike the other ISOs, leaves root as the image has
-  it: locked in releases. Without root,
-  nothing can mount a disk, install software into the system, change the
-  firewall or turn anonymous mode off; snapshots cannot be exported.
-  Blackholes still work: they need no root. The live user is in Tor's
-  group, so `worm anon status` (open to everyone since 1.7) can show how
-  far Tor has connected. An administrator set on the start screen is real
-  root: it can install programs into memory, but could also write to disks,
-  the USB stick Amnesia started from included. The screen says so; the
-  promises above hold for sessions without one.
+  starts.
+- **No administrator, ever.** `live-setup` gives the live user an empty
+  password but, unlike the other ISOs, leaves root as the image has it:
+  locked in releases. There is no way to become root: nothing can mount a
+  disk, change the firewall or turn anonymous mode off, and snapshots
+  cannot be exported. The live user is in Tor's group, so `worm anon
+  status` shows how far Tor has connected.
+- **Installing without root.** `wormos-amnesia` ships `/etc/wh/live` and
+  `/etc/wh/users-may-install`: `wh install`, `remove`, `update` and
+  `upgrade` and `worm kit install` by the live user go through wh's setuid
+  helper (`/usr/lib/wh/user`), which accepts only those commands and
+  package names, and changes go straight into the running system, with no
+  restart. Packages come only from the signed repositories (core, Debian,
+  Kali), through Tor like everything else, and live in memory until the
+  computer stops. Blackholes need no root either.
+- **Updates without a new ISO.** `amnesia-update` (also "Update Amnesia"
+  in the launcher) brings the USB stick Amnesia started from up to the
+  latest release. Each release publishes, with its ISO, a manifest signed
+  with the WormOS key: the ISO's size and SHA-256 and two checksums per
+  64 KiB block. Amnesia runs from memory, so the stick is free: the
+  updater rebuilds the new ISO in memory from the blocks the stick already
+  holds, found at any offset with a rolling checksum as rsync and zsync
+  do, downloads only the rest through Tor (HTTP range requests), checks
+  the whole against the signed SHA-256, writes the stick and reads it back.
+  The system image is compressed `--rsyncable`, so unchanged parts stay
+  the same bytes. The updater is setuid but takes nothing from the user:
+  a fixed URL and key, and it writes only to the device Amnesia started
+  from, only if that is a USB stick (a disc cannot be rewritten). In a
+  test (`tests/amnesia-update-test.py`) with 3 MB changed and data shifted
+  in the middle, it reused 99% of the blocks.
 - **Tor.** `wormos-amnesia` ships `/etc/worm/anon`, so the firewall loads
   the anonymous-mode rules at boot (`05-firewall`), before the network
   service brings up an interface (`30-network`); Tor starts once the start
@@ -117,10 +134,9 @@ second stage below is done.
   dm-crypt device keyed by a random key made at each start (needs
   `CONFIG_DM_CRYPT`, which the LUKS work in the installer needs anyway),
   so a memory image taken from outside shows no file contents.
-- **An administrator that cannot reach disks.** The optional
-  administrator (done) is full root today. A later version could keep
-  disks out of reach even for it, for example with a device cgroup policy
-  set before the session starts.
+- **Updates offered by themselves.** Today the user runs
+  `amnesia-update`; a later version checks once Tor is connected and says
+  in a notification when an update exists.
 - **Time.** Tor needs a roughly correct clock. Today the clock check runs
   over HTTPS (through Tor); a stage-2 check reads the time from Tor's
   consensus instead and warns when the clock is far off.
