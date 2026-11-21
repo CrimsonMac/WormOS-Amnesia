@@ -19,6 +19,7 @@ int safe_mode(void) { return 0; }
 int fw_reload(void) { return 0; }
 int root_begin_change(void) { return 0; }
 void root_end_change(int relock) { (void)relock; }
+int variant_is(const char *id) { (void)id; return 0; }
 
 static int skew_of(const char *text, long *seconds)
 {
