@@ -81,11 +81,20 @@ off).
 
 ### Editions
 
-> **Status:** 1.9: a read-only system with snapshots, packages, a
+| | WormOS | WormOS Barebones | WormOS Amnesia |
+|---|---|---|---|
+| File | `wormos-1.9-x86_64.iso`, `.qcow2` | `wormos-1.9-barebones-x86_64.iso` | `wormos-1.9-amnesia-x86_64.iso` |
+| What | the full system | the operating system alone: desktop, network, firewall, snapshots, packages, sandboxes | the Barebones system with Tor and Tor Browser, live only |
+| Tor, Tor Browser | yes (anonymous mode off until you turn it on) | no (`wh install tor tor-browser`) | always on, everything goes through Tor |
+| Everyday tools | yes (below) | no (`worm kit install basic`) | no (`wh install` works without root) |
+| Installs onto a disk | yes | yes | never |
+| Keeps your changes | yes | yes | never: everything is gone at shutdown |
+| Updates | `wh upgrade` | `wh upgrade` | `amnesia-update` rewrites its USB stick |
+| Look | violet | violet | grey, panel at the bottom |
 
 WormOS Amnesia is meant for one-off tasks, not for work: see
 [docs/amnesia.md](docs/amnesia.md) for what it promises, how it works
-and what comes next. Root cannot log in on it, so nothing can make it keep
+and what comes next. There is no root on it, so nothing can make it keep
 anything or reach a disk.
 
 - **The ISO** (`wormos-1.9-x86_64.iso`): a live system and an installer.
