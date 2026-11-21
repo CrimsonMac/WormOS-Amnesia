@@ -202,8 +202,10 @@ def main():
                 out = con.run("for i in $(seq 60); do pidof wormos-greeter > /dev/null && break; "
                               "sleep 2; done; pidof wormos-greeter > /dev/null && echo screen; "
                               "ls /run/worm/anon-hold; pidof tor || echo no-tor", 180)
+                # As the live user (--release), /proc hides the greeter.
                 check("the start screen comes first, Tor waits for it",
-                      re.search(r"^screen\n/run/worm/anon-hold\nno-tor$", out, re.M), out)
+                      re.search(r"^screen\n/run/worm/anon-hold\nno-tor$" if not args.release
+                                else r"^/run/worm/anon-hold\nno-tor$", out, re.M), out)
                 time.sleep(3)
                 mon.key("ret")          # Start Amnesia: Tor directly, no administrator
             for name, cmd, pattern in checks:
