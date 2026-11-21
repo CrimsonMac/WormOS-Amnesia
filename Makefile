@@ -92,6 +92,10 @@ test-upgrade:
 test-qemu-windows:
 	tests/qemu-windows-test.py
 
+# The WormOS Amnesia release ISO in out/release (VERSION must match os-release).
+release-amnesia: repo
+	scripts/release-amnesia.sh $(VERSION)
+
 # Release images in out/release (VERSION must match os-release).
 release: repo
 	scripts/release.sh $(VERSION)
@@ -109,4 +113,4 @@ clean:
 distclean:
 	rm -rf build out
 
-.PHONY: all toolchain kernel packages repo rootfs image iso iso-barebones iso-amnesia run run-gui test test-wormholes test-torbrowser test-upgrade test-iso test-qemu-windows release sources publish-repo clean distclean
+.PHONY: all toolchain kernel packages repo rootfs image iso iso-barebones iso-amnesia run run-gui test test-wormholes test-torbrowser test-upgrade test-iso test-qemu-windows release release-amnesia sources publish-repo clean distclean

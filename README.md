@@ -1,3 +1,23 @@
+# WormOS Amnesia
+
+A live edition of WormOS for one-off tasks: it runs from memory only,
+sends every connection through Tor from the moment it starts, and forgets
+everything when it stops. Nothing can make it keep anything: there is no
+installer, root cannot log in, and no disk is ever touched.
+
+This repository is WormOS with Amnesia on top: the `wormos-amnesia`
+package (`recipes/wormos-amnesia`), its plan ([docs/amnesia.md](docs/amnesia.md))
+and its tests. Everything below the line is WormOS's own README, which
+applies here too.
+
+```
+make iso-amnesia                       # out/wormos-amnesia.iso
+tests/editions-test.py amnesia         # boot it and check what Amnesia promises
+make release-amnesia VERSION=1.7       # the release ISO in out/release
+```
+
+---
+
 # WormOS
 
 A lightweight, security-focused Linux operating system built around instant, tamper-resistant snapshots.
