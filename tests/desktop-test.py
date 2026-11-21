@@ -595,6 +595,10 @@ def main():
             if args.release:
                 # Root cannot log in before the setup; afterwards it can,
                 # with the password typed into the setup.
+                # Let the boot settle first: a failed serial login in its
+                # first seconds has left the serial console without a new
+                # prompt (1.8, not yet understood).
+                time.sleep(15)
                 con.send("root\n")
                 con.expect("Password:", 60)
                 con.send("\n")
