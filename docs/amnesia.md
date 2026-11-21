@@ -75,7 +75,9 @@ second stage below is done.
   computer stops. Blackholes need no root either.
 - **Updates without a new ISO.** `amnesia-update` (also "Update Amnesia"
   in the launcher) brings the USB stick Amnesia started from up to the
-  latest release. Each release publishes, with its ISO, a manifest signed
+  latest release. Each release on the Amnesia repository's release page
+  (`scripts/publish-amnesia.sh`; the updater reads the latest one) carries,
+  with its ISO, a manifest signed
   with the WormOS key: the ISO's size and SHA-256 and two checksums per
   64 KiB block. Amnesia runs from memory, so the stick is free: the
   updater rebuilds the new ISO in memory from the blocks the stick already

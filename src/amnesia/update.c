@@ -6,8 +6,9 @@
  *     amnesia-update --check    only say whether an update exists
  *     amnesia-update --yes      update without asking
  *
- * Each release publishes, next to its ISO, a manifest (UPDATE_URL
- * MANIFEST) signed with the WormOS key: the version, the ISO's name, size
+ * Each release on WormOS-Amnesia's release page publishes, next to its
+ * ISO, a manifest (MANIFEST; UPDATE_URL follows the latest release) signed
+ * with the WormOS key: the version, the ISO's name, size
  * and SHA-256, and a weak (rolling) and a strong checksum for every block
  * of BLOCK bytes. Amnesia runs from memory, so the stick it started from
  * (/dev/wormos-medium) is free. The new ISO is put together in memory:
@@ -53,7 +54,7 @@
 #else
 #define SETTING(name, fixed) (fixed)
 #endif
-#define UPDATE_URL  SETTING(URL, "https://github.com/CrimsonMac/wormos-packages/releases/download/amnesia/")
+#define UPDATE_URL  SETTING(URL, "https://github.com/CrimsonMac/WormOS-Amnesia/releases/latest/download/")
 #define PUBLIC_KEY  SETTING(KEY, "/usr/share/wh/keys/core.pub")
 #define MEDIUM      "/dev/wormos-medium"
 #ifdef AMNESIA_UPDATE_TEST

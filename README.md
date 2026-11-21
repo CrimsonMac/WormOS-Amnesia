@@ -24,7 +24,7 @@ applies here too.
 make iso-amnesia                       # out/wormos-amnesia.iso
 tests/editions-test.py amnesia         # boot it and check what Amnesia promises
 make release-amnesia VERSION=1.9       # the release ISO and its signed update manifest
-scripts/publish-amnesia.sh             # publish them for amnesia-update
+scripts/publish-amnesia.sh 1.9 NOTES.md   # the GitHub release (after pushing tag v1.9)
 tests/amnesia-update-test.py OLD.iso NEW.iso   # check the updater
 ```
 
