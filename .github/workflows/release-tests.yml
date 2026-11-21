@@ -30,16 +30,16 @@ jobs:
         include:
           - name: Desktop (qcow2)
             asset: "wormos-*-x86_64.qcow2"
-            test: tests/desktop-test.py --release out/release/wormos-$VERSION-x86_64.qcow2
+            test: tests/desktop-test.py --release $GITHUB_WORKSPACE/out/release/wormos-$VERSION-x86_64.qcow2
           - name: Live ISO
             asset: "wormos-*[0-9]-x86_64.iso"
-            test: tests/iso-test.py out/release/wormos-$VERSION-x86_64.iso --live-only
+            test: tests/iso-test.py $GITHUB_WORKSPACE/out/release/wormos-$VERSION-x86_64.iso --live-only
           - name: Barebones ISO
             asset: "wormos-*-barebones-x86_64.iso"
-            test: tests/iso-test.py out/release/wormos-$VERSION-barebones-x86_64.iso --live-only
+            test: tests/iso-test.py $GITHUB_WORKSPACE/out/release/wormos-$VERSION-barebones-x86_64.iso --live-only
           - name: Barebones edition
             asset: "wormos-*-barebones-x86_64.iso"
-            test: tests/editions-test.py barebones out/release/wormos-$VERSION-barebones-x86_64.iso --release
+            test: tests/editions-test.py barebones $GITHUB_WORKSPACE/out/release/wormos-$VERSION-barebones-x86_64.iso --release
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -50,12 +50,22 @@ jobs:
           [ -n "$tag" ] || tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "VERSION=${tag#v}" >> "$GITHUB_ENV"
+      # The release's own tests (what it promised when it was published),
+      # in tagged/; the default branch in the workspace for everything else.
+      - uses: actions/checkout@v7
       - uses: actions/checkout@v7
         with:
           ref: ${{ steps.release.outputs.tag }}
+          path: tagged
+      - name: Test harness fixes from the default branch
+        run: |
+          # Releases before 1.11 could not run their desktop test without
+          # the WormOS toolchain (it cross-compiles a GTK program).
+          grep -q 'no WormOS toolchain' tagged/tests/desktop-test.py ||
+            cp tests/desktop-test.py tagged/tests/desktop-test.py
       - name: Download and check the image
         run: |
-          mkdir -p out/release build
+          mkdir -p out/release tagged/build
           gh release download "${{ steps.release.outputs.tag }}" -R "$GITHUB_REPOSITORY" \
             -D out/release -p '${{ matrix.asset }}' -p SHA256SUMS
           cd out/release && sha256sum -c --ignore-missing SHA256SUMS
@@ -70,6 +80,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
       - name: Test
+        working-directory: tagged
         run: ${{ matrix.test }}
       - name: Keep the logs
         if: failure()
@@ -77,6 +88,6 @@ jobs:
         with:
           name: logs-${{ strategy.job-index }}
           path: |
-            build/*.log
-            build/*.ppm
+            tagged/build/*.log
+            tagged/build/*.ppm
           if-no-files-found: ignore

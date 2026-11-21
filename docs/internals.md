@@ -1293,7 +1293,9 @@ in the README.
   (`scripts/lint.sh`; `scripts/ci-build.sh` builds `src/*` with the
   runner's GCC and Clang, `-Werror -Wno-error=format-truncation`, wh with
   Monocypher from its recipe's source, then `make -C tests/unit check`);
-  `release-tests.yml` on each release, weekly and by hand (downloads the
+  `release-tests.yml` on each release, weekly and by hand (runs the
+  release's own tests, checked out from its tag into `tagged/`, so checks
+  added later for unreleased features do not fail it; downloads the
   release's assets, checks `SHA256SUMS`, opens `/dev/kvm` to the runner's
   user with a udev rule, runs `desktop-test.py --release`, `iso-test.py
   --live-only` on both ISOs and `editions-test.py barebones --release`,

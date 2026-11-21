@@ -201,16 +201,21 @@ def wav_peak(path):
 RESIZES = [(1600, 900), (1366, 768), (2560, 1440), (1131, 777)]
 
 
+GCC = os.path.join(ROOT, "build", "tools", "bin", "x86_64-wormos-linux-gnu-gcc")
+
+
 def build_gtk_check():
-    """Compile tests/gtk-check.c with the WormOS toolchain; return its bytes."""
+    """Compile tests/gtk-check.c with the WormOS toolchain; return its bytes
+    (None without a toolchain, as on a CI runner testing a release)."""
+    if not os.access(GCC, os.X_OK):
+        return None
     sysroot = os.path.join(ROOT, "build", "sysroot")
     env = dict(os.environ, PKG_CONFIG_SYSROOT_DIR=sysroot,
                PKG_CONFIG_LIBDIR=f"{sysroot}/usr/lib/pkgconfig:{sysroot}/usr/share/pkgconfig")
     flags = subprocess.run(["pkg-config", "--cflags", "--libs", "gtk4"], env=env,
                            check=True, capture_output=True, text=True).stdout.split()
     out = os.path.join(ROOT, "build", "gtk-check")
-    subprocess.run([os.path.join(ROOT, "build", "tools", "bin", "x86_64-wormos-linux-gnu-gcc"),
-                    "-O2", "-s", "-o", out, os.path.join(ROOT, "tests", "gtk-check.c")] + flags,
+    subprocess.run([GCC, "-O2", "-s", "-o", out, os.path.join(ROOT, "tests", "gtk-check.c")] + flags,
                    check=True)
     with open(out, "rb") as f:
         return f.read()
@@ -513,10 +518,13 @@ def main():
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, env=env)
     passed = failures = 0
+    gtk_check = build_gtk_check()
     total = (len(DEVICE_CHECKS) + 1 + len(AFTER_SETUP_CHECKS) + 3 + len(SESSION_CHECKS) +
              len(TYPING_CHECKS) + len(SHORTCUT_CHECKS) + len(BUDGET_CHECKS) +
              len(RESIZES) + len(WELCOME_CHECKS) + len(GTK_CHECKS) + len(SOUND_CHECKS) +
              len(SHELL_CHECKS) + len(CLIPBOARD_CHECKS) + 35)
+    if gtk_check is None:
+        total -= len(GTK_CHECKS) + 3
 
     def check(name, ok, out=""):
         nonlocal passed, failures
@@ -752,7 +760,10 @@ def main():
                       con.run("grep -i 'preferred mode' /run/user/1000/desktop.log | tail -n 3"))
 
             # A GTK program on the desktop.
-            check("GTK test program copied in", put_file(con, build_gtk_check(), "/tmp/gtk-check"))
+            if gtk_check is None:
+                print(f"SKIP  the GTK program checks ({len(GTK_CHECKS) + 3}): no WormOS toolchain")
+            else:
+                check("GTK test program copied in", put_file(con, gtk_check, "/tmp/gtk-check"))
             put_file(con, IN_SESSION.encode(), "/tmp/in-session")
 
             def session(cmd):
@@ -771,17 +782,18 @@ def main():
             check("text copied in the guest reaches the host", text == "copied in the guest 7",
                   repr(text) + con.run("cat /run/user/1000/clip.log"))
 
-            con.run(f"su {USER} -c '/tmp/in-session /tmp/gtk-check > /tmp/gtk.out 2>&1 &'")
-            out = wait_for(con, "cat /tmp/gtk.out", r"^shown$", 120)
-            check("GTK window shown", re.search(r"^shown$", out, re.M) is not None, out)
-            time.sleep(3)
-            width, height, pixels = screen("gtk")
-            accent = sum(1 for i in range(0, len(pixels), 3)
-                         if abs(pixels[i] - 0x7c) < 16 and abs(pixels[i + 1] - 0x3a) < 16
-                         and abs(pixels[i + 2] - 0xed) < 16)
-            run_checks(con, GTK_CHECKS)
-            check("GTK window drawn in the WormOS colours", accent > 2000, f"{accent} pixels")
-            con.run("kill $(pidof gtk-check)")
+            if gtk_check is not None:
+                con.run(f"su {USER} -c '/tmp/in-session /tmp/gtk-check > /tmp/gtk.out 2>&1 &'")
+                out = wait_for(con, "cat /tmp/gtk.out", r"^shown$", 120)
+                check("GTK window shown", re.search(r"^shown$", out, re.M) is not None, out)
+                time.sleep(3)
+                width, height, pixels = screen("gtk")
+                accent = sum(1 for i in range(0, len(pixels), 3)
+                             if abs(pixels[i] - 0x7c) < 16 and abs(pixels[i + 1] - 0x3a) < 16
+                             and abs(pixels[i + 2] - 0xed) < 16)
+                run_checks(con, GTK_CHECKS)
+                check("GTK window drawn in the WormOS colours", accent > 2000, f"{accent} pixels")
+                con.run("kill $(pidof gtk-check)")
 
             # The shell: notifications, the launcher, the panel, the scale.
             put_file(con, NOTIFY.encode(), "/tmp/notify.sh")
