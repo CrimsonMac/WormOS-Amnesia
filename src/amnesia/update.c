@@ -89,7 +89,7 @@ static char new_name[256], new_version[32], new_sha[65];
 static int *buckets;
 #define NBUCKETS (1 << 18)
 
-static void die(const char *fmt, const char *arg)
+static __attribute__((noreturn)) void die(const char *fmt, const char *arg)
 {
 	fprintf(stderr, "amnesia-update: ");
 	fprintf(stderr, fmt, arg);
