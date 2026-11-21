@@ -34,7 +34,7 @@ tests/amnesia-update-test.py OLD.iso NEW.iso   # check the updater
 
 A lightweight, security-focused Linux operating system built around instant, tamper-resistant snapshots.
 
-> **Status:** 1.7: a read-only system with snapshots, packages, a
+> **Status:** 1.9: a read-only system with snapshots, packages, a
 > firewall, sandboxes, Tor and Tor Browser, tool kits and a light Wayland
 > desktop with its own panel, login screen, snapshot timeline and sound.
 > It runs live from an ISO and installs onto a disk, or as a ready-made
@@ -81,22 +81,14 @@ off).
 
 ### Editions
 
-| | WormOS | WormOS Barebones | WormOS Amnesia |
-|---|---|---|---|
-| File | `wormos-1.7-x86_64.iso`, `.qcow2` | `wormos-1.7-barebones-x86_64.iso` | `wormos-1.7-amnesia-x86_64.iso` |
-| What | the full system | the operating system alone: desktop, network, firewall, snapshots, packages, sandboxes | the Barebones system with Tor and Tor Browser, live only |
-| Tor, Tor Browser | yes (anonymous mode off until you turn it on) | no (`wh install tor tor-browser`) | always on, everything goes through Tor |
-| Everyday tools | yes (below) | no (`worm kit install basic`) | no |
-| Installs onto a disk | yes | yes | never |
-| Keeps your changes | yes | yes | never: everything is gone at shutdown |
-| Look | violet | violet | grey, panel at the bottom |
+> **Status:** 1.9: a read-only system with snapshots, packages, a
 
 WormOS Amnesia is meant for one-off tasks, not for work: see
 [docs/amnesia.md](docs/amnesia.md) for what it promises, how it works
 and what comes next. Root cannot log in on it, so nothing can make it keep
 anything or reach a disk.
 
-- **The ISO** (`wormos-1.7-x86_64.iso`): a live system and an installer.
+- **The ISO** (`wormos-1.9-x86_64.iso`): a live system and an installer.
   Boot a virtual machine from it (as a CD/DVD), or write it to a USB stick
   as it is (`dd`, or a tool such as Ventoy or balenaEtcher) and start a PC
   from the stick. WormOS copies itself into memory and starts the desktop
@@ -110,13 +102,13 @@ anything or reach a disk.
   passwords, as in the disk image below. The live system's snapshots and
   files are not carried over.
 
-- **The disk image for QEMU / virt-manager** (`wormos-1.7-x86_64.qcow2`): an
+- **The disk image for QEMU / virt-manager** (`wormos-1.9-x86_64.qcow2`): an
   installed system, ready to start. In virt-manager,
   import an existing disk image and choose a generic recent Linux. From
   the command line:
   ```
   qemu-system-x86_64 -machine q35 -accel kvm -cpu host -m 2048 -smp 2 \
-      -drive file=wormos-1.7-x86_64.qcow2,if=virtio \
+      -drive file=wormos-1.9-x86_64.qcow2,if=virtio \
       -nic user,model=virtio-net-pci -device virtio-vga \
       -device virtio-keyboard-pci -device virtio-tablet-pci \
       -device virtio-serial-pci \
@@ -135,7 +127,7 @@ anything or reach a disk.
   ```
   & "C:\Program Files\qemu\qemu-system-x86_64.exe" -machine q35 `
       -accel whpx,kernel-irqchip=off -m 2048 -smp 2 `
-      -drive file=wormos-1.7-x86_64.qcow2,if=virtio `
+      -drive file=wormos-1.9-x86_64.qcow2,if=virtio `
       -nic user,model=virtio-net-pci -device virtio-vga -display sdl `
       -device virtio-keyboard-pci -device virtio-tablet-pci
   ```
@@ -678,7 +670,7 @@ make test       # boot the image and run automated checks
 `make test-wormholes` checks the Debian and Kali wormholes against the real
 archives; it needs internet access and takes several minutes.
 
-`make test-upgrade FROM=wormos-1.5.2-x86_64.qcow2` sets up an older release
+`make test-upgrade FROM=wormos-1.8-x86_64.qcow2` sets up an older release
 image and upgrades it to the packages just built.
 
 `make test` also runs `tests/desktop-test.py`: the VM gets a virtio GPU,
@@ -687,7 +679,7 @@ the QEMU monitor like a user would. It answers the first-boot setup, logs
 in (which starts the desktop), types into the terminal, opens another with
 Super+Enter, checks a screendump of the real screen, and compares memory
 use and system size with their budgets. `tests/desktop-test.py --release
-out/release/wormos-1.7-x86_64.qcow2` runs the same checks on a release
+out/release/wormos-1.9-x86_64.qcow2` runs the same checks on a release
 image, where root can only log in once the first-boot setup is done.
 
 `make test` boots a throwaway copy of the image, checks the running system

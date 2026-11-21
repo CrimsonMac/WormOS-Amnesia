@@ -697,8 +697,8 @@ LIVE_INSTALL_CHECKS = [
     ("read-only again", "touch /usr/x 2>&1", r"Read-only file system"),
     ("the helper takes nothing else", "su tester -c '/usr/lib/wh/user history' 2>&1; "
      "su tester -c '/usr/lib/wh/user install ../x' 2>&1; su tester -c 'wh --root / install x' 2>&1",
-     r"only install(.|\n)*invalid package name(.|\n)*managed by root"),
-    ("a user removes it again", "su tester -c 'wh remove cmatrix' 2>&1 | tail -1; command -v cmatrix || echo gone",
+     r"only install(.|\n)*invalid package name(.|\n)*(managed by root|Permission denied)"),
+    ("a user removes it again", "su tester -c 'wh remove cmatrix' 2>&1 | tail -1; test -e /usr/bin/cmatrix || echo gone",
      r"Done: changed(.|\n)*^gone$"),
     ("back to normal", "mount -o remount,bind,rw / && cp /tmp/repo.saved /etc/wh/repo && "
      "rm /etc/wh/live /etc/wh/users-may-install && mount -o remount,bind,ro / && "

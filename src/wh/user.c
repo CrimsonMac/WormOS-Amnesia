@@ -10,7 +10,9 @@
  * wh and worm hand these over by themselves when a user runs them there.
  * The helper takes nothing else from its caller: the arguments must be
  * package, kit or source names, the environment is replaced, and it runs
- * wh (with --yes) or worm as root. Packages come only from the signed
+ * wh (with --yes) or worm as root; installs and upgrades fetch the
+ * current package index first (the system's may be as old as its image,
+ * WormOS Amnesia's always is). Packages come only from the signed
  * repositories wh trusts, so a user can add programs, never write
  * anywhere else.
  */
@@ -22,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "wh.h"
@@ -44,6 +47,7 @@ int main(int argc, char **argv)
 	char *args[72], *term = getenv("TERM"), saved_term[64] = "";
 	struct passwd *pw = getpwuid(getuid());
 	int n = 0, i = 1;
+	const char *command = "";
 
 	if (access(WH_USERS_FLAG, F_OK) < 0)
 		fail("packages are managed by root, try again with su");
@@ -55,6 +59,7 @@ int main(int argc, char **argv)
 		if ((strcmp(argv[2], "install") && strcmp(argv[2], "remove")) || argc != 4 ||
 		    !valid_name(argv[3]))
 			fail("usage: worm kit install|remove NAME");
+		command = argv[2];
 		args[n++] = "/usr/bin/worm";
 		args[n++] = "kit";
 		args[n++] = argv[2];
@@ -80,6 +85,7 @@ int main(int argc, char **argv)
 		} else if (argc == i + 1) {
 			fail("name a package");
 		}
+		command = argv[i];
 		args[n++] = argv[i++];
 		for (; i < argc && n < 70; i++) {
 			if (!valid_name(argv[i]))
@@ -102,6 +108,18 @@ int main(int argc, char **argv)
 		setenv("TERM", saved_term, 1);
 	if (chdir("/") < 0)
 		fail("cannot change to /");
+	if (strcmp(command, "update") && strcmp(command, "remove")) {
+		pid_t pid = fork();
+		int status;
+
+		if (pid == 0) {
+			execl("/usr/bin/wh", "wh", "update", (char *)NULL);
+			_exit(127);
+		}
+		if (pid < 0 || waitpid(pid, &status, 0) < 0 || !WIFEXITED(status) ||
+		    WEXITSTATUS(status) != 0)
+			fail("cannot fetch the package index; is the network up?");
+	}
 	execv(args[0], args);
 	perror("wh: cannot run the change");
 	return 1;

@@ -275,7 +275,9 @@ in the README.
   kit install|remove`, hand over to `/usr/lib/wh/user` (`src/wh/user.c`,
   setuid root). It refuses without the flag, accepts only those commands,
   package, kit and source names (`[a-z0-9+.:-]`), replaces the environment
-  and runs `wh --yes ...` or `worm kit ...` as root, logging who asked.
+  and runs `wh --yes ...` or `worm kit ...` as root, logging who asked;
+  installs, upgrades and kit installs run `wh update` first (the system's
+  index may be as old as its image; WormOS Amnesia's always is).
   Packages still come only from the signed repositories, so users can add
   programs but write nowhere else.
 - Editions: `wh upgrade` also installs the edition's package when it is

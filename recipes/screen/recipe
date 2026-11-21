@@ -16,6 +16,8 @@ package() {
 	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
 		"$pkgdir/usr/share/doc"
 	rm -f "$pkgdir"/usr/lib/*.la
-	rm -f "$pkgdir/usr/bin/screen-$version"
+	# screen is a link to screen-VERSION: one plain file instead.
+	rm -f "$pkgdir/usr/bin/screen"
+	mv "$pkgdir/usr/bin/screen-$version" "$pkgdir/usr/bin/screen"
 	install -Dm644 COPYING "$pkgdir/usr/share/licenses/screen/COPYING"
 }
