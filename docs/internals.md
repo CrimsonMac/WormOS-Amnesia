@@ -827,8 +827,11 @@ in the README.
   Tor's log for "our clock is behind by 5 hours, 2 minutes" (NETINFO cells
   and directory answers from relays) or "Our clock is 3 hours, 0 minutes
   behind the time published in the consensus"; a skew between a minute
-  and 400 days sets the clock, Tor restarts (its log starts over) and
-  the check reports failure so the HTTPS check follows in 30 s.
+  and 40 years (a dead CMOS battery resets to 2000) sets the clock, Tor restarts (its log starts over) and
+  the check reports failure so the HTTPS check follows in 30 s. Every
+  correction is also logged (`worm time: clock corrected by ...`). Tor
+  itself copes with a clock a few hours behind; days off (or ahead by
+  more than a day) it cannot connect.
 - `worm passwd` (`account.c`) reads the current and new password (twice)
   with echo off and feeds them to the setuid `/usr/lib/worm/passwd`
   (`passwd.c`), which takes the caller's account from the real UID, checks

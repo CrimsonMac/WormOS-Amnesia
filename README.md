@@ -192,9 +192,8 @@ idles at well under 100 MB of memory.
   checked over HTTPS every six hours (the `Date` of an authenticated
   answer, which unlike plain NTP cannot be forged on the way, and which
   also works through Tor). In anonymous mode, a clock too far off for Tor
-  to connect (common on computers that also run Windows, which keeps the
-  hardware clock in local time) is set from the skew Tor's relays report,
-  and Tor starts again. The live system never changes the computer's
+  to connect (days or years, as on a computer whose clock battery is
+  empty) is set from the skew Tor's relays report, and Tor starts again. The live system never changes the computer's
   hardware clock.
 - Copy and paste between WormOS and the machine it runs on works with
   virt-manager (SPICE) and QEMU (see above). In virt-manager the screen

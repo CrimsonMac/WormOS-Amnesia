@@ -16,9 +16,9 @@
  * 35-time runs a check after the network comes up and every six hours;
  * the result is kept in /run/wormos/time (readable by everyone).
  *
- * In anonymous mode HTTPS needs Tor, and Tor needs a clock within a few
- * hours: a computer whose hardware clock keeps local time (as Windows
- * does) can start hours off, and Tor never connects. While Tor is not
+ * In anonymous mode HTTPS needs Tor, and Tor needs a clock within about
+ * a day: a computer whose clock battery is empty starts years off, and
+ * Tor never connects. While Tor is not
  * connected, the check uses the skew Tor's relays report over their
  * authenticated connections (in Tor's log), sets the clock by it and
  * restarts Tor; the HTTPS check follows once Tor is up.
@@ -36,6 +36,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -170,6 +171,9 @@ static void save_state(const char *result)
 	FILE *f;
 
 	strftime(now, sizeof(now), "%Y-%m-%d %H:%M", localtime(&t));
+	/* Corrections also go to the system log (logread). */
+	if (!strncmp(result, "corrected", 9))
+		syslog(LOG_NOTICE, "worm time: clock %s", result);
 	mkdir("/run/wormos", 0755);
 	if ((f = fopen(TIME_STATE ".new", "we"))) {
 		fprintf(f, "%s at %s\n", result, now);
@@ -200,7 +204,7 @@ static int cmd_sync(void)
 	if (fw_network_cut())
 		die("the network is cut; 'worm panic off' restores it first%s", "");
 	if (anon_enabled() && !anon_connected() && anon_tor_skew(&skew) == 0 &&
-	    labs(skew) >= 60 && labs(skew) <= 400L * 86400) {
+	    labs(skew) >= 60 && labs(skew) <= 40L * 366 * 86400) {
 		set_clock(skew);
 		snprintf(msg, sizeof(msg), "corrected by %+ld s (reported by Tor's relays)", skew);
 		save_state(msg);
