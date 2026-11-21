@@ -15,6 +15,12 @@ release, downloading only what changed. At shutdown the session is
 deleted and its memory wiped as it is freed; pulling out the USB stick it
 started from shuts it down the same way.
 
+Download the ISO from the
+[release page](https://github.com/CrimsonMac/WormOS-Amnesia/releases/latest),
+check it against `SHA256SUMS` and write it to a USB stick (or boot it in
+a virtual machine with 3 GB of memory or more; UEFI or BIOS, Secure Boot
+off).
+
 This repository is WormOS with Amnesia on top: the `wormos-amnesia`
 package (`recipes/wormos-amnesia`), its plan ([docs/amnesia.md](docs/amnesia.md))
 and its tests. Everything below the line is WormOS's own README, which
