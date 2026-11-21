@@ -4,8 +4,10 @@
  * Runs full screen in its own labwc as the user "greeter", started by
  * wormlogin, which checks passwords and creates the first account; this
  * program only asks and passes the answers on (see wormlogin.c for the
- * messages). WORMOS_GREETER_MODE is "login" or "setup". It exits once a
- * login or the setup has succeeded, and wormlogin starts the desktop.
+ * messages). WORMOS_GREETER_MODE is "login", "setup" or "amnesia" (WormOS
+ * Amnesia's start screen: how to reach Tor, an optional administrator for
+ * the session). It exits once a login, the setup or the start has
+ * succeeded, and wormlogin starts the desktop.
  */
 
 #include <gtk/gtk.h>
@@ -20,6 +22,8 @@
 #define SOCKET_PATH "/run/wormlogin/socket"
 #define CSS         "/usr/share/wormos/greeter/greeter.css"
 #define WALLPAPER   "/usr/share/backgrounds/wormos.png"
+#define AMNESIA_WALLPAPER "/usr/share/backgrounds/wormos-amnesia.png"
+#define REQUEST_MAX 8192
 
 static GtkWidget *window, *clock_label, *date_label;
 static GtkApplication *app;
@@ -30,7 +34,7 @@ static GtkApplication *app;
 static gboolean ask(const char *const *fields, char *msg, size_t len)
 {
 	struct sockaddr_un addr = { .sun_family = AF_UNIX };
-	char buf[2048], reply[512];
+	char buf[REQUEST_MAX], reply[512];
 	size_t n = 0;
 	ssize_t r;
 	int fd;
@@ -157,7 +161,8 @@ static void frame(GtkWidget *card)
 {
 	GtkWidget *overlay = gtk_overlay_new(), *picture, *column, *corner;
 
-	picture = gtk_picture_new_for_filename(WALLPAPER);
+	picture = gtk_picture_new_for_filename(
+		g_file_test(AMNESIA_WALLPAPER, G_FILE_TEST_EXISTS) ? AMNESIA_WALLPAPER : WALLPAPER);
 	gtk_picture_set_content_fit(GTK_PICTURE(picture), GTK_CONTENT_FIT_COVER);
 	gtk_overlay_set_child(GTK_OVERLAY(overlay), picture);
 
@@ -816,6 +821,121 @@ static void build_setup(void)
 	gtk_widget_grab_focus(start);
 }
 
+/* ---- WormOS Amnesia's start screen ---- */
+
+static const char *const ways[][2] = {
+	{ "direct", "Directly (most networks)" },
+	{ "snowflake", "Through snowflake bridges" },
+	{ "obfs4", "Through obfs4 bridges" },
+	{ "meek", "Through meek bridges (slow, hard to block)" },
+	{ "custom", "Through bridges I paste" },
+};
+static GtkWidget *way, *bridge_box, *bridge_text, *admin1, *admin2, *start_error, *start_button;
+
+static void way_changed(GObject *o, GParamSpec *p, gpointer data)
+{
+	(void)o;
+	(void)p;
+	(void)data;
+	gtk_widget_set_visible(bridge_box,
+			       gtk_drop_down_get_selected(GTK_DROP_DOWN(way)) == G_N_ELEMENTS(ways) - 1);
+}
+
+static void start_done(struct request *r, gpointer data)
+{
+	(void)data;
+	if (r->ok) {
+		g_application_quit(G_APPLICATION(app));
+		return;
+	}
+	busy = FALSE;
+	gtk_spinner_stop(GTK_SPINNER(progress));
+	gtk_widget_set_visible(progress, FALSE);
+	gtk_widget_set_sensitive(start_button, TRUE);
+	gtk_label_set_text(GTK_LABEL(start_error), r->msg);
+}
+
+static void start_clicked(GtkWidget *widget, gpointer data)
+{
+	const char *a = gtk_editable_get_text(GTK_EDITABLE(admin1));
+	guint w = MIN(gtk_drop_down_get_selected(GTK_DROP_DOWN(way)), G_N_ELEMENTS(ways) - 1);
+	GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(bridge_text));
+	GtkTextIter from, to;
+	char *bridges;
+
+	(void)widget;
+	(void)data;
+	if (busy)
+		return;
+	if (strcmp(a, gtk_editable_get_text(GTK_EDITABLE(admin2)))) {
+		gtk_label_set_text(GTK_LABEL(start_error), "The two passwords are not the same.");
+		return;
+	}
+	gtk_text_buffer_get_bounds(buffer, &from, &to);
+	bridges = gtk_text_buffer_get_text(buffer, &from, &to, FALSE);
+	busy = TRUE;
+	gtk_widget_set_sensitive(start_button, FALSE);
+	gtk_widget_set_visible(progress, TRUE);
+	gtk_spinner_start(GTK_SPINNER(progress));
+	gtk_label_set_text(GTK_LABEL(start_error), "");
+	send_request(g_strdupv((char *[]){ "amnesia", (char *)ways[w][0], bridges, (char *)a, NULL }),
+		     start_done, NULL);
+	g_free(bridges);
+}
+
+static void build_amnesia(void)
+{
+	GtkWidget *card = card_box(), *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6), *scroll;
+	GtkStringList *names = gtk_string_list_new(NULL);
+
+	gtk_box_append(GTK_BOX(card), page);
+	gtk_box_append(GTK_BOX(page), text("WormOS Amnesia", "title"));
+	gtk_box_append(GTK_BOX(page), text(
+		"Nothing you do here is kept: when the computer stops, it is all gone. "
+		"Every connection goes through Tor.", NULL));
+
+	label(page, "Connect to Tor");
+	for (guint i = 0; i < G_N_ELEMENTS(ways); i++)
+		gtk_string_list_append(names, ways[i][1]);
+	way = gtk_drop_down_new(G_LIST_MODEL(names), NULL);
+	g_signal_connect(way, "notify::selected", G_CALLBACK(way_changed), NULL);
+	gtk_box_append(GTK_BOX(page), way);
+	gtk_box_append(GTK_BOX(page), text(
+		"Bridges help where Tor is blocked, or where using Tor should not be noticed.",
+		"dim"));
+	bridge_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+	gtk_box_append(GTK_BOX(bridge_box), text(
+		"Bridge lines, one per line (from bridges.torproject.org or a friend):", "dim"));
+	bridge_text = gtk_text_view_new();
+	gtk_text_view_set_monospace(GTK_TEXT_VIEW(bridge_text), TRUE);
+	gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(bridge_text), GTK_WRAP_CHAR);
+	scroll = gtk_scrolled_window_new();
+	gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scroll), 90);
+	gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), bridge_text);
+	gtk_widget_add_css_class(scroll, "bridges");
+	gtk_box_append(GTK_BOX(bridge_box), scroll);
+	gtk_widget_set_visible(bridge_box, FALSE);
+	gtk_box_append(GTK_BOX(page), bridge_box);
+
+	label(page, "Administrator for this session (optional)");
+	admin1 = entry(page, "Leave empty for none", TRUE);
+	admin2 = entry(page, "The same password again", TRUE);
+	gtk_box_append(GTK_BOX(page), text(
+		"Without one, nothing can change this system. With one, root can install "
+		"programs in memory, for this session only.", "dim"));
+	start_error = text("", "error");
+	gtk_box_append(GTK_BOX(page), start_error);
+	progress = gtk_spinner_new();
+	gtk_widget_set_visible(progress, FALSE);
+	gtk_box_append(GTK_BOX(page), progress);
+	start_button = button_row(page, NULL, "Start Amnesia", G_CALLBACK(start_clicked));
+	g_signal_connect(admin1, "activate", G_CALLBACK(next_field), admin2);
+	g_signal_connect(admin2, "activate", G_CALLBACK(start_clicked), NULL);
+
+	frame(card);
+	gtk_widget_grab_focus(start_button);
+}
+
 /* ---- start ---- */
 
 static void activate(GtkApplication *application, gpointer data)
@@ -834,6 +954,8 @@ static void activate(GtkApplication *application, gpointer data)
 	gtk_widget_add_css_class(window, "greeter");
 	if (mode && !strcmp(mode, "setup"))
 		build_setup();
+	else if (mode && !strcmp(mode, "amnesia"))
+		build_amnesia();
 	else
 		build_login();
 	gtk_window_fullscreen(GTK_WINDOW(window));

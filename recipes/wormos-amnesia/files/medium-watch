@@ -1,6 +1,7 @@
 #!/bin/sh
 # WormOS Amnesia: power off at once when the USB stick it started from is
-# pulled out, so a hurried exit leaves nothing running. (wormrd links the
+# pulled out, so a hurried exit leaves nothing running; the shutdown wipes
+# the session from memory first (50-forget). (wormrd links the
 # boot medium as /dev/wormos-medium.) A CD or DVD drive stays when its disc
 # is taken out, so there is nothing to watch then.
 
@@ -12,5 +13,5 @@ esac
 while [ -e "/sys/class/block/$name" ]; do
 	sleep 1
 done
-logger -p auth.crit "amnesia: the boot medium was removed; powering off now"
-exec poweroff -f
+logger -p auth.crit "amnesia: the boot medium was removed; powering off now (wiping first)"
+exec poweroff

@@ -1,0 +1,22 @@
+#!/bin/sh
+# WormOS Amnesia, at every shutdown, after all programs have stopped: let go
+# of everything the session wrote, so its memory is wiped before the power
+# goes. The kernel zeroes memory as it frees it (init_on_free=1): deleted
+# files on the in-memory filesystem are trimmed back to the RAM disk, which
+# frees their pages; tmpfs contents and caches are freed the same way.
+
+# The session's files: homes, temporary files, Tor's state, logs.
+for dir in /home /tmp /var/tmp /var/lib/tor /var/log /var/cache /root /var/roothome \
+	/var/lib/blackholes /var/lib/wormholes; do
+	[ -d "$dir" ] && find "$dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
+done
+rm -rf /run/user /run/wormlogin /run/tor 2>/dev/null
+sync
+# Hand the freed blocks back to the RAM disk (discard), so their pages go.
+for mnt in / /var /home /var/lib/wormholes; do
+	fstrim "$mnt" 2>/dev/null
+done
+# Page cache and other reclaimable kernel memory.
+echo 3 > /proc/sys/vm/drop_caches
+echo 1 > /proc/sys/vm/compact_memory 2>/dev/null
+exit 0

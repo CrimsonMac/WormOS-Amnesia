@@ -23,6 +23,17 @@
  * In the live system (/run/wormos/live, made by /usr/lib/worm/live-setup
  * when the ISO started), the user "live" is logged in at once, every time.
  *
+ * WormOS Amnesia first shows its start screen (the greeter in "amnesia"
+ * mode), once per start:
+ *
+ *     amnesia HOW BRIDGES ADMIN-PASSWORD
+ *
+ * HOW is direct, snowflake, obfs4, meek or custom (BRIDGES then holds the
+ * bridge lines); an empty password means no administrator. wormlogin sets
+ * the bridges (worm anon bridges), gives root the password if there is
+ * one, lets Tor start (it waits for this, /run/worm/anon-hold) and then
+ * starts the live user's desktop.
+ *
  * If the login screen cannot run (no graphics device, no greeter user, or
  * it ends three times in a row without a login), the console login takes
  * over until the next restart (/usr/lib/worm/console tty1).
@@ -62,6 +73,9 @@
 #define CONSOLE        "/usr/lib/worm/console"
 #define FIRST_BOOT     "/usr/lib/worm/first-boot"
 #define MAX_FAILURES   3
+#define START_DONE     RUN_DIR "/amnesia-started"
+#define ANON_HOLD      "/run/worm/anon-hold"
+#define MAX_REQUEST    8192
 
 static char session_user[64];   /* set by a successful login or setup */
 
@@ -136,7 +150,7 @@ static gid_t group_id(const char *name)
 
 /* ---- the login screen ---- */
 
-static pid_t start_greeter(struct passwd *greeter, int setup)
+static pid_t start_greeter(struct passwd *greeter, const char *mode)
 {
 	pid_t pid = fork();
 
@@ -165,7 +179,7 @@ static pid_t start_greeter(struct passwd *greeter, int setup)
 	setenv("LOGNAME", GREETER_USER, 1);
 	setenv("PATH", "/usr/bin:/usr/sbin", 1);
 	setenv("XDG_RUNTIME_DIR", GREETER_HOME, 1);
-	setenv("WORMOS_GREETER_MODE", setup ? "setup" : "login", 1);
+	setenv("WORMOS_GREETER_MODE", mode, 1);
 	if (chdir(GREETER_HOME) < 0)
 		_exit(127);
 	execl(GREETER_CMD, GREETER_CMD, (char *)NULL);
@@ -210,6 +224,100 @@ static int valid_login_user(const char *name)
 static int has_newline(const char *s)
 {
 	return strchr(s, '\n') || strchr(s, '\r');
+}
+
+/* Is this WormOS Amnesia? */
+static int amnesia(void)
+{
+	char line[128];
+	FILE *f = fopen("/etc/worm/variant", "re");
+	int yes = 0;
+
+	while (f && !yes && fgets(line, sizeof(line), f))
+		yes = !strcmp(line, "VARIANT_ID=amnesia\n");
+	if (f)
+		fclose(f);
+	return yes;
+}
+
+/* Run argv with input on its standard input; 0 if it succeeded. */
+static int feed(char *const argv[], const char *input)
+{
+	int in[2], status;
+	pid_t pid;
+
+	if (pipe2(in, O_CLOEXEC) < 0)
+		return -1;
+	if ((pid = fork()) == 0) {
+		int null = open("/dev/null", O_WRONLY);
+
+		dup2(in[0], 0);
+		if (null >= 0) {
+			dup2(null, 1);
+			dup2(null, 2);
+		}
+		execv(argv[0], argv);
+		_exit(127);
+	}
+	close(in[0]);
+	if (pid < 0) {
+		close(in[1]);
+		return -1;
+	}
+	if (input && *input && write(in[1], input, strlen(input)) < 0)
+		say("cannot pass the input on: %s", strerror(errno));
+	close(in[1]);
+	while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+		;
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
+}
+
+/* Amnesia's start screen answered: bridges, administrator, then Tor. */
+static int amnesia_start(char **f, char *msg, size_t len)
+{
+	static const char *const kinds[] = { "direct", "snowflake", "obfs4", "meek", "custom", NULL };
+	int known = 0;
+
+	for (int i = 0; kinds[i]; i++)
+		known |= !strcmp(f[1], kinds[i]);
+	if (!known) {
+		snprintf(msg, len, "Unknown way to connect.");
+		return -1;
+	}
+	if (!strcmp(f[1], "custom") && !strstr(f[2], " ")) {
+		snprintf(msg, len, "Paste at least one bridge line.");
+		return -1;
+	}
+	if (has_newline(f[3])) {
+		snprintf(msg, len, "The password cannot contain line breaks.");
+		return -1;
+	}
+	if (strcmp(f[1], "direct") &&
+	    feed((char *[]){ "/usr/bin/worm", "anon", "bridges", f[1], NULL },
+		 !strcmp(f[1], "custom") ? f[2] : NULL) < 0) {
+		snprintf(msg, len, "The bridges could not be set up.");
+		return -1;
+	}
+	if (*f[3]) {
+		char line[600];
+		int ok;
+
+		snprintf(line, sizeof(line), "root:%s\n", f[3]);
+		ok = feed((char *[]){ "/bin/sh", "-c",
+				      "mount -o remount,bind,rw / && chpasswd -c sha512; s=$?; "
+				      "mount -o remount,bind,ro /; exit $s", NULL }, line) == 0;
+		explicit_bzero(line, sizeof(line));
+		if (!ok) {
+			snprintf(msg, len, "The administrator password could not be set.");
+			return -1;
+		}
+		say("an administrator password was set for this session");
+	}
+	unlink(ANON_HOLD);
+	if (feed((char *[]){ "/usr/bin/worm", "anon", "start", NULL }, NULL) < 0)
+		say("Tor did not start");
+	say("Amnesia started (Tor: %s)", f[1]);
+	return 0;
 }
 
 /* first-boot --create; its last line of output goes into msg. */
@@ -296,6 +404,20 @@ static void handle(int fd, char *buf, size_t len)
 			say("first-boot setup created %s", f[1]);
 			reply(fd, "ok", NULL);
 		}
+	} else if (n == 4 && !strcmp(f[0], "amnesia")) {
+		char msg[256] = "";
+		int fd2;
+
+		if (access(START_DONE, F_OK) == 0 || !amnesia())
+			reply(fd, "fail", "Amnesia has already started.");
+		else if (amnesia_start(f, msg, sizeof(msg)) < 0)
+			reply(fd, "fail", msg);
+		else {
+			if ((fd2 = open(START_DONE, O_WRONLY | O_CREAT | O_CLOEXEC, 0600)) >= 0)
+				close(fd2);
+			snprintf(session_user, sizeof(session_user), "live");
+			reply(fd, "ok", NULL);
+		}
 	} else if (n == 2 && !strcmp(f[0], "power") &&
 		   (!strcmp(f[1], "off") || !strcmp(f[1], "reboot"))) {
 		reply(fd, "ok", NULL);
@@ -308,7 +430,7 @@ static void handle(int fd, char *buf, size_t len)
 }
 
 /* Run the login screen until it ends; returns its exit status (-1: killed). */
-static int run_greeter(struct passwd *greeter, int setup)
+static int run_greeter(struct passwd *greeter, const char *mode)
 {
 	struct pollfd fds[2];
 	int listener = listen_socket(greeter), status = -1, nfds = 1;
@@ -318,7 +440,7 @@ static int run_greeter(struct passwd *greeter, int setup)
 	if (listener < 0)
 		return -1;
 	session_user[0] = '\0';
-	pid = start_greeter(greeter, setup);
+	pid = start_greeter(greeter, mode);
 	fds[0] = (struct pollfd){ .fd = listener, .events = POLLIN };
 	for (;;) {
 		pid_t done = waitpid(pid, &status, WNOHANG);
@@ -348,7 +470,7 @@ static int run_greeter(struct passwd *greeter, int setup)
 			}
 		}
 		if (nfds == 2 && fds[1].revents) {
-			char buf[2048];
+			char buf[MAX_REQUEST];
 			ssize_t len = recv(fds[1].fd, buf, sizeof(buf) - 1, 0);
 
 			if (len <= 0) {
@@ -436,14 +558,30 @@ int main(void)
 		console("cannot prepare the greeter's folder");
 
 	/* The live system needs no login: its user has no password. */
-	if (access("/run/wormos/live", F_OK) == 0 && getpwnam("live"))
+	if (access("/run/wormos/live", F_OK) == 0 && getpwnam("live")) {
+		/* Amnesia asks how to connect first (and whether to have root). */
+		while (amnesia() && access(START_DONE, F_OK) < 0) {
+			int status = run_greeter(greeter, "amnesia");
+
+			if (access(START_DONE, F_OK) == 0)
+				break;
+			say("the start screen ended without starting (status %d)", status);
+			if (++failures >= MAX_FAILURES) {
+				/* No screen: start with a direct connection to Tor. */
+				unlink(ANON_HOLD);
+				feed((char *[]){ "/usr/bin/worm", "anon", "start", NULL }, NULL);
+				break;
+			}
+			sleep(2);
+		}
 		for (;;) {
 			run_session("live");
 			sleep(1);
 		}
+	}
 
 	for (;;) {
-		int status = run_greeter(greeter, !users_exist());
+		int status = run_greeter(greeter, users_exist() ? "login" : "setup");
 
 		if (session_user[0]) {
 			failures = 0;

@@ -1,0 +1,5 @@
+# WormOS Amnesia: Tor waits for the start screen, which asks how to
+# connect (directly or through bridges) and then starts it. A network that
+# blocks Tor never sees a direct attempt.
+type = oneshot
+exec = mkdir -p /run/worm && touch /run/worm/anon-hold

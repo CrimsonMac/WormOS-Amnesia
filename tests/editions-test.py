@@ -176,7 +176,7 @@ def main():
         checks = checks + ROOT_CHECKS + (BAREBONES_ROOT_CHECKS if args.edition == "barebones"
                                          else AMNESIA_ROOT_CHECKS)
     passed = failures = 0
-    total = len(checks) + 3
+    total = len(checks) + 3 + (args.edition == "amnesia")
 
     def check(name, ok, out=""):
         nonlocal passed, failures
@@ -196,6 +196,16 @@ def main():
             con.expect("$ " if args.release else "# ", 60)
             con.send("exec /bin/sh\n")
             print(f"logged in after {time.time() - start:.0f}s")
+            mon = desktop_test.Monitor(mon_path)
+            if args.edition == "amnesia":
+                # The start screen comes first; Tor waits for it.
+                out = con.run("for i in $(seq 60); do pidof wormos-greeter > /dev/null && break; "
+                              "sleep 2; done; pidof wormos-greeter > /dev/null && echo screen; "
+                              "ls /run/worm/anon-hold; pidof tor || echo no-tor", 180)
+                check("the start screen comes first, Tor waits for it",
+                      re.search(r"^screen\n/run/worm/anon-hold\nno-tor$", out, re.M), out)
+                time.sleep(3)
+                mon.key("ret")          # Start Amnesia: Tor directly, no administrator
             for name, cmd, pattern in checks:
                 if args.release:
                     cmd = cmd.replace("su live -c 'worm anon status'", "worm anon status")
@@ -215,7 +225,6 @@ def main():
 
             # The screen, once the desktop has settled.
             time.sleep(5)
-            mon = desktop_test.Monitor(mon_path)
             shot = os.path.join(ROOT, "build", f"editions-{args.edition}.ppm")
             mon.cmd(f"screendump {shot}")
             time.sleep(1)

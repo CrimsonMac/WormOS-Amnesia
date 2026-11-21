@@ -1,5 +1,5 @@
 name=wormos-amnesia
-version=1.0
+version=1.1
 description="WormOS Amnesia: the live edition that forgets everything and goes through Tor"
 depends=(wormos-desktop worm tor tor-browser tor-browser-runtime tor-browser-bundle)
 # GTK's theme sources, for the grey GTK theme (as in wormos-gtk-theme).
@@ -40,5 +40,7 @@ package() {
 	install -Dm644 "$f/guide" "$pkgdir/usr/share/wormos/guide-amnesia"
 	install -Dm755 "$f/medium-watch" "$pkgdir/usr/lib/worm/medium-watch"
 	install -Dm644 "$f/services/04-medium" "$pkgdir/etc/worm/services/04-medium"
+	install -Dm644 "$f/services/14-anon-hold" "$pkgdir/etc/worm/services/14-anon-hold"
+	install -Dm755 "$f/shutdown.d/50-forget" "$pkgdir/etc/worm/shutdown.d/50-forget"
 	install -Dm644 wormos-amnesia.png "$pkgdir/usr/share/backgrounds/wormos-amnesia.png"
 }
