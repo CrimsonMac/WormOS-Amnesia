@@ -10,6 +10,8 @@ build() {
 	./bootstrap.sh > /dev/null
 	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
 		--disable-static --with-crypto --enable-magic --enable-dotnet --enable-macho --enable-dex
+	# No run path into the build tree in the installed programs (libtool).
+	sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|; s|^runpath_var=.*|runpath_var=|' libtool
 	make -j"$JOBS"
 }
 

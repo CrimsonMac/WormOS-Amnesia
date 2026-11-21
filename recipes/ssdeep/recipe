@@ -9,6 +9,8 @@ sha256=(ff2eabc78106f009b4fb2def2d76fb0ca9e12acf624cbbfad9b3eb390d931313)
 build() {
 	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
 		--disable-static
+	# No run path into the build tree in the installed programs (libtool).
+	sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|; s|^runpath_var=.*|runpath_var=|' libtool
 	make -j"$JOBS"
 }
 

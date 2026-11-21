@@ -11,6 +11,8 @@ build() {
 		--sbindir=/usr/sbin --sysconfdir=/etc --without-systemdsystemunitdir \
 		--without-libsystemd --without-initscriptdir --without-update-smart-drivedb \
 		--without-libcap-ng --without-selinux
+	# smartctl -V prints its configure line, which names the sysroot.
+	sed -i 's|^#define SMARTMONTOOLS_CONFIGURE_ARGS .*|#define SMARTMONTOOLS_CONFIGURE_ARGS ""|' config.h
 	make -j"$JOBS"
 }
 

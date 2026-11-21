@@ -10,7 +10,7 @@ build() {
 	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
 		--sysconfdir=/etc --libexecdir=/usr/lib --disable-nls --with-screen=ncurses \
 		--without-x --without-gpm-mouse --disable-vfs-sftp --disable-vfs-smb \
-		--disable-doxygen-doc --disable-tests
+		--disable-doxygen-doc --disable-tests --disable-configure-args
 	make -j"$JOBS"
 }
 
