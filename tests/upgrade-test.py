@@ -66,7 +66,8 @@ AFTER_CHECKS = [
     ("still read-only", "touch /usr/x 2>&1", r"Read-only file system"),
     ("the edition's package", "wh list | grep -c '^wormos-standard '", r"^1$"),
     ("the new release's programs arrived",
-     "btop --version | head -1; gdb --version | head -1; command -v fastfetch mc 7z",
+     "btop --version | head -1; gdb --version | head -1; "
+     "for c in fastfetch mc 7z; do command -v $c; done",
      r"btop version(.|\n)*GNU gdb(.|\n)*/usr/bin/fastfetch\n/usr/bin/mc\n/usr/bin/7z"),
 ]
 

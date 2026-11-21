@@ -399,11 +399,11 @@ ANON_CHECKS = [
      r"^1$"),
     ("bridges through Tor Browser's transports",
      "worm anon bridges snowflake > /tmp/br; head -1 /tmp/br; grep -c '^Bridge snowflake' /etc/tor/torrc.d/bridges.conf; "
-     "nft list chain inet worm output | grep -c 'l4proto udp accept'; "
+     "nft list chain inet worm output | grep -c -e 'l4proto udp accept' -e 'l4proto 17 accept'; "
      "tor -f /etc/tor/torrc --verify-config | tail -1",
      r"snowflake bridges?\.\n[1-9]\n1\nConfiguration was valid"),
     ("bridges off", "worm anon bridges off > /tmp/br; head -1 /tmp/br; ls /etc/tor/torrc.d | wc -l; "
-     "nft list chain inet worm output | grep -c 'l4proto udp accept'",
+     "nft list chain inet worm output | grep -c -e 'l4proto udp accept' -e 'l4proto 17 accept'",
      r"^Tor connects directly again(.|\n)*^0\n0$"),
     ("worm anon off", "worm anon off", r"^Anonymous mode is off"),
     ("tor stopped", "sleep 2; pidof tor || echo none", r"^none$"),
