@@ -1,0 +1,21 @@
+name=screen
+version=5.0.2
+description="GNU screen: terminal multiplexer"
+depends=(glibc ncurses libxcrypt)
+source=(https://ftp.gnu.org/gnu/screen/screen-$version.tar.gz)
+sha256=(ca9a2c7e240919bc7ac12124593ae4529bb4eb5f7349d8857829b7e3f0b3b332)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--disable-pam --enable-socket-dir=no --with-system_screenrc=/etc/screenrc
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -f "$pkgdir/usr/bin/screen-$version"
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/screen/COPYING"
+}

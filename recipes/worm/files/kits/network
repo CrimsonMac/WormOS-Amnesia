@@ -11,4 +11,6 @@ core = socat
 tool = netcat-openbsd
 tool = ipcalc
 tool = tshark
-tool = ngrep
+core = ngrep
+core = nethogs
+core = macchanger

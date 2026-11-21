@@ -1,0 +1,26 @@
+name=aria2
+version=1.37.0
+description="aria2: downloads over HTTP(S), FTP, BitTorrent and Metalink, in parallel"
+depends=(glibc gcc-libs openssl zlib sqlite libxml2)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(https://github.com/aria2/aria2/releases/download/release-$version/aria2-$version.tar.xz)
+sha256=(60a420ad7085eb616cb6e2bdf0a7206d68ff3d37fb5a956dc44242eb2f79b66b)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--disable-nls --with-openssl --without-gnutls --without-libnettle --without-libgmp \
+		--without-libgcrypt --without-libssh2 --without-libcares --without-libuv --with-libxml2 \
+		--with-sqlite3 --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt ARIA2_STATIC=no
+	# No run path into the toolchain in aria2c (libtool).
+	sed -i 's|^hardcode_libdir_flag_spec=.*|hardcode_libdir_flag_spec=""|; s|^runpath_var=.*|runpath_var=|' libtool
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -rf "$pkgdir/usr/share/doc"
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/aria2/COPYING"
+}

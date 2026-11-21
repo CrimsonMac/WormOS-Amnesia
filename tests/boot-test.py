@@ -569,6 +569,10 @@ TOOL_CHECKS = [
     ("lz4, pigz and pv", "echo ok | lz4 -q | lz4 -dqc; echo ok | pigz | pv -q | unpigz", r"^ok\nok$"),
     ("disk and firmware tools", "smartctl --version | head -1; hdparm -V; dmidecode -s system-manufacturer",
      r"^smartctl 7\.5(.|\n)*hdparm v9\.65(.|\n)*QEMU"),
+    ("bc, screen, links, aria2", "echo '2^64' | bc; screen -v; links -version | head -1; "
+     "aria2c -v | head -1", r"^18446744073709551616\n(.|\n)*Screen version 5(.|\n)*Links 2\.30(.|\n)*aria2 version 1\.37"),
+    ("torsocks and proxychains point at Tor", "grep -c '^TorPort 9050' /etc/tor/torsocks.conf; "
+     "grep -c '^socks4[[:space:]]*127.0.0.1 9050' /etc/proxychains.conf", r"^1\n1$"),
     ("busybox links taken over cleanly", "readlink /usr/bin/tar; test -L /usr/bin/less || "
      "echo real; grep -c -e ' usr/bin/less$' -e ' usr/bin/tar$' /usr/lib/wh/db/busybox/files",
      r"^bsdtar\nreal\n0$"),
@@ -678,6 +682,27 @@ AFTER_TRIAL_END_CHECKS = [
 AFTER_REMOVE_CHECKS = [
     ("tcpdump removed", "ls /usr/bin/tcpdump 2>&1", r"No such file"),
     ("library kept", "wh list", r"^libpcap\s"),
+]
+
+# Editions without root (WormOS Amnesia): users install through the helper,
+# straight into the running system. Turned on here for the test.
+# {repo} is the repository URL.
+LIVE_INSTALL_CHECKS = [
+    ("an edition lets users install, live",
+     "mount -o remount,bind,rw / && cp /etc/wh/repo /tmp/repo.saved && echo {repo} > /etc/wh/repo && "
+     "touch /etc/wh/live /etc/wh/users-may-install && mount -o remount,bind,ro / && echo ok", r"^ok$"),
+    ("a user installs a program, with no restart",
+     "su tester -c 'wh install cmatrix' 2>&1 | tail -1; command -v cmatrix; cat /proc/uptime | cut -d. -f1",
+     r"Done: changed in the running system(.|\n)*^/usr/bin/cmatrix$"),
+    ("read-only again", "touch /usr/x 2>&1", r"Read-only file system"),
+    ("the helper takes nothing else", "su tester -c '/usr/lib/wh/user history' 2>&1; "
+     "su tester -c '/usr/lib/wh/user install ../x' 2>&1; su tester -c 'wh --root / install x' 2>&1",
+     r"only install(.|\n)*invalid package name(.|\n)*managed by root"),
+    ("a user removes it again", "su tester -c 'wh remove cmatrix' 2>&1 | tail -1; command -v cmatrix || echo gone",
+     r"Done: changed(.|\n)*^gone$"),
+    ("back to normal", "mount -o remount,bind,rw / && cp /tmp/repo.saved /etc/wh/repo && "
+     "rm /etc/wh/live /etc/wh/users-may-install && mount -o remount,bind,ro / && "
+     "su tester -c 'wh install cmatrix' 2>&1", r"managed by root"),
 ]
 
 AFTER_UNDO_CHECKS = [
@@ -799,6 +824,7 @@ def main():
              len(SNAPSHOT_CHECKS) +
              len(BROWSE_CHECKS) + len(REWIND_CHECKS) + len(HOME_CHECKS) + len(MENU_CHECKS) +
              len(worm_checks) + len(FIRST_REMOVE_CHECKS) + 1 + len(AFTER_INSTALL_CHECKS) +
+             len(LIVE_INSTALL_CHECKS) +
              len(AFTER_TRIAL_CHECKS) + len(AFTER_TRIAL_END_CHECKS) +
              len(AFTER_REMOVE_CHECKS) + len(AFTER_UNDO_CHECKS) + 9)
     start = time.time()
@@ -923,6 +949,7 @@ def main():
             run_checks(con, AFTER_REMOVE_CHECKS)
             restart_with(con, "undo applied", "wh undo", "rewound system to snapshot")
             run_checks(con, AFTER_UNDO_CHECKS)
+            run_checks(con, [(n, c.format(repo=repo), p) for n, c, p in LIVE_INSTALL_CHECKS])
 
             run_checks(con, panic_checks)
             panic_id = re.search(r"^\s*(\d+)\*.*Panic at", con.run("snap list"), re.MULTILINE)

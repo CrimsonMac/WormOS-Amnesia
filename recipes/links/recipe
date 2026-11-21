@@ -1,0 +1,26 @@
+name=links
+version=2.30
+description="Links: a web browser for the terminal"
+depends=(glibc openssl zlib bzip2 xz zstd)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(http://links.twibright.com/download/links-$version.tar.bz2)
+sha256=(c4631c6b5a11527cdc3cb7872fc23b7f2b25c2b021d596be410dadb40315f166)
+
+build() {
+	# glibc 2.44's strchr keeps the const of its argument; one place writes
+	# through it.
+	sed -i 's/\*strchr(cast_const_char ud, POST_CHAR) = 0;/*(char *)strchr(cast_const_char ud, POST_CHAR) = 0;/' ftp.c
+	grep -q '(char \*)strchr(cast_const_char ud, POST_CHAR) = 0' ftp.c || die "ftp.c not patched"
+	CC="$CC -std=gnu17" ./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--without-x --without-fb --without-directfb --without-gpm --with-ssl --without-libevent \
+		--without-brotli --disable-graphics
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/links/COPYING"
+}

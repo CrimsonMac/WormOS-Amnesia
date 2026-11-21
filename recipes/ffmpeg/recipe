@@ -1,0 +1,25 @@
+name=ffmpeg
+version=9.0.2
+description="FFmpeg: convert, cut and inspect audio and video (ffmpeg, ffprobe)"
+depends=(glibc zlib bzip2 xz openssl alsa-lib)
+# Upstream signs releases with its own key; checksum pinned from the release download.
+source=(https://ffmpeg.org/releases/ffmpeg-$version.tar.xz)
+sha256=(8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e)
+
+build() {
+	# LGPL build (no --enable-gpl): its own codecs, no external codec
+	# libraries; ffmpeg -version prints this configuration, so no paths.
+	./configure --prefix=/usr --enable-cross-compile --cross-prefix="$TARGET-" \
+		--arch=x86_64 --target-os=linux --pkg-config=pkg-config \
+		--enable-shared --disable-static --disable-doc --disable-debug --disable-stripping \
+		--disable-ffplay --enable-openssl --enable-zlib --enable-bzlib --enable-lzma \
+		--disable-xlib --disable-libxcb --disable-sdl2 --disable-vaapi --disable-vdpau \
+		--disable-vulkan --disable-libdrm
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/ffmpeg/examples" "$pkgdir/usr/share/man"
+	install -Dm644 COPYING.LGPLv2.1 "$pkgdir/usr/share/licenses/ffmpeg/COPYING.LGPLv2.1"
+}

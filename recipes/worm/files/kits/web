@@ -2,7 +2,7 @@
 title = Web testing
 description = Scanners and fuzzers for web applications
 included = curl, Tor Browser
-tool = sqlmap
+core = sqlmap
 tool = gobuster
 tool = ffuf
 tool = feroxbuster

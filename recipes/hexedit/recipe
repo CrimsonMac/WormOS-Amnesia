@@ -1,0 +1,22 @@
+name=hexedit
+version=1.6
+description="hexedit: view and edit files in hexadecimal"
+depends=(glibc ncurses)
+# Upstream publishes no signature: checksum pinned from the tagged archive.
+source=(hexedit-$version.tar.gz::https://github.com/pixel/hexedit/archive/refs/tags/$version.tar.gz)
+sha256=(598906131934f88003a6a937fab10542686ce5f661134bc336053e978c4baae3)
+
+build() {
+	./autogen.sh > /dev/null 2>&1
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/hexedit/COPYING"
+}

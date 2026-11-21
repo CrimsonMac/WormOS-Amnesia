@@ -1,0 +1,20 @@
+name=cmatrix
+version=2.0
+description="cmatrix: falling characters in the terminal"
+depends=(glibc ncurses)
+# Upstream publishes no signature: checksum pinned from the tagged archive.
+source=(cmatrix-$version.tar.gz::https://github.com/abishekvashok/cmatrix/archive/refs/tags/v$version.tar.gz)
+sha256=(ad93ba39acd383696ab6a9ebbed1259ecf2d3cf9f49d6b97038c66f80749e99a)
+
+build() {
+	autoreconf -fi > /dev/null 2>&1
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--without-fonts
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share"
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/cmatrix/COPYING"
+}

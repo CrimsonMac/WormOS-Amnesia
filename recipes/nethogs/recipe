@@ -1,0 +1,18 @@
+name=nethogs
+version=0.9.0
+description="nethogs: network use per program"
+depends=(glibc gcc-libs libpcap ncurses)
+# Upstream publishes no signature: checksum pinned from the tagged archive.
+source=(nethogs-$version.tar.gz::https://github.com/raboof/nethogs/archive/refs/tags/v$version.tar.gz)
+sha256=(5961bef2155c05695d2fe7e79aa11194981b5afd1cad9bf1f259c7f30d5487c3)
+caps=("usr/sbin/nethogs cap_net_admin,cap_net_raw=ep")
+
+build() {
+	make CXX="$CXX" CC="$CC" CFLAGS="$CFLAGS" CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" \
+		VERSION=$version nethogs -j"$JOBS"
+}
+
+package() {
+	install -Dm755 src/nethogs "$pkgdir/usr/sbin/nethogs"
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/nethogs/COPYING"
+}

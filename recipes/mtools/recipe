@@ -1,0 +1,21 @@
+name=mtools
+version=4.0.50
+description="mtools: use FAT disks and images without mounting them"
+depends=(glibc)
+source=(https://ftp.gnu.org/gnu/mtools/mtools-$version.tar.bz2)
+sha256=(f3a58e6cfc2634b03c240442548e3b00103692357afc28e1e7104744dd6478b5)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sysconfdir=/etc --without-x
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -f "$pkgdir/usr/bin/floppyd"*
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/mtools/COPYING"
+}

@@ -48,6 +48,7 @@ static const char *repo_override;
 static const char *opt_from;            /* --from SOURCE: core, debian, kali */
 static int opt_try, opt_later, opt_yes, opt_force;
 static int direct;              /* --root given: no staging */
+static int live;                /* WH_LIVE_FLAG: changes go into the running system */
 static int staging;             /* a staged copy is mounted */
 static int kernel_changed;
 
@@ -175,7 +176,17 @@ static void require_locked(void)
 		    "changes are saved");
 }
 
-/* Mount a fresh copy of the system where only this process sees it. */
+/* Live changes: the running root, writable for the change. */
+static void live_relock(void)
+{
+	if (mount(NULL, "/", NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) < 0)
+		warn("cannot make / read-only again: %s", strerror(errno));
+}
+
+/*
+ * Mount a fresh copy of the system where only this process sees it (or,
+ * live, make the running system writable for the change).
+ */
 static void stage_begin(void)
 {
 	char dev[PATH_MAX], super[1024], opts[1200], *tok, *save;
@@ -184,6 +195,12 @@ static void stage_begin(void)
 
 	if (direct)
 		return;
+	if (live) {
+		if (mount(NULL, "/", NULL, MS_REMOUNT | MS_BIND, NULL) < 0)
+			die("cannot make / writable for the change: %s", strerror(errno));
+		atexit(live_relock);
+		return;
+	}
 	require_locked();
 	root_mount(dev, sizeof(dev), super, sizeof(super), &rw);
 
@@ -275,6 +292,12 @@ static void stage_commit(const char *action, const char *packages)
 	hooks_run();
 	if (direct)
 		return;
+	if (live) {
+		syncfs(root_fd);
+		history_add(action, packages, 0);
+		info("Done: changed in the running system, with no restart.");
+		return;
+	}
 	/* Let go of the staged copy (no open directory may keep it busy). */
 	if (syncfs(root_fd) < 0)
 		die("cannot finish the staged system: %s", strerror(errno));
@@ -858,6 +881,30 @@ int main(int argc, char **argv)
 	set_root(root);
 
 	cmd = argv[0];
+	/*
+	 * On an edition that lets users install (WormOS Amnesia, which has no
+	 * root login), package changes by a user go through the helper.
+	 */
+	if (geteuid() != 0 && !direct && access(WH_USERS_FLAG, F_OK) == 0 &&
+	    (!strcmp(cmd, "install") || !strcmp(cmd, "reinstall") || !strcmp(cmd, "remove") ||
+	     !strcmp(cmd, "update") || !strcmp(cmd, "upgrade"))) {
+		char *args[64];
+		int n = 0;
+
+		args[n++] = "wh-user";
+		if (opt_from) {
+			args[n++] = "--from";
+			args[n++] = (char *)opt_from;
+		}
+		for (int i = 0; i < argc && n < 63; i++)
+			args[n++] = argv[i];
+		args[n] = NULL;
+		execv(WH_USER_HELPER, args);
+		die("cannot run %s: %s", WH_USER_HELPER, strerror(errno));
+	}
+	live = !direct && !opt_try && access(WH_LIVE_FLAG, F_OK) == 0;
+	if (live)
+		opt_later = 0;
 	if (!strcmp(cmd, "update"))             return cmd_update(argc, argv);
 	if (!strcmp(cmd, "install"))            return cmd_install(argc, argv, 0);
 	if (!strcmp(cmd, "reinstall"))          return cmd_install(argc, argv, 1);

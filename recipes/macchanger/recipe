@@ -1,0 +1,22 @@
+name=macchanger
+version=1.7.0
+description="macchanger: show and change network cards' MAC addresses"
+depends=(glibc)
+# Upstream publishes no signature: checksum pinned from the tagged archive.
+source=(macchanger-$version.tar.gz::https://github.com/alobbs/macchanger/archive/refs/tags/$version.tar.gz)
+sha256=(1d75c07a626321e07b48a5fe2dbefbdb98c3038bb8230923ba8d32bda5726e4f)
+
+build() {
+	./autogen.sh > /dev/null 2>&1 || autoreconf -fi > /dev/null 2>&1
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/macchanger/COPYING"
+}

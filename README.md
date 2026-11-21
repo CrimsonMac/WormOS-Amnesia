@@ -301,14 +301,14 @@ built from source and kept in the core repository:
 
 | | |
 |---|---|
-| Shells and terminal | zsh, bash, tmux, less, htop, btop, ncdu, tree, Midnight Commander (`mc`), fastfetch |
+| Shells and terminal | zsh, bash, tmux, screen, less, htop, btop, ncdu, tree, Midnight Commander (`mc`), fastfetch, bc |
 | Editors | nano, vim (also `vi`) |
 | Text | GNU grep (with `-P`), sed, gawk, find and xargs, diff, cmp, patch |
 | Development | git, Python 3 (with `venv` and pip), sqlite3, jq, strace, gdb, binutils (objdump, readelf, nm, strings) |
 | Analysis | YARA, ssdeep |
 | Archives | tar, cpio and unzip from libarchive (zip, 7z, ISO, xz, zstd...), 7-Zip (`7z`), zip, xz, bzip2, zstd, gzip, lz4, pigz, pv |
-| Network | curl, wget, ip, ss and tc (iproute2), ethtool, whois, traceroute, OpenSSH client (ssh, scp, sftp), rsync, nmap with ncat and nping, tcpdump, wg (WireGuard) |
-| Disks and devices | lspci, lsusb, mkfs.fat/fsck.fat, mkfs.ext4/e2fsck/resize2fs (e2fsprogs), mkfs.exfat/fsck.exfat, smartctl, hdparm, dmidecode |
+| Network | curl, wget, aria2, links (a terminal web browser), torsocks and proxychains (one program through Tor), ip, ss and tc (iproute2), ethtool, whois, traceroute, OpenSSH client (ssh, scp, sftp), rsync, nmap with ncat and nping, tcpdump, wg (WireGuard) |
+| Disks and devices | lspci, lsusb, mkfs.fat/fsck.fat, mtools, mkfs.ext4/e2fsck/resize2fs (e2fsprogs), mkfs.exfat/fsck.exfat, smartctl, hdparm, dmidecode |
 | Other | file, lsof, gpg, Tor Browser |
 
 They come with the package `wormos-standard`, which recommends them
@@ -319,6 +319,10 @@ the standard edition, `wh upgrade` installs them. (From 1.7, the first
 help` lists WormOS's own commands. The commands that also exist in BusyBox (grep, sed, diff, ip...)
 take over its small versions; removing the package brings BusyBox's back.
 WormOS Barebones has none of these; `worm kit install basic` adds them all.
+
+The repository has more, installed with `wh install`: GNU coreutils, mtr,
+iperf3, socat, ngrep, nethogs, macchanger, hexedit, cmatrix, FFmpeg
+(`ffmpeg`, `ffprobe`) and sqlmap among them (`wh search` lists everything).
 
 ### Software from Debian and Kali
 

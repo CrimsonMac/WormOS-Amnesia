@@ -56,7 +56,10 @@ rm -f "$WORK/disk.img"
 msg "Assembling the ISO tree"
 cp "$ROOTFS/boot/vmlinuz" "$ROOTFS/boot/initramfs.img" "$TREE/boot/"
 stat -c %s "$PARTS/system.img" > "$TREE/wormos/system.size"
-zstd -q -T0 -12 --rm "$PARTS/system.img" -o "$TREE/wormos/system.img.zst"
+# --rsyncable: unchanged parts of the system compress to the same bytes in
+# the next release, so updates can download only what changed (WormOS
+# Amnesia's updater does).
+zstd -q -T0 -12 --rsyncable --rm "$PARTS/system.img" -o "$TREE/wormos/system.img.zst"
 zstd -q -19 "$PARTS/esp.img" -o "$TREE/wormos/esp.img.zst"
 cp "$PARTS/head.img" "$TREE/wormos/head.img"
 sed -n 's/^VERSION_ID=//p' "$ROOTFS/etc/os-release" > "$TREE/wormos/version"

@@ -369,8 +369,13 @@ int cmd_kit(int argc, char **argv)
 	if (argc == 2 && !strcmp(argv[0], "show"))
 		return cmd_show(argv[1]);
 	if (argc == 2 && (!strcmp(argv[0], "install") || !strcmp(argv[0], "remove"))) {
-		if (geteuid() != 0)
+		if (geteuid() != 0) {
+			/* Editions without root (WormOS Amnesia) let users install. */
+			if (access("/etc/wh/users-may-install", F_OK) == 0)
+				execv("/usr/lib/wh/user", (char *[]){ "wh-user", "kit", argv[0],
+								      argv[1], NULL });
 			die("this needs root, try again with su%s", "");
+		}
 		return !strcmp(argv[0], "install") ? cmd_install(argv[1]) : cmd_remove(argv[1]);
 	}
 	return 2;

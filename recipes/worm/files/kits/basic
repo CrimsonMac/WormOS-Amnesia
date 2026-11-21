@@ -27,6 +27,8 @@ core = pigz
 core = pv
 # Downloads and remote work.
 core = wget
+core = aria2
+core = links
 core = rsync
 core = openssh
 core = git
@@ -50,6 +52,8 @@ core = hdparm
 core = dmidecode
 # Processes and the terminal.
 core = htop
+core = screen
+core = bc
 core = btop
 core = mc
 core = fastfetch

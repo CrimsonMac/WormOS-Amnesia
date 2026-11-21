@@ -1,0 +1,19 @@
+name=sqlmap
+version=1.10.10
+description="sqlmap: automatic SQL injection testing (for systems you may test)"
+depends=(python)
+# Upstream publishes no signature: checksum pinned from the tagged archive.
+source=(sqlmap-$version.tar.gz::https://github.com/sqlmapproject/sqlmap/archive/refs/tags/$version.tar.gz)
+sha256=(7dd690c62fb1ae58bd8555b91012896863c47fc245dc6d39ba300362a3368d17)
+
+package() {
+	mkdir -p "$pkgdir/usr/share/sqlmap"
+	cp -a . "$pkgdir/usr/share/sqlmap/"
+	rm -rf "$pkgdir/usr/share/sqlmap/.git"* "$pkgdir/usr/share/sqlmap/doc" \
+		"$pkgdir/usr/share/sqlmap/.github"
+	install -Dm755 /dev/stdin "$pkgdir/usr/bin/sqlmap" <<-'SH'
+	#!/bin/sh
+	exec python3 /usr/share/sqlmap/sqlmap.py "$@"
+	SH
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/sqlmap/LICENSE"
+}

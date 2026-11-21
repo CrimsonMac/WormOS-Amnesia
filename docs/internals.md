@@ -264,6 +264,20 @@ in the README.
   depends, `wh remove` does not check them. Removing a package records it
   in `/usr/lib/wh/declined` (part of the system, so snapshots and undo
   cover it); installing it explicitly takes it off again.
+- Live changes (since 1.9): with `/etc/wh/live` (an edition's package
+  ships it; WormOS Amnesia does), install, remove and upgrade go straight
+  into the running system: `stage_begin` remounts `/` writable (bind
+  remount), `stage_commit` runs the hooks, records the history and makes
+  `/` read-only again; no snapshot, no soft reboot. Files are replaced by
+  rename, so running programs keep their old copies.
+- Users (since 1.9): with `/etc/wh/users-may-install`, `wh install`,
+  `reinstall`, `remove`, `update` and `upgrade` run by a user, and `worm
+  kit install|remove`, hand over to `/usr/lib/wh/user` (`src/wh/user.c`,
+  setuid root). It refuses without the flag, accepts only those commands,
+  package, kit and source names (`[a-z0-9+.:-]`), replaces the environment
+  and runs `wh --yes ...` or `worm kit ...` as root, logging who asked.
+  Packages still come only from the signed repositories, so users can add
+  programs but write nowhere else.
 - Editions: `wh upgrade` also installs the edition's package when it is
   missing and not declined: `wormos-standard` without `/etc/worm/variant`,
   `wormos-VARIANT_ID` otherwise, if the index has it. `wormos-standard`

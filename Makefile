@@ -22,7 +22,8 @@ PACKAGES := base-files busybox worminit wormrd snap \
 	grep sed gawk findutils diffutils patch coreutils wget zip 7zip iproute2 ethtool \
 	pciutils libusb usbutils dosfstools whois traceroute mtr iperf3 socat \
 	gmp mpfr gdb e2fsprogs exfatprogs mc btop fastfetch lz4 pigz pv yara ssdeep \
-	smartmontools hdparm dmidecode \
+	smartmontools hdparm dmidecode bc screen mtools hexedit links aria2 ngrep \
+	macchanger torsocks proxychains-ng cmatrix nethogs ffmpeg sqlmap \
 	tor-browser-bundle licenses \
 	wormos-desktop wormos-installer wormos-standard wormos-amnesia \
 	wormos-login
