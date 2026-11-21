@@ -65,7 +65,7 @@ jobs:
             cp tests/desktop-test.py tagged/tests/desktop-test.py
       - name: Download and check the image
         run: |
-          mkdir -p out/release tagged/build
+          mkdir -p out/release tagged/build tagged/out
           gh release download "${{ steps.release.outputs.tag }}" -R "$GITHUB_REPOSITORY" \
             -D out/release -p '${{ matrix.asset }}' -p SHA256SUMS
           cd out/release && sha256sum -c --ignore-missing SHA256SUMS

@@ -29,6 +29,7 @@ case $IMAGE in *.qcow2) format=qcow2 ;; esac
 
 OVMF_CODE=/usr/share/OVMF/OVMF_CODE_4M.fd
 OVMF_VARS=$OUT/OVMF_VARS.fd
+mkdir -p "$OUT"
 [ -f "$OVMF_VARS" ] || cp /usr/share/OVMF/OVMF_VARS_4M.fd "$OVMF_VARS"
 
 display=(-nographic)

@@ -48,6 +48,8 @@ SERIES = {
     "python": r"^3\.13\.",
     "linux": None,  # the same major.minor (a long-term series)
     "openssl": r"^3\.5\.",  # long-term support series
+    "ncdu": r"^1\.",          # 2.x is a rewrite in Zig
+    "wget": r"^1\.2\d",       # Wget2 (2.x, pre-releases 1.99) is another program
 }
 SKIP = {"tor-browser-runtime", "wormhole-keyrings", "ca-certificates", "licenses", "tzdata"}
 
@@ -80,7 +82,7 @@ def newer(a, b):
         return a != b and a > b
 
 
-def newest(project, series):
+def newest(project, series, ours):
     req = urllib.request.Request(API + project, headers={"User-Agent": AGENT})
     for attempt in range(3):
         try:
@@ -92,7 +94,8 @@ def newest(project, series):
     else:
         return None
     # A version counts once two repositories have it (one odd repository's
-    # numbering, such as 8.23.0.4, does not).
+    # numbering, such as 8.23.0.4, does not), or if only one has it, when
+    # it is shaped like ours (as many parts).
     seen = {}
     for p in data:
         v = p.get("version", "")
@@ -102,9 +105,10 @@ def newest(project, series):
             continue
         if p.get("status") == "newest" or series:
             seen[v] = seen.get(v, 0) + 1
+    shape = len(re.split(r"[.\-_+]", ours))
     best = None
     for v, n in seen.items():
-        if n >= 2 and (best is None or newer(v, best)):
+        if (n >= 2 or len(re.split(r"[.\-_+]", v)) == shape) and (best is None or newer(v, best)):
             best = v
     return best
 
@@ -123,7 +127,7 @@ def main():
         series = SERIES.get(name)
         if name == "linux":
             series = r"^" + re.escape(".".join(ours.split(".")[:2])) + r"\."
-        theirs = newest(REPOLOGY_NAMES.get(name, name), series)
+        theirs = newest(REPOLOGY_NAMES.get(name, name), series, ours)
         time.sleep(1.1)                     # Repology asks for one request a second
         if theirs is None:
             unknown.append(name)
