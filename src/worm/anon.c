@@ -114,6 +114,91 @@ static int bootstrapped(void)
 	return percent;
 }
 
+int anon_connected(void)
+{
+	return bootstrapped() == 100;
+}
+
+/*
+ * The clock skew Tor has seen, from its log: relays and directories say
+ * "It seems that our clock is behind by 5 hours, 2 minutes" (or ahead)
+ * when their time, from an authenticated connection, differs from ours.
+ * 0 and the offset to add to our clock (the last report), or -1.
+ */
+/* "2 days, 3 hours, 4 minutes" in seconds; *end after the last unit. */
+static long parse_interval(const char *p, const char **end)
+{
+	long total = 0, n;
+	char unit[16];
+	int used;
+
+	while (sscanf(p, "%ld %15[a-z]%n", &n, unit, &used) == 2) {
+		if (!strncmp(unit, "day", 3))
+			total += n * 86400;
+		else if (!strncmp(unit, "hour", 4))
+			total += n * 3600;
+		else if (!strncmp(unit, "minute", 6))
+			total += n * 60;
+		else if (!strncmp(unit, "second", 6))
+			total += n;
+		else
+			break;
+		p += used;
+		*end = p;
+		if (*p != ',')
+			break;
+		p++;
+		while (*p == ' ')
+			p++;
+	}
+	return total;
+}
+
+int anon_tor_skew(long *seconds)
+{
+	char line[1024], *p;
+	const char *end;
+	int found = -1;
+	FILE *f = fopen(TOR_LOG, "re");
+
+	while (f && fgets(line, sizeof(line), f)) {
+		long total = 0;
+		int sign = 0;
+
+		if (!(p = strstr(line, "ur clock is ")))
+			continue;
+		p += 12;
+		end = p;
+		/* Relays: "our clock is behind by 5 hours, 2 minutes". */
+		if (!strncmp(p, "behind by ", 10) || !strncmp(p, "ahead by ", 9)) {
+			sign = *p == 'b' ? 1 : -1;
+			total = parse_interval(strstr(p, " by ") + 4, &end);
+		/* The consensus: "Our clock is 5 hours, 2 minutes behind the time". */
+		} else if ((total = parse_interval(p, &end)) > 0) {
+			if (!strncmp(end, " behind", 7))
+				sign = 1;
+			else if (!strncmp(end, " ahead", 6))
+				sign = -1;
+		}
+		if (sign && total > 0) {
+			*seconds = sign * total;
+			found = 0;
+		}
+	}
+	if (f)
+		fclose(f);
+	return found;
+}
+
+static int tor_start(void);
+static void tor_stop(void);
+
+int anon_restart_tor(void)
+{
+	tor_stop();
+	return tor_start();
+}
+
 static int tor_start(void)
 {
 	long uid = anon_tor_uid();

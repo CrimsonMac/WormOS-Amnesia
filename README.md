@@ -187,7 +187,11 @@ idles at well under 100 MB of memory.
   changes the zone (as root; `worm time zones` lists them). The clock is
   checked over HTTPS every six hours (the `Date` of an authenticated
   answer, which unlike plain NTP cannot be forged on the way, and which
-  also works through Tor).
+  also works through Tor). In anonymous mode, a clock too far off for Tor
+  to connect (common on computers that also run Windows, which keeps the
+  hardware clock in local time) is set from the skew Tor's relays report,
+  and Tor starts again. The live system never changes the computer's
+  hardware clock.
 - Copy and paste between WormOS and the machine it runs on works with
   virt-manager (SPICE) and QEMU (see above). In virt-manager the screen
   follows the window when View, Scale Display, "Auto resize VM with
@@ -406,7 +410,9 @@ worm anon off
 In anonymous mode only Tor itself reaches the network, and only with TCP.
 Every other TCP connection, from any program, user, wormhole or root, is
 sent through Tor, DNS queries are answered by Tor, and everything Tor
-cannot carry (UDP, ICMP, IPv6) is blocked. The one exception is root's
+cannot carry (UDP, ICMP, IPv6) is blocked. Each destination address gets
+its own Tor circuit, so an exit relay cannot link connections to different
+sites. The one exception is root's
 DHCP renewal of the local address. Connections that were open before the
 switch are cut, not carried on outside Tor. The rules load before the network comes
 up and stay in place while Tor connects, so nothing leaks in between.

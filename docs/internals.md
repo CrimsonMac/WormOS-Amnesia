@@ -457,7 +457,8 @@ in the README.
   package) starts Tor once `/var` is mounted.
 - Tor (`recipes/tor`) is built as a client only (`--disable-module-relay`),
   without GeoIP data. `/etc/tor/torrc`: user `tor`, data in `/var/lib/tor`,
-  pid and notices log in `/run/tor`, SocksPort 9050, TransPort 9040,
+  pid and notices log in `/run/tor`, SocksPort 9050, TransPort 9040
+  (`IsolateDestAddr`: one circuit per destination address),
   DNSPort 5353 (IPv4 and IPv6 loopback), .onion names automapped into
   10.192.0.0/10. `worm anon status` reads the last "Bootstrapped N%" line
   of the log.
@@ -816,11 +817,18 @@ in the README.
 - `worm time sync` sends a HEAD request over HTTPS (curl, TLS 1.2+, https
   only) to www.quad9.net, then www.torproject.org, then www.debian.org,
   parses the `Date` header, compares it with the middle of the request and
-  sets the clock (and the hardware clock, in UTC) when it is off by more
-  than 2 s. The result goes to `/run/wormos/time` for `worm time`. The
-  service `35-time` (`/usr/lib/worm/timesync`, `safe = no`) runs it 20 s
-  after boot and every six hours, two minutes after a failure. It works in
-  anonymous mode through the TransPort.
+  sets the clock (and the hardware clock, in UTC, except on live systems:
+  `/run/wormos/live`) when it is off by more than 2 s. The result goes to
+  `/run/wormos/time` for `worm time`. The service `35-time`
+  (`/usr/lib/worm/timesync`, `safe = no`) runs it 20 s after boot and
+  every six hours; after a failure every 30 s for ten minutes, then every
+  two. It works in anonymous mode through the TransPort. Before that, in
+  anonymous mode while Tor is not connected, `anon_tor_skew()` reads
+  Tor's log for "our clock is behind by 5 hours, 2 minutes" (NETINFO cells
+  and directory answers from relays) or "Our clock is 3 hours, 0 minutes
+  behind the time published in the consensus"; a skew between a minute
+  and 400 days sets the clock, Tor restarts (its log starts over) and
+  the check reports failure so the HTTPS check follows in 30 s.
 - `worm passwd` (`account.c`) reads the current and new password (twice)
   with echo off and feeds them to the setuid `/usr/lib/worm/passwd`
   (`passwd.c`), which takes the caller's account from the real UID, checks

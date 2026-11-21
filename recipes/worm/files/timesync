@@ -1,12 +1,16 @@
 #!/bin/sh
-# The clock check (worm time sync, over HTTPS): once the network is up,
-# then every six hours; after a failure (no network yet, network cut, Tor
-# still connecting) again two minutes later.
+# The clock check (worm time sync, over HTTPS; in anonymous mode first from
+# the skew Tor reports): once the network is up, then every six hours.
+# After a failure (no network yet, network cut, Tor still connecting) it
+# tries again 30 seconds later for the first ten minutes, then every two.
 sleep 20
+tries=0
 while :; do
 	if worm time sync > /dev/null 2>&1; then
+		tries=0
 		sleep 21600
 	else
-		sleep 120
+		tries=$((tries + 1))
+		if [ "$tries" -le 20 ]; then sleep 30; else sleep 120; fi
 	fi
 done

@@ -15,6 +15,16 @@
  * a second, which is what certificates, Tor and logs need. The service
  * 35-time runs a check after the network comes up and every six hours;
  * the result is kept in /run/wormos/time (readable by everyone).
+ *
+ * In anonymous mode HTTPS needs Tor, and Tor needs a clock within a few
+ * hours: a computer whose hardware clock keeps local time (as Windows
+ * does) can start hours off, and Tor never connects. While Tor is not
+ * connected, the check uses the skew Tor's relays report over their
+ * authenticated connections (in Tor's log), sets the clock by it and
+ * restarts Tor; the HTTPS check follows once Tor is up.
+ *
+ * Live systems (the ISO, WormOS Amnesia) never write the computer's
+ * hardware clock: they change nothing on the machine they run on.
  */
 
 #define _GNU_SOURCE
@@ -170,12 +180,35 @@ static void save_state(const char *result)
 	printf("%s at %s\n", result, now);
 }
 
+static int set_clock(long diff)
+{
+	struct timespec ts = { .tv_sec = time(NULL) + diff };
+
+	if (clock_settime(CLOCK_REALTIME, &ts) < 0)
+		die("cannot set the clock: %s", strerror(errno));
+	/* The hardware clock keeps UTC for the next start, except on live systems. */
+	if (access("/run/wormos/live", F_OK) < 0)
+		run((char *[]){ "hwclock", "--systohc", "--utc", NULL }, NULL, 0, 1);
+	return 0;
+}
+
 static int cmd_sync(void)
 {
 	char msg[160];
+	long skew;
 
 	if (fw_network_cut())
 		die("the network is cut; 'worm panic off' restores it first%s", "");
+	if (anon_enabled() && !anon_connected() && anon_tor_skew(&skew) == 0 &&
+	    labs(skew) >= 60 && labs(skew) <= 400L * 86400) {
+		set_clock(skew);
+		snprintf(msg, sizeof(msg), "corrected by %+ld s (reported by Tor's relays)", skew);
+		save_state(msg);
+		if (anon_restart_tor() < 0)
+			warn("Tor did not start again%s", "");
+		/* Not checked over HTTPS yet: the next check follows soon. */
+		return 1;
+	}
 	for (size_t i = 0; i < sizeof(servers) / sizeof(servers[0]); i++) {
 		time_t before = time(NULL), theirs = server_time(servers[i]), after;
 		long diff;
@@ -186,12 +219,7 @@ static int cmd_sync(void)
 		/* The header has whole seconds: compare with the middle of the request. */
 		diff = (long)(theirs - (before + (after - before) / 2));
 		if (labs(diff) > 2) {
-			struct timespec ts = { .tv_sec = time(NULL) + diff };
-
-			if (clock_settime(CLOCK_REALTIME, &ts) < 0)
-				die("cannot set the clock: %s", strerror(errno));
-			/* The hardware clock keeps UTC for the next start. */
-			run((char *[]){ "hwclock", "--systohc", "--utc", NULL }, NULL, 0, 1);
+			set_clock(diff);
 			snprintf(msg, sizeof(msg), "corrected by %+ld s (%s)", diff, servers[i]);
 		} else {
 			snprintf(msg, sizeof(msg), "right, within %ld s (%s)", labs(diff), servers[i]);

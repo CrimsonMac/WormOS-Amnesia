@@ -40,6 +40,9 @@ int cmd_passwd_apply(const char *user);
 int anon_enabled(void);
 long anon_tor_uid(void);
 const char *anon_summary(void);
+int anon_connected(void);
+int anon_tor_skew(long *seconds);
+int anon_restart_tor(void);
 
 /* The firewall (fw.c): cutting the network and bringing it back. */
 int fw_cut(void);
