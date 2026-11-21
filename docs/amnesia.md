@@ -50,18 +50,31 @@ second stage below is done.
   in-memory filesystem. The root filesystem is read-only as on every
   WormOS system; the user's home folder, `/tmp` and `/var` are writable,
   so downloading and working inside the session behave normally.
-- **No administrator.** `live-setup` gives the live user an empty password
-  (the login screen logs them in at once) but, unlike the other ISOs,
-  leaves root as the image has it: locked in releases. Without root,
+- **Start screen.** Before the desktop, the login screen (wormlogin and the
+  greeter in `amnesia` mode) asks how Tor should connect: directly, through
+  the Tor Project's default snowflake, obfs4 or meek bridges, or through
+  pasted bridge lines (`worm anon bridges`, with the transports Tor Browser
+  ships). Tor waits for the answer (`14-anon-hold` creates
+  `/run/worm/anon-hold`, which `worm anon start` respects; wormlogin removes
+  it and starts Tor), so a network that blocks Tor never sees a direct
+  attempt. Without a graphics device there is no screen and Tor never
+  starts. The screen also offers an administrator password for this
+  session only; empty (the default) means none.
+- **No administrator by default.** `live-setup` gives the live user an
+  empty password but, unlike the other ISOs, leaves root as the image has
+  it: locked in releases. Without root,
   nothing can mount a disk, install software into the system, change the
   firewall or turn anonymous mode off; snapshots cannot be exported.
   Blackholes still work: they need no root. The live user is in Tor's
   group, so `worm anon status` (open to everyone since 1.7) can show how
-  far Tor has connected.
+  far Tor has connected. An administrator set on the start screen is real
+  root: it can install programs into memory, but could also write to disks,
+  the USB stick Amnesia started from included. The screen says so; the
+  promises above hold for sessions without one.
 - **Tor.** `wormos-amnesia` ships `/etc/worm/anon`, so the firewall loads
-  the anonymous-mode rules at boot (`05-firewall`) and Tor starts with the
-  system (`16-anon`), before the network service brings up an interface
-  (`30-network`). `worm anon off` refuses on this edition. Tor keeps its
+  the anonymous-mode rules at boot (`05-firewall`), before the network
+  service brings up an interface (`30-network`); Tor starts once the start
+  screen has been answered. `worm anon off` refuses on this edition. Tor keeps its
   state in `/var/lib/tor`, in memory: new guards on every start, so
   sessions cannot be linked through them. Tor Browser uses the system Tor
   (`TOR_PROVIDER=none`, SOCKS on 9050), as in anonymous mode elsewhere.
@@ -91,33 +104,32 @@ second stage below is done.
 
 ### Stage 2: forgetting the memory too
 
-- **Wipe memory at shutdown.** Today the in-memory filesystem is freed
-  only when the kernel stops, and `init_on_free` wipes only what is freed
-  while it runs. worminit will switch back to a small shutdown initramfs
-  (as systemd does), unmount the root, detach the loop device so its pages
-  are freed (and wiped), then fill the rest of free memory with zeros
-  before powering off. This makes cold-boot attacks on a computer that was
-  just turned off far less useful.
-- **Emergency shutdown with the wipe.** Pulling the USB stick out already
-  powers off at once (see above); once the memory wipe exists, that path
-  runs it too.
+- **Wipe the rest of memory at shutdown.** Done in the first version: the
+  session's files (homes, temporary files, Tor's state, logs, sandboxes)
+  are deleted after every program has stopped and trimmed back to the RAM
+  disk (`/etc/worm/shutdown.d/50-forget`, run by worminit), caches
+  dropped; the kernel zeroes pages as it frees them (`init_on_free=1`).
+  Pulling the USB stick out goes through the same shutdown. Still to do:
+  the system image itself (public data) and kernel memory are not wiped;
+  switching back to a shutdown initramfs that detaches the RAM disk would
+  free those too.
 - **Encrypted memory filesystem.** The in-memory system and home on a
   dm-crypt device keyed by a random key made at each start (needs
   `CONFIG_DM_CRYPT`, which the LUKS work in the installer needs anyway),
   so a memory image taken from outside shows no file contents.
-- **Optional administrator for one session.** A screen before the desktop
-  offering to set an administrator password for this session only (as
-  Tails does), for installing software into memory with `wh`. Off by
-  default; disks stay unmountable even then (a kernel-level block on
-  mounting block devices other than the loop device).
+- **An administrator that cannot reach disks.** The optional
+  administrator (done) is full root today. A later version could keep
+  disks out of reach even for it, for example with a device cgroup policy
+  set before the session starts.
 - **Time.** Tor needs a roughly correct clock. Today the clock check runs
   over HTTPS (through Tor); a stage-2 check reads the time from Tor's
   consensus instead and warns when the clock is far off.
 
 ### Stage 3: more anonymity
 
-- **Bridges and pluggable transports** (obfs4, snowflake, webtunnel) for
-  networks that block Tor, chosen on the screen before the desktop.
+- **Bridges** are done (snowflake, obfs4, meek and pasted lines, including
+  webtunnel, on the start screen). Still to do: requesting bridges from
+  inside Amnesia (moat), and Conjure.
 - **Stream isolation:** different programs on different Tor circuits
   (separate SOCKS ports per program, `IsolateDestAddr`).
 - **Uniform fingerprint:** the same screen size steps for Tor Browser

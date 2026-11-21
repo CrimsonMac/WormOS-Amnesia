@@ -921,8 +921,9 @@ static void build_amnesia(void)
 	admin1 = entry(page, "Leave empty for none", TRUE);
 	admin2 = entry(page, "The same password again", TRUE);
 	gtk_box_append(GTK_BOX(page), text(
-		"Without one, nothing can change this system. With one, root can install "
-		"programs in memory, for this session only.", "dim"));
+		"Without one, nothing can change this system or reach a disk: everything "
+		"is forgotten, guaranteed. With one, root can install programs in memory for "
+		"this session, but could also write to disks, the USB stick included.", "dim"));
 	start_error = text("", "error");
 	gtk_box_append(GTK_BOX(page), start_error);
 	progress = gtk_spinner_new();
