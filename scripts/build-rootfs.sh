@@ -81,6 +81,17 @@ if [ "$VARIANT" = barebones ]; then
 	VARIANT="Barebones"
 	EOF
 fi
+# Amnesia's index includes wormos-amnesia, so it is signed here, after the
+# published core index; wh would refuse the published one as older and the
+# live user could install nothing. Its date is set to 0: any published index
+# is newer, and wh refuses older ones from the first update on.
+if [ "$VARIANT" = amnesia ]; then
+	sed -i 's/^date = .*/date = 0/' "$ROOTFS/var/lib/wh/index"
+	"$BUILD/host/wsign" sign "${WORMOS_SIGNING_KEY:-$HOME/.config/wormos/core.key}" \
+		"$ROOTFS/var/lib/wh/index"
+	"$BUILD/host/wsign" verify "$WORMOS_ROOT/keys/core.pub" "$ROOTFS/var/lib/wh/index" > /dev/null ||
+		die "the image's index does not verify"
+fi
 # The image keeps the index (newer ones must be at least as recent) but not
 # the downloaded packages.
 rm -rf "$ROOTFS/var/cache/wh"

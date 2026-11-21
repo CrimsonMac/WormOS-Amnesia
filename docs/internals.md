@@ -277,7 +277,10 @@ in the README.
   package, kit and source names (`[a-z0-9+.:-]`), replaces the environment
   and runs `wh --yes ...` or `worm kit ...` as root, logging who asked;
   installs, upgrades and kit installs run `wh update` first (the system's
-  index may be as old as its image; WormOS Amnesia's always is).
+  index may be as old as its image; WormOS Amnesia's always is). Amnesia's
+  image index is re-signed with `date = 0` by `scripts/build-rootfs.sh`: it
+  is built after the published index, which wh would otherwise refuse as
+  older.
   Packages still come only from the signed repositories, so users can add
   programs but write nowhere else.
 - Editions: `wh upgrade` also installs the edition's package when it is
