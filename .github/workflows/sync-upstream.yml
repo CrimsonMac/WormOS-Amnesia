@@ -1,0 +1,65 @@
+# Every day (and by hand): whether WormOS has commits this repository has
+# not merged yet, and whether they merge cleanly. Kept in one issue titled
+# "Merge WormOS", closed once everything is merged. (The merge itself is
+# done by hand: the workflow token may not push changes to workflows,
+# which WormOS's commits often carry.)
+name: Sync with WormOS
+
+on:
+  schedule:
+    - cron: "11 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Compare with WormOS
+    if: github.repository == 'CrimsonMac/WormOS-Amnesia'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TITLE: Merge WormOS
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Try the merge
+        id: merge
+        run: |
+          git config user.name "WormOS Amnesia CI"
+          git config user.email "ci@invalid"
+          git remote add upstream https://github.com/CrimsonMac/WormOS.git
+          git fetch -q upstream main
+          new=$(git rev-list --count HEAD..upstream/main)
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+          [ "$new" -gt 0 ] || exit 0
+          {
+            echo "WormOS has $new commits that are not merged here yet:"
+            echo
+            git log --format='- %s (%h)' HEAD..upstream/main
+            echo
+            if git merge -q --no-ff --no-edit --no-commit upstream/main > /dev/null 2>&1; then
+              echo "They merge without conflicts: \`git fetch upstream && git merge upstream/main\`."
+            else
+              echo "Merging them conflicts in:"
+              echo
+              git diff --name-only --diff-filter=U | sed 's/^/- /'
+            fi
+          } > body.md
+          git merge --abort 2>/dev/null || true
+          cat body.md
+      - name: Update the issue
+        run: |
+          issue=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$TITLE\"" \
+            --json number,title -q ".[] | select(.title == \"$TITLE\") | .number" | head -1)
+          if [ "${{ steps.merge.outputs.new }}" = 0 ]; then
+            [ -z "$issue" ] || gh issue close "$issue" -R "$GITHUB_REPOSITORY" -c "Everything from WormOS is merged."
+          elif [ -n "$issue" ]; then
+            gh issue edit "$issue" -R "$GITHUB_REPOSITORY" --body-file body.md
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body-file body.md
+          fi

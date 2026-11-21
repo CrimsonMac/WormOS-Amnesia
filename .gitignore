@@ -47,3 +47,4 @@
 # Python
 __pycache__/
 /tests/unit/skew
+/tests/unit/newer

@@ -135,7 +135,23 @@ does, and what comes next. It ships as
   edition, the kernel options, that Tor runs from the start as its own
   user and cannot be turned off, that a web server and a UDP listener on
   the host hear nothing from the VM, the desktop settings, that the screen
-  is grey, and that pulling the stick out (`device_del`) turns the VM off.
+  is grey, and that pulling the stick out (`device_del`) turns the VM off;
+  also the keyboard layout chosen on the start screen, the microphone,
+  stream isolation and the update notice. `--skew -48` starts the VM with
+  its clock two days ahead (kvmclock off, so the guest reads the RTC) and
+  checks that the clock is set from Tor's reports.
+  `tests/amnesia-update-test.py OLD.iso NEW.iso` (or `--synthetic`) runs
+  the updater against a local server; `tests/unit/newer.c` checks its
+  version comparison.
+- **Continuous integration** (`.github/workflows`, besides WormOS's own):
+  `amnesia.yml` runs the updater test on synthetic ISOs on every push, and
+  on every release, every week and by hand checks the published release's
+  files (`scripts/check-amnesia-release.sh`: SHA256SUMS, the manifest's
+  signature, its ISO name, size and SHA-256) and boots the ISO through the
+  edition test in QEMU with KVM. `sync-upstream.yml` checks every day for
+  WormOS commits not merged here and whether they merge cleanly, in an
+  issue titled "Merge WormOS" (the merge is done by hand: the workflow
+  token may not push changes to workflows).
 
 ## Next stages
 

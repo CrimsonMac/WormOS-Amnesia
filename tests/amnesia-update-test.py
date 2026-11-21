@@ -9,11 +9,18 @@ a tampered manifest is refused, the old ISO is turned into the new one
 byte for byte (reporting how much was downloaded), and an up-to-date
 system says so.
 
+--synthetic makes the two files itself (a 48 MB "old ISO" of random data
+and a "new" one with data inserted, changed and appended), so the test
+runs anywhere, as CI does. Monocypher's sources come from the build
+(build/work/monocypher or build/host/monocypher) or MONOCYPHER_SRC.
+
 Usage: tests/amnesia-update-test.py OLD.iso NEW.iso
+       tests/amnesia-update-test.py --synthetic
 """
 
 import http.server
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -23,7 +30,30 @@ import threading
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(ROOT, "build")
-MONO = os.path.join(BUILD, "work", "monocypher", "src")
+MONO = next((d for d in (os.environ.get("MONOCYPHER_SRC", ""),
+                         os.path.join(BUILD, "work", "monocypher", "src"),
+                         os.path.join(BUILD, "host", "monocypher", "src"))
+             if d and os.path.isfile(os.path.join(d, "monocypher.c"))), None)
+
+
+def synthetic(tmp):
+    """A random "old ISO" and a "new" one sharing most of its blocks."""
+    rnd = random.Random(1)
+    old = bytearray(rnd.randbytes(48 << 20))
+    new = bytearray(old[:5 << 20] + rnd.randbytes(3 << 20) + old[5 << 20:])  # inserted, the rest shifted
+    new[30 << 20:31 << 20] = rnd.randbytes(1 << 20)                # changed
+    new += rnd.randbytes(2 << 20)                                   # appended
+    for data in (old, new):
+        # A primary volume descriptor, as the updater looks for, with the size.
+        pvd = bytearray(2048)
+        pvd[0:6] = b"\x01CD001"
+        pvd[80:84] = (len(data) // 2048).to_bytes(4, "little")
+        data[16 * 2048:17 * 2048] = pvd
+    paths = os.path.join(tmp, "old.iso"), os.path.join(tmp, "new.iso")
+    for path, data in zip(paths, (old, new)):
+        with open(path, "wb") as f:
+            f.write(data)
+    return paths
 
 
 class Ranges(http.server.SimpleHTTPRequestHandler):
@@ -47,8 +77,15 @@ class Ranges(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
-    old, new = sys.argv[1:3]
+    if not MONO:
+        sys.exit("Monocypher's sources were not found: build first, or set MONOCYPHER_SRC")
     tmp = tempfile.mkdtemp(prefix="amnesia-update-")
+    if sys.argv[1:] == ["--synthetic"]:
+        old, new = synthetic(tmp)
+    elif len(sys.argv) == 3:
+        old, new = sys.argv[1:3]
+    else:
+        sys.exit(__doc__)
     srv, work = os.path.join(tmp, "srv"), os.path.join(tmp, "work")
     os.makedirs(srv)
     os.makedirs(work)
@@ -59,6 +96,11 @@ def main():
                     f"{ROOT}/src/snap/sha256.c", f"{MONO}/monocypher.c",
                     f"{MONO}/optional/monocypher-ed25519.c"], check=True)
     wsign = os.path.join(BUILD, "host", "wsign")
+    if not os.access(wsign, os.X_OK):
+        wsign = os.path.join(tmp, "wsign")
+        subprocess.run(["gcc", "-w", "-I", MONO, "-I", f"{MONO}/optional", "-o", wsign,
+                        f"{ROOT}/src/wh/wsign.c", f"{ROOT}/src/wh/sig.c", f"{MONO}/monocypher.c",
+                        f"{MONO}/optional/monocypher-ed25519.c"], check=True)
     key, pub = os.path.join(tmp, "key"), os.path.join(tmp, "pub")
     subprocess.run([wsign, "keygen", key, pub], check=True, stdout=subprocess.DEVNULL)
     shutil.copy(new, srv)

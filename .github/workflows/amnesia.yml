@@ -1,0 +1,86 @@
+# WormOS Amnesia's own checks. On every push and pull request: the updater,
+# end to end on synthetic ISOs (a tampered manifest refused, the old ISO
+# turned into the new one byte for byte). On every release, every week and
+# by hand: the published release's files as amnesia-update uses them, and
+# the ISO booted in QEMU with KVM through the edition test (Tor from the
+# start, nothing past it, no root, installs without root, a grey screen,
+# power-off when the stick is pulled).
+name: Amnesia
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  schedule:
+    - cron: "37 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (default: the latest release)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  updater:
+    name: Updater on synthetic ISOs
+    if: github.repository == 'CrimsonMac/WormOS-Amnesia' && (github.event_name == 'push' || github.event_name == 'pull_request')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Monocypher, from its recipe's pinned source
+        run: |
+          bash -c '. scripts/env.sh
+            eval "$(sed -n "/^\(name\|version\|source\|sha256\)=/p" recipes/monocypher/recipe)"
+            fetch "${source[0]}" "${sha256[0]}"
+            unpack "$SOURCES/$(basename "${source[0]}")" build/host/monocypher'
+      - run: tests/amnesia-update-test.py --synthetic
+
+  release:
+    name: Release in QEMU
+    if: github.repository == 'CrimsonMac/WormOS-Amnesia' && github.event_name != 'push' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Find the release
+        id: release
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          [ -n "$tag" ] || tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+      - name: Download the release
+        run: |
+          mkdir -p out/release build
+          gh release download "${{ steps.release.outputs.tag }}" -R "$GITHUB_REPOSITORY" -D out/release
+      - name: Check the files amnesia-update uses
+        run: scripts/check-amnesia-release.sh out/release
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+      - name: Edition test
+        run: tests/editions-test.py amnesia out/release/wormos-*-amnesia-x86_64.iso --release
+      - name: Keep the logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: amnesia-logs
+          path: |
+            build/*.log
+            build/*.ppm
+          if-no-files-found: ignore

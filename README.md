@@ -35,8 +35,13 @@ make iso-amnesia                       # out/wormos-amnesia.iso
 tests/editions-test.py amnesia         # boot it and check what Amnesia promises
 make release-amnesia VERSION=1.10      # the release ISO and its signed update manifest
 scripts/publish-amnesia.sh 1.10 NOTES.md  # the GitHub release (after pushing tag v1.10)
-tests/amnesia-update-test.py OLD.iso NEW.iso   # check the updater
+tests/amnesia-update-test.py OLD.iso NEW.iso   # check the updater (or --synthetic)
+scripts/check-amnesia-release.sh DIR   # a release's ISO against its signed manifest
 ```
+
+CI (`.github/workflows/amnesia.yml`) runs the updater test on every push and
+boots each release in QEMU; `sync-upstream.yml` reports WormOS commits that
+are not merged here yet.
 
 ---
 
