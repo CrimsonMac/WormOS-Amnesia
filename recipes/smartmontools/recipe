@@ -1,0 +1,25 @@
+name=smartmontools
+version=7.5
+description="smartctl: disk health (S.M.A.R.T.) for ATA, SCSI and NVMe drives"
+depends=(glibc gcc-libs)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(https://github.com/smartmontools/smartmontools/releases/download/RELEASE_${version/./_}/smartmontools-$version.tar.gz)
+sha256=(690b83ca331378da9ea0d9d61008c4b22dde391387b9bbad7f29387f2595f76e)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sbindir=/usr/sbin --sysconfdir=/etc --without-systemdsystemunitdir \
+		--without-libsystemd --without-initscriptdir --without-update-smart-drivedb \
+		--without-libcap-ng --without-selinux
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	# No smartd: there is no mail or service setup for it.
+	rm -rf "$pkgdir/usr/sbin/smartd" "$pkgdir/etc" "$pkgdir/usr/etc"
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/smartmontools/COPYING"
+}

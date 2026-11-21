@@ -237,6 +237,10 @@ in the README.
   kills everything, unmounts all but `/proc`, `/sys` and `/dev`, and execs
   `wormrd --soft-reboot`, which runs `snap boot` and `pivot_root`s into the new
   `@`. The kernel keeps running.
+- Shutdown (power off, halt, reboot; not a soft reboot): worminit stops
+  every process, then runs each executable in `/etc/worm/shutdown.d` in
+  name order (30 s each at most, then killed), then syncs and unmounts.
+  WormOS Amnesia wipes the session's data there.
 - Staging (`stage.c`): `snap stage begin|commit [--try]|abort|keep|status`
   works on `@.next`.
 - `snap list --raw` prints one tab-separated line per snapshot for
@@ -247,6 +251,21 @@ in the README.
   service `11-snap-status` runs at boot. It is not written with `--top`.
 
 ## wh
+
+- Recommends (since 1.8): a recipe's `recommends=(...)` becomes a
+  `recommends =` line in the package and the index (older wh ignores it).
+  When a package is installed or upgraded, `resolve` adds each package it
+  recommends that is not installed, not declined and in the index; unlike
+  depends, `wh remove` does not check them. Removing a package records it
+  in `/usr/lib/wh/declined` (part of the system, so snapshots and undo
+  cover it); installing it explicitly takes it off again.
+- Editions: `wh upgrade` also installs the edition's package when it is
+  missing and not declined: `wormos-standard` without `/etc/worm/variant`,
+  `wormos-VARIANT_ID` otherwise, if the index has it. `wormos-standard`
+  recommends the standard edition's programs; each release that adds
+  programs bumps it. Systems from before 1.8 upgrade with their own wh,
+  which knows neither, so their second `wh upgrade` brings the programs
+  (the welcome text says so while the package is missing).
 
 - `src/wh/`: `wh.c` (commands, transactions), `repo.c` (index, signatures,
   downloads via curl), `db.c` (installed database), `pkg.c` (tar reader using
@@ -430,6 +449,25 @@ in the README.
   upstream connections are redirected like any other. Without a `tor`
   user nothing is accepted or excepted, so the machine fails closed. A cut
   network (panic, safe mode) replaces the whole table and wins.
+
+- `worm anon start` (the `16-anon` service) does nothing while
+  `/run/worm/anon-hold` exists: an edition's start screen (WormOS Amnesia)
+  first asks how Tor should connect, then removes it and starts Tor, so a
+  network that blocks Tor never sees a direct attempt.
+- Bridges (`worm anon bridges KIND`, `anon.c`): `/etc/tor/torrc.d/bridges.conf`
+  (the torrc ends with `%include /etc/tor/torrc.d/`, an empty directory in
+  the tor package) gets `UseBridges 1`, `ClientTransportPlugin
+  meek_lite,obfs4,webtunnel,snowflake exec` Tor Browser's `lyrebird`, and
+  one `Bridge` line per bridge: the defaults from
+  `/usr/share/tor/bridges/KIND` (written when tor-browser-bundle is built,
+  from `pt_config.json` in the browser's `omni.ja`) or lines from standard
+  input (`custom`; control characters refused, an optional `Bridge `
+  prefix dropped). A first comment line names the kind. The firewall
+  reloads and a running Tor restarts. In anonymous mode with bridges, the
+  output chain also accepts TCP to port 853 from the unbound user (the
+  transports resolve their servers' names through it before Tor is up;
+  Tor's own user is left out of the DNS redirect), and with snowflake UDP
+  from Tor's user.
 
 ## Tor Browser
 

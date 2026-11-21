@@ -291,7 +291,7 @@ static int cmd_lock(const char *comment)
 
 static void usage(FILE *out)
 {
-	fputs("usage: worm help [COMMAND] | status | panic [off] | anon on|off|status | unlock |\n"
+	fputs("usage: worm help [COMMAND] | status | panic [off] | anon on|off|status|bridges KIND | unlock |\n"
 	      "       worm lock [-c COMMENT]\n"
 	      "       worm kit [list] | show NAME | install NAME | remove NAME\n"
 	      "       worm time [zones [TEXT] | zone NAME | sync]\n"
@@ -331,13 +331,15 @@ static void overview(void)
 	       "  worm fw status           the firewall (everything inbound is blocked)\n"
 	       "  worm fw allow 22         open a port; worm fw deny 22 closes it\n"
 	       "  worm anon on|off         send all traffic through Tor\n"
+	       "  worm anon bridges snowflake  reach Tor where it is blocked (obfs4, meek,\n"
+	       "                           custom: lines from bridges.torproject.org; off)\n"
 	       "  worm unlock / lock       make / writable for a moment, then read-only again\n"
 	       "  worm panic [off]         cut the network, close sandboxes, take a snapshot\n\n",
 	       m, r);
 	printf("%sTool kits%s\n"
 	       "  worm kit list            forensics, network, reverse engineering, web...\n"
 	       "  worm kit show NAME       what a kit contains\n"
-	       "  worm kit install NAME    install its tools from Debian/Kali (root)\n\n", m, r);
+	       "  worm kit install NAME    install its tools (root); basic: everyday tools\n\n", m, r);
 	printf("%sTime%s\n"
 	       "  worm time                the time, the time zone, the last clock check\n"
 	       "  worm time zone NAME      set the time zone (root; worm time zones lists them)\n\n",

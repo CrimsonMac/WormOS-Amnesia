@@ -397,6 +397,14 @@ ANON_CHECKS = [
     ("status shows it", "worm status", r"DNS\s+through Tor(.|\n)*Anonymity\s+on"),
     ("survives a firewall reload", "worm fw load && nft list chain inet worm anon_nat | grep -c 9040",
      r"^1$"),
+    ("bridges through Tor Browser's transports",
+     "worm anon bridges snowflake | head -1; grep -c '^Bridge snowflake' /etc/tor/torrc.d/bridges.conf; "
+     "nft list chain inet worm output | grep -c 'l4proto udp accept'; "
+     "tor -f /etc/tor/torrc --verify-config | tail -1",
+     r"snowflake bridges?\.\n[1-9]\n1\nConfiguration was valid"),
+    ("bridges off", "worm anon bridges off | head -1; ls /etc/tor/torrc.d | wc -l; "
+     "nft list chain inet worm output | grep -c 'l4proto udp accept'",
+     r"^Tor connects directly again(.|\n)*^0\n0$"),
     ("worm anon off", "worm anon off", r"^Anonymous mode is off"),
     ("tor stopped", "sleep 2; pidof tor || echo none", r"^none$"),
     ("direct connections again", "busybox wget -q -T 10 -O- {repo}anon-off-check 2>&1; echo done",
@@ -546,6 +554,21 @@ TOOL_CHECKS = [
      "mkfs.fat /tmp/fat.img > /dev/null && fsck.fat -n /tmp/fat.img | tail -1", r"files"),
     ("whois, traceroute, ethtool", "whois --version | head -1; traceroute --version; "
      "ethtool --version", r"^Version 5\.6(.|\n)*traceroute.*2\.1(.|\n)*ethtool version 7"),
+    ("the standard edition's package", "wh list | grep -c '^wormos-standard '", r"^1$"),
+    ("btop, mc, fastfetch, gdb", "btop --version | head -1; mc --version | head -1; "
+     "fastfetch --version; gdb --version | head -1",
+     r"^btop version 1\.4(.|\n)*GNU Midnight Commander 4\.8(.|\n)*fastfetch 2\.(.|\n)*GNU gdb"),
+    ("fastfetch shows the WormOS logo", "fastfetch --pipe false -s os | grep -c -e @ -e WormOS", r"^[2-9]$"),
+    ("ext4 and exFAT", "cd /tmp && dd if=/dev/zero of=e.img bs=1M count=16 2>/dev/null && "
+     "mkfs.ext4 -q -F e.img && e2fsck -fn e.img | tail -1 && mkfs.exfat e.img > /dev/null && "
+     "fsck.exfat -n e.img | tail -1",
+     r"e\.img: \d+/\d+ files(.|\n)*clean"),
+    ("yara finds a pattern", "cd /tmp && printf 'rule w { strings: $a = \"wormhole\" condition: $a }' > w.yar "
+     "&& echo 'a wormhole here' > w.txt && yara w.yar w.txt", r"^w w\.txt$"),
+    ("ssdeep", "ssdeep -s /usr/bin/bash | tail -1", r"^\d+:\S+:\S+,\"/usr/bin/bash\"$"),
+    ("lz4, pigz and pv", "echo ok | lz4 -q | lz4 -dq; echo ok | pigz | pv -q | unpigz", r"^ok\nok$"),
+    ("disk and firmware tools", "smartctl --version | head -1; hdparm -V; dmidecode -s system-manufacturer",
+     r"^smartctl 7\.5(.|\n)*hdparm v9\.65(.|\n)*QEMU"),
     ("busybox links taken over cleanly", "readlink /usr/bin/tar; test -L /usr/bin/less || "
      "echo real; grep -c -e ' usr/bin/less$' -e ' usr/bin/tar$' /usr/lib/wh/db/busybox/files",
      r"^bsdtar\nreal\n0$"),
@@ -769,7 +792,7 @@ def main():
     bh_net_checks = [(n, c.format(repo=repo), p) for n, c, p in BH_NET_CHECKS]
     total = (len(CHECKS) + len(KERNEL_CHECKS) + len(DNS_CHECKS) + len(FIREWALL_CHECKS) +
              len(STATUS_CHECKS) + len(panic_checks) + len(SAFE_CHECKS) + 2 +
-             len(HELPER_CHECKS) + len(TOOL_CHECKS) + 3 +
+             len(HELPER_CHECKS) + len(TOOL_CHECKS) + 4 +
              len(anon_checks) + 2 +
              len(FIREWALL_OPEN_CHECKS) + len(FIREWALL_CLOSE_CHECKS) +
              len(FIREWALL_AFTER_CHECKS) + 3 + len(BLACKHOLE_CHECKS) + len(bh_net_checks) + len(WHC_CHECKS) + len(KIT_CHECKS) + len(TIME_CHECKS) + len(PASSWD_CHECKS) +
@@ -925,6 +948,12 @@ def main():
             run_checks(con, HELPER_CHECKS)
             run_checks(con, TOOL_CHECKS)
 
+            # A shutdown hook (WormOS Amnesia wipes memory with one).
+            con.run("mount -o remount,bind,rw / && mkdir -p /etc/worm/shutdown.d && "
+                    "printf '#!/bin/sh\\necho shutdown-hook-ran > /dev/console\\n' "
+                    "> /etc/worm/shutdown.d/50-test && chmod 755 /etc/worm/shutdown.d/50-test && "
+                    "mount -o remount,bind,ro /")
+
             # The ACPI power button (QEMU's system_powerdown, as VM
             # managers send for "Shut Down") powers off cleanly. The QEMU
             # monitor shares the terminal: Ctrl-A c switches to it and back.
@@ -935,6 +964,7 @@ def main():
             con.send("system_powerdown\n\x01c")
             out = con.expect("Power down", 120)
             check("power button powers off cleanly", "powering off" in out, out[-300:])
+            check("shutdown hooks run before the end", "shutdown-hook-ran" in out, out[-600:])
             proc.wait(timeout=60)
             print("powered off cleanly")
 

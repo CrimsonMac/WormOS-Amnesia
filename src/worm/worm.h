@@ -23,6 +23,9 @@ void warn(const char *fmt, const char *arg);
 /* Booted in safe mode (wormos.safe on the kernel command line). */
 int safe_mode(void);
 int variant_is(const char *id);
+#define TORRC_D      "/etc/tor/torrc.d"
+#define BRIDGES_CONF TORRC_D "/bridges.conf"
+const char *anon_bridges(void);
 
 int cmd_fw(int argc, char **argv);
 int cmd_panic(int argc, char **argv);

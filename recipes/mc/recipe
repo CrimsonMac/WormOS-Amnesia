@@ -1,0 +1,23 @@
+name=mc
+version=4.8.33
+description="Midnight Commander: a two-pane file manager for the terminal"
+depends=(glibc glib ncurses e2fsprogs)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(https://ftp.osuosl.org/pub/midnightcommander/mc-$version.tar.xz)
+sha256=(cae149d42f844e5185d8c81d7db3913a8fa214c65f852200a9d896b468af164c)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sysconfdir=/etc --libexecdir=/usr/lib --disable-nls --with-screen=ncurses \
+		--without-x --without-gpm-mouse --disable-vfs-sftp --disable-vfs-smb \
+		--disable-doxygen-doc --disable-tests
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/mc/COPYING"
+}

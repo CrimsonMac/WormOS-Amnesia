@@ -12,5 +12,5 @@ tool = dc3dd
 tool = ewf-tools
 tool = gddrescue
 tool = hashdeep
-tool = ssdeep
-tool = yara
+core = ssdeep
+core = yara

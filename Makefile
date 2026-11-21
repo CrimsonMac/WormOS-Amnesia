@@ -21,8 +21,10 @@ PACKAGES := base-files busybox worminit wormrd snap \
 	wireguard-tools sqlite libarchive git openssh rsync python nmap binutils \
 	grep sed gawk findutils diffutils patch coreutils wget zip 7zip iproute2 ethtool \
 	pciutils libusb usbutils dosfstools whois traceroute mtr iperf3 socat \
+	gmp mpfr gdb e2fsprogs exfatprogs mc btop fastfetch lz4 pigz pv yara ssdeep \
+	smartmontools hdparm dmidecode \
 	tor-browser-bundle licenses \
-	wormos-desktop wormos-installer wormos-amnesia \
+	wormos-desktop wormos-installer wormos-standard wormos-amnesia \
 	wormos-login
 
 all: image

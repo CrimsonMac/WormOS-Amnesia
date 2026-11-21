@@ -1,0 +1,27 @@
+name=wormos-standard
+version=1.8
+description="The standard WormOS edition: the programs it comes with, beyond the base system"
+# Recommended rather than required: each program can still be removed on
+# its own (wh remembers it and does not bring it back). A new release adds
+# its new programs here, and upgrades install them.
+recommends=(wormos-installer
+	# Tor and Tor Browser.
+	libevent tor tor-browser tor-browser-runtime tor-browser-bundle
+	# Shells, terminal and editors.
+	bash less vim htop btop tmux mc fastfetch file tree ncdu jq
+	# Full versions of BusyBox's commands.
+	grep sed gawk findutils diffutils patch
+	# Development and analysis.
+	git python sqlite strace binutils gdb yara ssdeep
+	# Archives.
+	xz bzip2 libarchive zip 7zip lz4 pigz pv
+	# Network.
+	openssh rsync wget iproute2 ethtool whois traceroute nmap tcpdump wireguard-tools
+	# Devices and disks.
+	pciutils usbutils dosfstools e2fsprogs exfatprogs smartmontools hdparm dmidecode)
+
+package() {
+	# The list, for people who want to know what the edition brings.
+	mkdir -p "$pkgdir/usr/share/wormos/editions"
+	printf '%s\n' "${recommends[@]}" | sort > "$pkgdir/usr/share/wormos/editions/standard"
+}

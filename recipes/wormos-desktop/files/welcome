@@ -71,6 +71,11 @@ printf "  ${b}worm status${r}  protections              ${b}worm kit${r}     too
 printf "  ${b}worm help${r}    every WormOS command     ${b}su -${r}         administration\n"
 fi
 printf "\n"
+# Upgraded from a release without the edition package (before 1.8): the
+# next upgrade adds the programs the standard edition now comes with.
+if [ -z "$VARIANT_ID" ] && [ -d /usr/lib/wh/db ] && [ ! -e /usr/lib/wh/db/wormos-standard ]; then
+	printf "  ${b}New programs are ready:${r} ${b}wh upgrade${r} (as root) adds them.\n\n"
+fi
 # The tip, wrapped at word boundaries to the terminal's width.
 if [ -n "$tip" ]; then
 	cols=$(stty size 2>/dev/null | cut -d' ' -f2)

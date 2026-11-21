@@ -5,7 +5,16 @@
  *     worm anon status        is it on, how far Tor has connected (for
  *                             everyone; users in the group tor also see
  *                             whether Tor runs and how far it got)
- *     worm anon start         start Tor if anonymous mode is on (at boot)
+ *     worm anon start         start Tor if anonymous mode is on (at boot),
+ *                             unless ANON_HOLD exists: an edition's start
+ *                             screen asks first how Tor should connect
+ *                             (WormOS Amnesia), then removes it and runs
+ *                             "worm anon start" itself
+ *     worm anon bridges snowflake|obfs4|meek|custom|off|status
+ *                             reach Tor through bridges, on networks that
+ *                             block it: the Tor Project's default bridges
+ *                             of one kind, or bridge lines given on the
+ *                             standard input (custom)
  *
  * The switch is the file /etc/worm/anon, so it is part of system snapshots
  * like the firewall's ports. The firewall (fw.c) then lets only Tor's own
@@ -13,6 +22,14 @@
  * TransPort and every DNS query to its DNSPort, and rejects the rest (UDP,
  * ICMP, IPv6). The rules load before the network comes up and before Tor
  * starts, so nothing leaks while Tor connects; until then connections fail.
+ *
+ * Bridges go in BRIDGES_CONF, which the torrc includes: UseBridges, the
+ * transport (lyrebird from Tor Browser's bundle, which speaks obfs4,
+ * webtunnel, snowflake and meek) and Bridge lines. The default bridges are
+ * the ones Tor Browser ships (/usr/share/tor/bridges, taken from it when
+ * the bundle is built). With bridges the firewall also lets the resolver
+ * look up names for Tor's user (transports find their servers by name
+ * before Tor is connected) and, for snowflake, lets Tor's user send UDP.
  */
 
 #define _GNU_SOURCE
@@ -34,6 +51,10 @@
 #define TOR_PID      TOR_RUN "/tor.pid"
 #define TOR_LOG      TOR_RUN "/notices.log"
 #define TOR_DATA     "/var/lib/tor"
+#define ANON_HOLD    "/run/worm/anon-hold"
+#define LYREBIRD     "/opt/tor-browser/Browser/TorBrowser/Tor/PluggableTransports/lyrebird"
+#define DEFAULT_BRIDGES "/usr/share/tor/bridges"
+#define MAX_BRIDGE_LINE 2048
 
 int anon_enabled(void)
 {
@@ -197,8 +218,133 @@ const char *anon_summary(void)
 	return buf;
 }
 
+/* A bridge line as Tor takes it: printable, no newlines, a sane length. */
+static int valid_bridge(const char *line)
+{
+	size_t n = strlen(line);
+
+	if (n < 8 || n >= MAX_BRIDGE_LINE)
+		return 0;
+	for (size_t i = 0; i < n; i++)
+		if ((unsigned char)line[i] < 0x20 || line[i] == 0x7f)
+			return 0;
+	return 1;
+}
+
+static int bridges_set(const char *kind)
+{
+	char path[256], line[MAX_BRIDGE_LINE + 2];
+	int n = 0, relock, ok;
+	FILE *in, *out;
+
+	if (access(LYREBIRD, X_OK) < 0)
+		die("bridges need Tor Browser's transports; 'wh install tor-browser-bundle' first%s", "");
+	if (!strcmp(kind, "custom")) {
+		if (isatty(STDIN_FILENO))
+			printf("Paste the bridge lines (from bridges.torproject.org), then Ctrl+D:\n");
+		in = stdin;
+	} else {
+		if (strchr(kind, '/') || strchr(kind, '.'))
+			return 2;
+		snprintf(path, sizeof(path), "%s/%s", DEFAULT_BRIDGES, kind);
+		if (!(in = fopen(path, "re")))
+			die("no default bridges of the kind '%s' (snowflake, obfs4 or meek)", kind);
+	}
+	relock = root_begin_change();
+	mkdir(TORRC_D, 0755);
+	if (!(out = fopen(BRIDGES_CONF ".new", "we"))) {
+		root_end_change(relock);
+		die("cannot write " BRIDGES_CONF ": %s", strerror(errno));
+	}
+	fprintf(out, "# Bridges for Tor (worm anon bridges %s).\nUseBridges 1\n"
+		"ClientTransportPlugin meek_lite,obfs4,webtunnel,snowflake exec " LYREBIRD "\n", kind);
+	while (fgets(line, sizeof(line), in)) {
+		char *p = line;
+
+		line[strcspn(line, "\r\n")] = '\0';
+		while (*p == ' ' || *p == '\t')
+			p++;
+		if (!strncmp(p, "Bridge ", 7))
+			p += 7;
+		if (!*p || *p == '#')
+			continue;
+		if (!valid_bridge(p)) {
+			warn("skipping a line that is not a bridge: %.40s", p);
+			continue;
+		}
+		fprintf(out, "Bridge %s\n", p);
+		n++;
+	}
+	if (in != stdin)
+		fclose(in);
+	ok = fclose(out) == 0 && n > 0 && rename(BRIDGES_CONF ".new", BRIDGES_CONF) == 0;
+	if (!ok)
+		unlink(BRIDGES_CONF ".new");
+	root_end_change(relock);
+	if (!ok)
+		die(n ? "cannot write " BRIDGES_CONF "%s" : "no bridge lines given%s", "");
+	printf("Tor reaches the network through %d %s bridge%s.\n", n,
+	       strcmp(kind, "custom") ? kind : "custom", n == 1 ? "" : "s");
+	return 0;
+}
+
+static int bridges_off(void)
+{
+	int relock = root_begin_change();
+	int ok = unlink(BRIDGES_CONF) == 0 || errno == ENOENT;
+
+	root_end_change(relock);
+	if (!ok)
+		die("cannot remove " BRIDGES_CONF ": %s", strerror(errno));
+	printf("Tor connects directly again (no bridges).\n");
+	return 0;
+}
+
+/* Bridges changed: new firewall rules and, if it runs, a Tor that uses them. */
+static void bridges_apply(void)
+{
+	if (fw_reload() != 0)
+		warn("cannot reload the firewall rules%s", "");
+	if (anon_enabled() && tor_pid()) {
+		tor_stop();
+		if (tor_start() == 0)
+			printf("Tor restarted; 'worm anon status' shows how far it got.\n");
+	}
+}
+
+/* How Tor reaches the network: "direct", or the kind of bridges. */
+const char *anon_bridges(void)
+{
+	static char kind[32];
+	char line[128];
+	FILE *f = fopen(BRIDGES_CONF, "re");
+
+	if (!f)
+		return "direct";
+	snprintf(kind, sizeof(kind), "bridges");
+	if (fgets(line, sizeof(line), f))
+		sscanf(line, "# Bridges for Tor (worm anon bridges %31[a-z0-9]", kind);
+	fclose(f);
+	return kind;
+}
+
 int cmd_anon(int argc, char **argv)
 {
+	if (argc == 2 && !strcmp(argv[0], "bridges")) {
+		int r;
+
+		if (!strcmp(argv[1], "status")) {
+			printf("Tor connects: %s\n", !strcmp(anon_bridges(), "direct") ? "directly" :
+			       anon_bridges());
+			return 0;
+		}
+		if (!strcmp(argv[1], "off"))
+			r = bridges_off();
+		else if ((r = bridges_set(argv[1])) != 0)
+			return r;
+		bridges_apply();
+		return r;
+	}
 	if (argc != 1)
 		return 2;
 	if (!strcmp(argv[0], "on"))
@@ -207,9 +353,12 @@ int cmd_anon(int argc, char **argv)
 		return anon_off();
 	if (!strcmp(argv[0], "status")) {
 		printf("Anonymous mode: %s\n", anon_summary());
+		if (anon_enabled() && strcmp(anon_bridges(), "direct"))
+			printf("Tor connects through %s bridges.\n", anon_bridges());
 		return 0;
 	}
 	if (!strcmp(argv[0], "start"))
-		return anon_enabled() && !safe_mode() ? (tor_start() < 0) : 0;
+		return anon_enabled() && !safe_mode() && access(ANON_HOLD, F_OK) < 0 ?
+		       (tor_start() < 0) : 0;
 	return 2;
 }

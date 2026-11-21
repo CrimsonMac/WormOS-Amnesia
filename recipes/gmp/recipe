@@ -1,0 +1,21 @@
+name=gmp
+version=6.3.0
+description="GNU multiple precision arithmetic library"
+depends=(glibc)
+source=(https://ftp.gnu.org/gnu/gmp/gmp-$version.tar.xz)
+sha256=(a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898)
+
+build() {
+	# Its configure probes are old C: build as C17 (GCC 15 defaults to C23).
+	CC="$CC -std=gnu17" ./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--disable-static --enable-cxx=no
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 COPYING.LESSERv3 "$pkgdir/usr/share/licenses/gmp/COPYING.LESSERv3"
+}

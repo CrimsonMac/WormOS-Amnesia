@@ -9,6 +9,8 @@
 #   release             package release, bumped when the recipe changes (default 1)
 #   description         one-line summary
 #   depends=(NAME...)   packages needed at run time
+#   recommends=(NAME...) packages installed along with it unless the user
+#                       removed them (wh); they can be removed on their own
 #   caps=("PATH CAPS"...)  file capabilities, e.g. "usr/bin/dumpcap cap_net_raw=ep"
 #   groups=(NAME...)    system groups the package needs
 #   users=(NAME...)     system users (with a group of the same name) for daemons
@@ -253,7 +255,7 @@ build_one() (
 	[ -f "$recipedir/recipe" ] || die "no recipe for $1"
 
 	local name="" version="" release=1 description="" localsrc="" noextract=""
-	local -a source=() sha256=() depends=() caps=() groups=() users=() sysroot_files=()
+	local -a source=() sha256=() depends=() recommends=() caps=() groups=() users=() sysroot_files=()
 	. "$recipedir/recipe"
 	[ "$name" = "$1" ] || die "$1: recipe declares name '$name'"
 
@@ -318,6 +320,7 @@ build_one() (
 		for c in "${caps[@]}"; do echo "cap = $c"; done
 		for g in "${groups[@]}"; do echo "group = $g"; done
 		for u in "${users[@]}"; do echo "user = $u"; done
+		[ ${#recommends[@]} -eq 0 ] || echo "recommends = ${recommends[*]}"
 	} >> "$BUILD/pkginfo/$name.info"
 
 	to_sysroot

@@ -1,0 +1,20 @@
+name=mpfr
+version=4.2.2
+description="Multiple precision floating point library"
+depends=(glibc gmp)
+source=(https://ftp.gnu.org/gnu/mpfr/mpfr-$version.tar.xz)
+sha256=(b67ba0383ef7e8a8563734e2e889ef5ec3c3b898a01d00fa0a6869ad81c6ce01)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--disable-static --with-gmp="$SYSROOT/usr"
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 COPYING.LESSER "$pkgdir/usr/share/licenses/mpfr/COPYING.LESSER"
+}

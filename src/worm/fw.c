@@ -32,6 +32,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -190,10 +191,26 @@ static void write_set(FILE *f, const char *name, const char *proto,
 /* Anonymous mode: only Tor reaches the network, everything else goes to it. */
 static void write_anon(FILE *f, long tor)
 {
-	char skuid[64] = "";
+	char skuid[256] = "";
 
-	if (tor >= 0)
-		snprintf(skuid, sizeof(skuid), "\t\tmeta skuid %ld meta l4proto tcp accept\n", tor);
+	if (tor >= 0) {
+		const char *bridges = anon_bridges();
+		struct passwd *ub = getpwnam("unbound");
+		size_t n = snprintf(skuid, sizeof(skuid),
+				    "\t\tmeta skuid %ld meta l4proto tcp accept\n", tor);
+
+		/*
+		 * Bridges: transports look their servers up by name before Tor
+		 * is connected (through the resolver, over encrypted DNS), and
+		 * snowflake talks WebRTC over UDP.
+		 */
+		if (strcmp(bridges, "direct") && ub)
+			n += snprintf(skuid + n, sizeof(skuid) - n,
+				      "\t\tmeta skuid %ld tcp dport 853 accept\n", (long)ub->pw_uid);
+		if (!strcmp(bridges, "snowflake"))
+			snprintf(skuid + n, sizeof(skuid) - n,
+				 "\t\tmeta skuid %ld meta l4proto udp accept\n", tor);
+	}
 	fprintf(f, "\tchain output {\n"
 		"\t\ttype filter hook output priority filter; policy drop;\n"
 		"\t\toif lo accept\n"

@@ -1,6 +1,6 @@
 name=tor-browser-bundle
 version=16.0.1
-release=2
+release=3
 description="Tor Browser itself, copied into each user's home on its first start"
 depends=(tor-browser-runtime)
 # Signed by the Tor Browser Developers (primary key
@@ -24,4 +24,15 @@ package() {
 	# all here, since every user copies it. Each copy is private again
 	# (~/.local/share/tor-browser is 0700).
 	chmod -R u+rwX,go+rX,go-w "$pkgdir/opt/tor-browser"
+	# The Tor Project's default bridges, from the browser's pt_config.json,
+	# one file per transport, for the system Tor ('worm anon bridges').
+	mkdir -p "$pkgdir/usr/share/tor/bridges"
+	python3 -I - "$pkgdir/opt/tor-browser/Browser/omni.ja" "$pkgdir/usr/share/tor/bridges" <<-'PY'
+	import json, sys, zipfile
+	config = json.loads(zipfile.ZipFile(sys.argv[1]).read("chrome/toolkit/content/global/pt_config.json"))
+	for transport, lines in config["bridges"].items():
+	    with open(f"{sys.argv[2]}/{transport}", "w") as f:
+	        f.write("".join(line + "\n" for line in lines))
+	PY
+	[ -s "$pkgdir/usr/share/tor/bridges/snowflake" ] || die "no default bridges found"
 }

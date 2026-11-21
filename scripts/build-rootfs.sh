@@ -35,15 +35,11 @@ SYSTEM=(base-files glibc gcc-libs busybox worminit wormrd snap wh worm linux
 	kmod eudev seatd linux-firmware dbus wormos-login licenses tzdata
 	wormos-desktop labwc wlroots mesa foot swaybg grim wlr-randr xcompose font-inter font-hack
 	nano)
-TOR=(libevent tor tor-browser tor-browser-runtime tor-browser-bundle)
-# Everyday command-line tools. Listed here rather than as dependencies, so
-# that each one can be removed on its own.
-TOOLS=(bash less vim htop tmux git openssh rsync xz bzip2 libarchive file tree ncdu
-	jq lsof strace wireguard-tools sqlite python nmap tcpdump binutils
-	grep sed gawk findutils diffutils patch wget zip 7zip iproute2 ethtool
-	pciutils usbutils dosfstools whois traceroute)
+# The standard edition's programs come with wormos-standard, which
+# recommends them (each stays removable on its own, and upgrades add what
+# new releases bring).
 case $VARIANT in
-standard)  PACKAGES=("${SYSTEM[@]}" wormos-installer "${TOR[@]}" "${TOOLS[@]}") ;;
+standard)  PACKAGES=("${SYSTEM[@]}" wormos-standard) ;;
 barebones) PACKAGES=("${SYSTEM[@]}" wormos-installer) ;;
 amnesia)   PACKAGES=("${SYSTEM[@]}" "${TOR[@]}" wormos-amnesia) ;;
 *)         die "unknown variant '$VARIANT' (standard, barebones or amnesia)" ;;

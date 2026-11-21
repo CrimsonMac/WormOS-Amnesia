@@ -1,0 +1,22 @@
+name=yara
+version=4.6.0
+description="YARA: pattern matching for malware research"
+depends=(glibc openssl file)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(yara-$version.tar.gz::https://github.com/VirusTotal/yara/archive/refs/tags/v$version.tar.gz)
+sha256=(61ab80084e3f83e1b73a95057058e2ae1db5f87f291e32654e191d410297f0e5)
+
+build() {
+	./bootstrap.sh > /dev/null
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--disable-static --with-crypto --enable-magic --enable-dotnet --enable-macho --enable-dex
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/yara/COPYING"
+}

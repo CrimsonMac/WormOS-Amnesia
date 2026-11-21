@@ -1,5 +1,6 @@
 name=tor
 version=0.4.9.14
+release=2
 description="Anonymity network client (worm anon)"
 depends=(glibc openssl libevent zlib zstd)
 users=(tor)
@@ -29,5 +30,6 @@ package() {
 	rm -rf "$pkgdir/etc/tor" "$pkgdir/usr/share" "$pkgdir/usr/bin/tor-gencert" \
 		"$pkgdir/usr/bin/tor-print-ed-signing-cert" "$pkgdir/usr/bin/torify"
 	install -Dm644 "$recipedir/files/torrc" "$pkgdir/etc/tor/torrc"
+	install -d "$pkgdir/etc/tor/torrc.d"
 	install -Dm644 "$recipedir/files/16-anon" "$pkgdir/etc/worm/services/16-anon"
 }

@@ -262,6 +262,55 @@ int db_adopt(const char *name, char type, const char *path)
 	return ret;
 }
 
+/*
+ * Declined packages: ones the user removed. A package that recommends
+ * them does not bring them back (WH_DECLINED, one name per line, part of
+ * the system so that snapshots and undo cover it).
+ */
+int db_declined(const char *name)
+{
+	char path[PATH_MAX], line[NAME_MAX_LEN + 2];
+	int found = 0;
+	FILE *f;
+
+	root_path(path, sizeof(path), WH_DECLINED);
+	if (!(f = fopen(path, "re")))
+		return 0;
+	while (!found && fgets(line, sizeof(line), f)) {
+		line[strcspn(line, "\n")] = '\0';
+		found = strcmp(line, name) == 0;
+	}
+	fclose(f);
+	return found;
+}
+
+void db_decline(const char *name, int declined)
+{
+	char path[PATH_MAX], tmp[PATH_MAX + 8], line[NAME_MAX_LEN + 2];
+	FILE *in, *out;
+
+	if (db_declined(name) == declined)
+		return;
+	root_path(path, sizeof(path), WH_DECLINED);
+	snprintf(tmp, sizeof(tmp), "%s.new", path);
+	if (!(out = fopen(tmp, "we")))
+		return;
+	if ((in = fopen(path, "re"))) {
+		while (fgets(line, sizeof(line), in)) {
+			line[strcspn(line, "\n")] = '\0';
+			if (*line && strcmp(line, name) != 0)
+				fprintf(out, "%s\n", line);
+		}
+		fclose(in);
+	}
+	if (declined)
+		fprintf(out, "%s\n", name);
+	if (fclose(out) == 0)
+		rename(tmp, path);
+	else
+		unlink(tmp);
+}
+
 void db_free_files(char **paths, int count)
 {
 	for (int i = 0; i < count; i++)

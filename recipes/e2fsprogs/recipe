@@ -1,0 +1,28 @@
+name=e2fsprogs
+version=1.47.4
+description="ext2/3/4 file system tools (mkfs.ext4, e2fsck, resize2fs...), libblkid and libuuid"
+depends=(glibc)
+# Checksum pinned from the release download (kernel.org also has a signature).
+source=(https://www.kernel.org/pub/linux/kernel/people/tytso/e2fsprogs/v$version/e2fsprogs-$version.tar.xz)
+sha256=(fd5bf388cbdbe006a3d3b318d983b2948382440acc85a87f1e7d108653e8db0b)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sbindir=/usr/sbin --sysconfdir=/etc --enable-elf-shlibs --disable-nls \
+		--enable-libuuid --enable-libblkid --disable-uuidd --disable-fuse2fs \
+		--disable-e2initrd-helper --without-crond-dir --without-udev-rules-dir \
+		--without-systemd-unit-dir
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	make DESTDIR="$pkgdir" install-libs
+	rm -f "$pkgdir"/usr/lib/*.a
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/lib/e2fsprogs" "$pkgdir/usr/sbin/e2scrub"* \
+		"$pkgdir/etc/e2scrub.conf" "$pkgdir/usr/libexec"
+	install -Dm644 NOTICE "$pkgdir/usr/share/licenses/e2fsprogs/NOTICE"
+}

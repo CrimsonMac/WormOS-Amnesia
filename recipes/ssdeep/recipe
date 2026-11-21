@@ -1,0 +1,22 @@
+name=ssdeep
+version=2.14.1
+description="ssdeep: fuzzy hashes (similar files, malware families)"
+depends=(glibc gcc-libs)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(https://github.com/ssdeep-project/ssdeep/releases/download/release-$version/ssdeep-$version.tar.gz)
+sha256=(ff2eabc78106f009b4fb2def2d76fb0ca9e12acf624cbbfad9b3eb390d931313)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--disable-static
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -rf "$pkgdir/usr/include"
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/ssdeep/COPYING"
+}

@@ -1,0 +1,25 @@
+name=gdb
+version=17.2
+description="The GNU debugger"
+depends=(glibc gcc-libs gmp mpfr ncurses readline expat zlib xz zstd)
+source=(https://ftp.gnu.org/gnu/gdb/gdb-$version.tar.xz)
+sha256=(1c036c0d72e4b3d1fb5c94c88632add6f9d76f4d7c4d2ea793c12a9f19a3228c)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--disable-nls --disable-werror --disable-sim --disable-gdbserver \
+		--with-system-zlib --with-system-readline --with-expat --with-lzma --with-zstd \
+		--with-libgmp-prefix="$SYSROOT/usr" --with-libmpfr-prefix="$SYSROOT/usr" \
+		--without-python --without-guile --without-debuginfod --without-babeltrace \
+		--without-xxhash --without-intel-pt --without-amd-dbgapi --enable-tui
+	make -j"$JOBS" all-gdb
+}
+
+package() {
+	make DESTDIR="$pkgdir" install-gdb
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -rf "$pkgdir/usr/include" "$pkgdir/usr/lib"
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/gdb/COPYING"
+}

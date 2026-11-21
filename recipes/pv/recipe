@@ -1,0 +1,21 @@
+name=pv
+version=1.12.7
+description="Pipe viewer: progress, speed and time left for data through a pipe"
+depends=(glibc ncurses)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(https://www.ivarch.com/programs/sources/pv-$version.tar.gz)
+sha256=(5326ed7ee95ef18039390c0b17891ac28985ac7c7a4235070fab767c1fe37bd8)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--disable-nls
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 docs/COPYING "$pkgdir/usr/share/licenses/pv/COPYING"
+}

@@ -378,6 +378,36 @@ static void resolve(struct index *idx, struct plan *pl, const char *name,
 	if (!(pl->pkgs = realloc(pl->pkgs, (pl->count + 1) * sizeof(*pl->pkgs))))
 		die("out of memory");
 	pl->pkgs[pl->count++] = p;
+	/*
+	 * Recommended packages come along, unless the user removed them once
+	 * (declined) or the repository does not have them. Unlike depends,
+	 * they can be removed on their own later.
+	 */
+	snprintf(deps, sizeof(deps), "%s", p->recommends);
+	for (tok = strtok_r(deps, " ", &save); tok; tok = strtok_r(NULL, " ", &save))
+		if (!db_installed(tok, NULL) && !db_declined(tok) && index_find(idx, tok))
+			resolve(idx, pl, tok, depth + 1, 0);
+}
+
+/*
+ * The edition's own package (wormos-standard on the standard edition,
+ * wormos-VARIANT_ID on others that have one) recommends what the edition
+ * comes with; a system that lacks it, such as one upgraded from before it
+ * existed, gets it on the next upgrade, so new releases' programs arrive.
+ */
+static void edition_package(char *out, size_t len)
+{
+	char path[PATH_MAX], line[128], id[64] = "standard";
+	FILE *f;
+
+	root_path(path, sizeof(path), "etc/worm/variant");
+	if ((f = fopen(path, "re"))) {
+		while (fgets(line, sizeof(line), f))
+			if (sscanf(line, "VARIANT_ID=%63[a-z0-9-]", id) == 1)
+				break;
+		fclose(f);
+	}
+	snprintf(out, len, "wormos-%s", id);
 }
 
 /* Download and check every package of the plan. */
@@ -491,6 +521,10 @@ static int cmd_install(int argc, char **argv, int reinstall)
 	files = fetch_plan(&pl, repo_url(repo_override));
 	stage_begin();
 	install_plan(&pl, files);
+	/* Asked for again: no longer declined. */
+	for (int i = 1; i < argc; i++)
+		if (argv[i])
+			db_decline(argv[i], 0);
 	stage_commit("install", names);
 	return 0;
 }
@@ -565,6 +599,8 @@ static int cmd_remove(int argc, char **argv)
 		info("Removing %s", argv[i]);
 		if (pkg_remove(argv[i]) < 0)
 			die("removing %s failed", argv[i]);
+		/* Removed on purpose: no recommendation brings it back. */
+		db_decline(argv[i], 1);
 		if (strcmp(argv[i], "linux") == 0)
 			kernel_changed = 1;
 	}
@@ -596,6 +632,14 @@ static int cmd_upgrade(int argc, char **argv)
 			resolve(&idx, &pl, p->name, 0, 1);
 	}
 	free(installed);
+	{
+		char edition[NAME_MAX_LEN];
+
+		edition_package(edition, sizeof(edition));
+		if (!db_installed(edition, NULL) && !db_declined(edition) &&
+		    index_find(&idx, edition))
+			resolve(&idx, &pl, edition, 0, 0);
+	}
 	if (pl.count == 0) {
 		info("Everything is up to date.");
 		return 0;

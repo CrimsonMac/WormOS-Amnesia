@@ -293,17 +293,22 @@ built from source and kept in the core repository:
 
 | | |
 |---|---|
-| Shells and terminal | zsh, bash, tmux, less, htop, ncdu, tree |
+| Shells and terminal | zsh, bash, tmux, less, htop, btop, ncdu, tree, Midnight Commander (`mc`), fastfetch |
 | Editors | nano, vim (also `vi`) |
 | Text | GNU grep (with `-P`), sed, gawk, find and xargs, diff, cmp, patch |
-| Development | git, Python 3 (with `venv` and pip), sqlite3, jq, strace, binutils (objdump, readelf, nm, strings) |
-| Archives | tar, cpio and unzip from libarchive (zip, 7z, ISO, xz, zstd...), 7-Zip (`7z`), zip, xz, bzip2, zstd, gzip |
+| Development | git, Python 3 (with `venv` and pip), sqlite3, jq, strace, gdb, binutils (objdump, readelf, nm, strings) |
+| Analysis | YARA, ssdeep |
+| Archives | tar, cpio and unzip from libarchive (zip, 7z, ISO, xz, zstd...), 7-Zip (`7z`), zip, xz, bzip2, zstd, gzip, lz4, pigz, pv |
 | Network | curl, wget, ip, ss and tc (iproute2), ethtool, whois, traceroute, OpenSSH client (ssh, scp, sftp), rsync, nmap with ncat and nping, tcpdump, wg (WireGuard) |
-| Devices | lspci, lsusb, mkfs.fat and fsck.fat |
+| Disks and devices | lspci, lsusb, mkfs.fat/fsck.fat, mkfs.ext4/e2fsck/resize2fs (e2fsprogs), mkfs.exfat/fsck.exfat, smartctl, hdparm, dmidecode |
 | Other | file, lsof, gpg, Tor Browser |
 
-Each can be removed with `wh remove`. `worm help` lists WormOS's own
-commands. The commands that also exist in BusyBox (grep, sed, diff, ip...)
+They come with the package `wormos-standard`, which recommends them
+rather than requiring them: each can be removed with `wh remove`, and wh
+remembers that and does not bring it back. When a release adds programs to
+the standard edition, `wh upgrade` installs them. (From 1.7, the first
+`wh upgrade` brings the new wh and the second the new programs.) `worm
+help` lists WormOS's own commands. The commands that also exist in BusyBox (grep, sed, diff, ip...)
 take over its small versions; removing the package brings BusyBox's back.
 WormOS Barebones has none of these; `worm kit install basic` adds them all.
 
@@ -383,6 +388,21 @@ switch are cut, not carried on outside Tor. The rules load before the network co
 up and stay in place while Tor connects, so nothing leaks in between.
 The setting is kept across restarts and is part of system snapshots.
 Programs can also use Tor's SOCKS port directly (127.0.0.1:9050).
+
+Where Tor is blocked, it can connect through bridges, with the transports
+that come with Tor Browser:
+
+```
+worm anon bridges snowflake   # the Tor Project's default bridges of a kind:
+worm anon bridges obfs4       #   snowflake, obfs4 or meek
+worm anon bridges custom      # paste lines from bridges.torproject.org
+worm anon bridges off         # connect directly again
+```
+
+With bridges, the transports look up their servers' names before Tor is
+connected, through the local resolver (encrypted DNS), as Tor Browser does
+with the system's resolver; snowflake also needs UDP for Tor's own user.
+Everything else still goes through Tor or is blocked.
 
 ## Tor Browser
 

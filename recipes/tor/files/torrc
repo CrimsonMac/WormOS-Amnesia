@@ -19,3 +19,6 @@ DNSPort [::1]:5353
 # connects to through Tor.
 AutomapHostsOnResolve 1
 VirtualAddrNetworkIPv4 10.192.0.0/10
+
+# Bridges ('worm anon bridges') and other additions.
+%include /etc/tor/torrc.d/

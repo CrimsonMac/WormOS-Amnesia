@@ -9,6 +9,7 @@
 
 /* Paths, relative to the root being managed. */
 #define WH_DB_DIR       "usr/lib/wh/db"
+#define WH_DECLINED     "usr/lib/wh/declined"
 #define WH_KEY          "usr/share/wh/keys/core.pub"
 #define WH_REPO_CONF    "etc/wh/repo"
 #define WH_STATE_DIR    "var/lib/wh"
@@ -25,6 +26,7 @@ struct package {
 	char version[VERSION_MAX_LEN];  /* VERSION-RELEASE */
 	char description[DESC_MAX_LEN];
 	char depends[DEPS_MAX_LEN];     /* space separated */
+	char recommends[DEPS_MAX_LEN];  /* installed along unless declined */
 	char file[NAME_MAX_LEN + VERSION_MAX_LEN + 16];
 	char sha256[65];
 	long long size;
@@ -86,6 +88,8 @@ char *db_owner(const char *path, const char *except);   /* caller frees */
 int db_files(const char *name, char ***paths, int *count);
 int db_disown(const char *name, const char *path);
 int db_adopt(const char *name, char type, const char *path);
+int db_declined(const char *name);
+void db_decline(const char *name, int declined);
 void db_free_files(char **paths, int count);
 
 /* hooks.c */

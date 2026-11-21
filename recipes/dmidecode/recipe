@@ -1,0 +1,16 @@
+name=dmidecode
+version=3.7
+description="dmidecode: the machine's hardware as the firmware describes it"
+depends=(glibc)
+# Upstream publishes no signature here: checksum pinned from the release download.
+source=(https://download.savannah.gnu.org/releases/dmidecode/dmidecode-$version.tar.xz)
+sha256=(2c3aed12c85a1e6a9410d406d5e417c455466dc1bc7c89278bb32cf7cad91e8a)
+
+build() {
+	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" prefix=/usr sbindir=/usr/sbin install-bin
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/dmidecode/LICENSE"
+}

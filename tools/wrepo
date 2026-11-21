@@ -74,6 +74,7 @@ index=$REPO/index
 		echo "size = $(stat -c %s "$wpkg")"
 		echo "installed-size = $(get size)"
 		echo "depends = $(get depends)"
+		echo "recommends = $(get recommends)"
 		echo "description = $(get description)"
 	done
 } > "$index.part"

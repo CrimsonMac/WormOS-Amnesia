@@ -1,0 +1,17 @@
+name=btop
+version=1.4.8
+description="btop: processes, CPU, memory, disks and network at a glance"
+depends=(glibc gcc-libs)
+# Upstream publishes no signature: checksum pinned from the tagged archive.
+source=(btop-$version.tar.gz::https://github.com/aristocratos/btop/archive/refs/tags/v$version.tar.gz)
+sha256=(67e07c21b770a6d884c5e50ba1d2cfc90732ea57459367d8732ec7ecbeb3be5f)
+
+build() {
+	make CXX="$CXX" STATIC= GPU_SUPPORT=false ADDFLAGS="$LDFLAGS" -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" PREFIX=/usr install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/doc"
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/btop/LICENSE"
+}

@@ -1,6 +1,6 @@
 name=base-files
-version=1.7
-release=2
+version=1.8
+release=1
 description="Base system configuration and directory layout"
 
 package() {

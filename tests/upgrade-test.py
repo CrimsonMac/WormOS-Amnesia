@@ -61,6 +61,17 @@ AFTER_CHECKS = [
     ("system services running", "pidof dbus-daemon unbound | wc -w", r"^[2-9]$"),
     ("the user's files kept", f"ls -d /home/{USER}", rf"^/home/{USER}$"),
     ("still read-only", "touch /usr/x 2>&1", r"Read-only file system"),
+    ("the edition's package", "wh list | grep -c '^wormos-standard '", r"^1$"),
+    ("the new release's programs arrived",
+     "btop --version | head -1; gdb --version | head -1; command -v fastfetch mc 7z",
+     r"btop version(.|\n)*GNU gdb(.|\n)*/usr/bin/fastfetch\n/usr/bin/mc\n/usr/bin/7z"),
+]
+
+# After the user removes a program the edition recommends.
+DECLINED_CHECKS = [
+    ("removed program stays removed", "command -v btop || echo gone; "
+     "wh --repo {repo} upgrade", r"^gone\n(.|\n)*Everything is up to date\.$"),
+    ("remembered as declined", "cat /usr/lib/wh/declined", r"^btop$"),
 ]
 
 
@@ -83,7 +94,7 @@ def main():
                             stderr=subprocess.STDOUT, env=env)
     repo = boot_test.serve_repo()
     passed = failures = 0
-    total = len(AFTER_CHECKS) + 3
+    total = len(AFTER_CHECKS) + len(DECLINED_CHECKS) + 5
 
     def check(name, ok, out=""):
         nonlocal passed, failures
@@ -150,7 +161,28 @@ def main():
             out = con.expect("login:", 1800)
             check("upgrade applied", "applied the package change" in out, out[-1500:])
             root_login(con)
+            # Releases before the edition package (1.8) upgrade with their
+            # own wh, which does not know it: the next upgrade, with the new
+            # wh, adds it and the programs it recommends.
+            out = con.run("test -e /usr/lib/wh/db/wormos-standard && echo has-edition")
+            if "has-edition" in out:
+                check("second upgrade not needed", True)
+            else:
+                con.send(f"wh --repo {repo} -y upgrade\n")
+                out = con.expect("login:", 1800)
+                check("second upgrade brings the edition's programs",
+                      "wormos-standard" in out and "applied the package change" in out,
+                      out[-1500:])
+                root_login(con)
             for name, cmd, pattern in AFTER_CHECKS:
+                out = con.run(cmd.format(repo=repo), 120)
+                check(name, re.search(pattern, out, re.M) is not None, out)
+
+            con.send(f"wh --repo {repo} -y remove btop\n")
+            out = con.expect("login:", 600)
+            check("program removed", "applied the package change" in out, out[-1500:])
+            root_login(con)
+            for name, cmd, pattern in DECLINED_CHECKS:
                 out = con.run(cmd.format(repo=repo), 120)
                 check(name, re.search(pattern, out, re.M) is not None, out)
 

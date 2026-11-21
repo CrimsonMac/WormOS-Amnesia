@@ -22,6 +22,9 @@ core = xz
 core = bzip2
 core = zip
 core = 7zip
+core = lz4
+core = pigz
+core = pv
 # Downloads and remote work.
 core = wget
 core = rsync
@@ -40,8 +43,16 @@ tool = bind9-dnsutils
 core = pciutils
 core = usbutils
 core = dosfstools
+core = e2fsprogs
+core = exfatprogs
+core = smartmontools
+core = hdparm
+core = dmidecode
 # Processes and the terminal.
 core = htop
+core = btop
+core = mc
+core = fastfetch
 core = lsof
 core = strace
 core = tmux

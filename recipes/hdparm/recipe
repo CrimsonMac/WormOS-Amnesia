@@ -1,0 +1,16 @@
+name=hdparm
+version=9.65
+description="hdparm: query and tune ATA disks"
+depends=(glibc)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(https://downloads.sourceforge.net/hdparm/hdparm-$version.tar.gz)
+sha256=(d14929f910d060932e717e9382425d47c2e7144235a53713d55a94f7de535a4b)
+
+build() {
+	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" STRIP=true
+}
+
+package() {
+	install -Dm755 hdparm "$pkgdir/usr/sbin/hdparm"
+	install -Dm644 LICENSE.TXT "$pkgdir/usr/share/licenses/hdparm/LICENSE.TXT"
+}

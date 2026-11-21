@@ -1,0 +1,23 @@
+name=exfatprogs
+version=1.4.5
+description="mkfs.exfat and fsck.exfat: create and check exFAT file systems"
+depends=(glibc e2fsprogs)
+# Upstream publishes no signature: checksum pinned from the release download.
+source=(https://github.com/exfatprogs/exfatprogs/releases/download/$version/exfatprogs-$version.tar.xz)
+sha256=(68464a07d90e9fda5475df68800b88eac2bc76076d157fd13cd8d936e0c369b0)
+
+build() {
+	# blkid.h lives in include/blkid (e2fsprogs' libblkid).
+	CPPFLAGS="-I$SYSROOT/usr/include/blkid" LIBS="-lblkid" ./configure --build="$(gcc -dumpmachine)" \
+		--host="$TARGET" --prefix=/usr \
+		--sbindir=/usr/sbin
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/info" "$pkgdir/usr/share/locale" \
+		"$pkgdir/usr/share/doc"
+	rm -f "$pkgdir"/usr/lib/*.la
+	install -Dm644 COPYING "$pkgdir/usr/share/licenses/exfatprogs/COPYING"
+}

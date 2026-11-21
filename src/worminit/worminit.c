@@ -21,6 +21,11 @@
  * Shutdown is requested with signals (compatible with busybox halt, poweroff
  * and reboot): SIGUSR1 halts, SIGUSR2 powers off, SIGTERM and SIGINT reboot.
  *
+ * Before a shutdown unmounts the filesystems, after every process has
+ * stopped, the programs in /etc/worm/shutdown.d run in name order (at most
+ * SHUTDOWN_HOOK_SECS each), such as WormOS Amnesia wiping what the session
+ * left in memory. A soft reboot does not run them.
+ *
  * SIGHUP soft-reboots: all processes are stopped and the filesystems
  * unmounted, then wormrd takes over as PID 1 again to apply pending
  * snapshot operations and start the system afresh, without restarting the
@@ -45,6 +50,8 @@
 #include <unistd.h>
 
 #define SERVICE_DIR   "/etc/worm/services"
+#define SHUTDOWN_DIR  "/etc/worm/shutdown.d"
+#define SHUTDOWN_HOOK_SECS 30
 #define WORMRD        "/usr/lib/wormrd/init"
 #define MAX_SERVICES  64
 #define MAX_EXEC      1024
@@ -436,10 +443,55 @@ static void unmount_all(int keep_kernel_fs)
 		log_msg("cannot remount / read-only: %s", strerror(errno));
 }
 
+/* Run the shutdown hooks, each until it exits or its time is up. */
+static void shutdown_hooks(void)
+{
+	struct dirent **list;
+	int n = scandir(SHUTDOWN_DIR, &list, name_filter, alphasort);
+
+	for (int i = 0; i < n; i++) {
+		char path[PATH_MAX];
+		struct stat st;
+		pid_t pid;
+
+		snprintf(path, sizeof(path), "%s/%s", SHUTDOWN_DIR, list[i]->d_name);
+		free(list[i]);
+		if (stat(path, &st) < 0 || !S_ISREG(st.st_mode) || !(st.st_mode & S_IXUSR))
+			continue;
+		log_msg("running %s", path);
+		if ((pid = fork()) == 0) {
+			sigset_t none;
+
+			sigemptyset(&none);
+			sigprocmask(SIG_SETMASK, &none, NULL);
+			execl(path, path, (char *)NULL);
+			_exit(127);
+		}
+		if (pid < 0)
+			continue;
+		for (time_t deadline = now() + SHUTDOWN_HOOK_SECS;;) {
+			pid_t r = waitpid(pid, NULL, WNOHANG);
+
+			if (r == pid || (r < 0 && errno != EINTR))
+				break;
+			if (now() >= deadline) {
+				log_msg("%s took too long", path);
+				kill(pid, SIGKILL);
+				waitpid(pid, NULL, 0);
+				break;
+			}
+			usleep(50000);
+		}
+	}
+	if (n > 0)
+		free(list);
+}
+
 static void shutdown_system(int how)
 {
 	shutting_down = 1;
 	kill_everything();
+	shutdown_hooks();
 	sync();
 	unmount_all(0);
 	sync();

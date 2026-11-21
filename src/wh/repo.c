@@ -188,6 +188,8 @@ int index_load(struct index *idx, const char *path)
 			p->installed_size = atoll(val);
 		else if (strcmp(key, "depends") == 0)
 			snprintf(p->depends, sizeof(p->depends), "%s", val);
+		else if (strcmp(key, "recommends") == 0)
+			snprintf(p->recommends, sizeof(p->recommends), "%s", val);
 		else if (strcmp(key, "description") == 0)
 			snprintf(p->description, sizeof(p->description), "%s", val);
 	}
