@@ -237,6 +237,11 @@ in the README.
   kills everything, unmounts all but `/proc`, `/sys` and `/dev`, and execs
   `wormrd --soft-reboot`, which runs `snap boot` and `pivot_root`s into the new
   `@`. The kernel keeps running.
+- worminit restarts a respawning service a second after it exits (after
+  five exits within two seconds of starting, 30 s): a login that ends
+  hangs its terminal up, which the kernel completes a moment later, and a
+  getty restarted at once on the same port could open it first and stay
+  silent.
 - Shutdown (power off, halt, reboot; not a soft reboot): worminit stops
   every process, then runs each executable in `/etc/worm/shutdown.d` in
   name order (30 s each at most, then killed), then syncs and unmounts.

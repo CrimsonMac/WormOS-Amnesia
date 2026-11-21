@@ -333,7 +333,13 @@ static void schedule_restart(struct service *svc)
 		svc->restart_at = t + BACKOFF_SECS;
 		svc->fast_exits = 0;
 	} else {
-		svc->restart_at = t;
+		/*
+		 * A second's pause: a login that ends hangs its terminal up,
+		 * which the kernel finishes a moment later. A getty started
+		 * at once on the same port could open it before that and sit
+		 * silent (seen on the serial console early in boot).
+		 */
+		svc->restart_at = t + 1;
 	}
 }
 
