@@ -1309,7 +1309,9 @@ in the README.
   reach WormOS Amnesia's repository through merges.
 - Unit tests (`tests/unit`): small C programs that include one source
   file and stub what it calls (`skew.c` includes `src/worm/anon.c`, whose
-  `TOR_LOG` it redirects to a temporary file).
+  `TOR_LOG` it redirects to a temporary file). An edition built on WormOS adds
+  its own in `tests/unit/local.mk` (`TESTS += ...`), which the Makefile
+  includes when it exists.
 
 - `make test` (`tests/boot-test.py`) boots a throwaway copy of the image
   (`run-qemu.sh --snapshot`), logs in over serial, runs the checks and powers

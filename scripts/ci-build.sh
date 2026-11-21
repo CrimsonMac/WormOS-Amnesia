@@ -58,7 +58,10 @@ done
 
 msg "Unit tests"
 cp -r "$WORMOS_ROOT/tests" "$work/tests"
-make -s -C "$work/tests/unit" CC="$CC" check || failed+=(unit-tests)
+make -s -C "$work/tests/unit" CC="$CC" \
+	MONO_CFLAGS="-I$mono/src -I$mono/src/optional" \
+	MONO_LIBS="$mono/src/monocypher.c $mono/src/optional/monocypher-ed25519.c" check ||
+	failed+=(unit-tests)
 
 [ ${#failed[@]} -eq 0 ] || die "failed: ${failed[*]}"
 msg "All programs built, unit tests passed"

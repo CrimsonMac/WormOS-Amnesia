@@ -4,6 +4,13 @@ CC      ?= cc
 CFLAGS  ?= -O2
 override CFLAGS += -std=gnu17 -Wall -Wextra -Werror -Wno-error=format-truncation -I../../src/common
 TESTS = skew
+# Monocypher (wh's signatures), for tests that need it: sources from
+# scripts/ci-build.sh, or the library where one is installed.
+MONO_CFLAGS ?=
+MONO_LIBS   ?= -lmonocypher
+
+# Editions built on WormOS add their own tests here (TESTS += ...).
+-include local.mk
 
 check: $(TESTS)
 	@status=0; for t in $(TESTS); do ./$$t || status=1; done; exit $$status
