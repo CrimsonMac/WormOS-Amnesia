@@ -54,12 +54,16 @@ jobs:
           tag="${{ github.event.release.tag_name || inputs.tag }}"
           [ -n "$tag" ] || tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      # The release's own tests in tagged/ (what it promised when it was
+      # published); the default branch in the workspace for the scripts.
+      - uses: actions/checkout@v7
       - uses: actions/checkout@v7
         with:
           ref: ${{ steps.release.outputs.tag }}
+          path: tagged
       - name: Download the release
         run: |
-          mkdir -p out/release build
+          mkdir -p out/release tagged/build
           gh release download "${{ steps.release.outputs.tag }}" -R "$GITHUB_REPOSITORY" -D out/release
       - name: Check the files amnesia-update uses
         run: scripts/check-amnesia-release.sh out/release
@@ -74,13 +78,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
       - name: Edition test
-        run: tests/editions-test.py amnesia out/release/wormos-*-amnesia-x86_64.iso --release
+        working-directory: tagged
+        run: tests/editions-test.py amnesia "$GITHUB_WORKSPACE"/out/release/wormos-*-amnesia-x86_64.iso --release
       - name: Keep the logs
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: amnesia-logs
           path: |
-            build/*.log
-            build/*.ppm
+            tagged/build/*.log
+            tagged/build/*.ppm
           if-no-files-found: ignore
