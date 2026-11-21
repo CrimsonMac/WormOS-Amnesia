@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for WormOS, a package or a tool kit
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you would like
+      description: The feature, package or kit, and what you would use it for.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it belongs in WormOS
+      description: How it fits testing, security, reversibility or isolation, and what you use instead today.

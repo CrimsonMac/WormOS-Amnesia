@@ -741,6 +741,29 @@ it, the grey screen). `tests/iso-test.py out/wormos-barebones.iso` runs
 the installation checks on Barebones too. `make release VERSION=X`
 builds all three editions.
 
+### Continuous integration
+
+GitHub Actions runs, on every push and pull request (`.github/workflows/ci.yml`):
+
+- `scripts/lint.sh`: every recipe read as `tools/wbuild` reads it (name,
+  version, a checksum per source, dependencies that exist), shell and
+  Python syntax, links between the documents, and no private keys, large
+  files or build-machine paths in the repository;
+- `scripts/ci-build.sh`: WormOS's own programs built with GCC and with
+  Clang, warnings as errors, and the unit tests (`tests/unit`, e.g. the
+  parser for Tor's clock-skew reports). Both scripts need no toolchain:
+  run them before committing.
+
+A full build takes hours, so images are not built there. Instead, on every
+release and every week, `release-tests.yml` boots the published images in
+QEMU with KVM and runs the release tests (desktop, live ISOs, Barebones);
+`package-repo.yml` checks the published package repository every day
+(`scripts/check-package-repo.sh`: signed index, every package present with
+its size and SHA-256, dependencies, source archives); and `updates.yml`
+lists recipes with newer upstream releases each week
+(`scripts/check-updates.py`, from Repology) in an issue titled "Outdated
+packages". Dependabot keeps the actions up to date.
+
 On a Windows PC, from WSL: `make test-qemu-windows` boots the image in
 QEMU for Windows, which it expects under `D:\qemu` (see
 `docs/internals.md`, Tests).
@@ -819,7 +842,8 @@ Bug reports and ideas are welcome as issues; please include the WormOS
 version (`grep VERSION_ID /etc/os-release`) and what you did. Pull requests
 should keep to the style of the code around them, update the README and
 [docs/internals.md](docs/internals.md) when they change behaviour, and
-pass `make test` (see Building). Security problems go through
+pass `scripts/lint.sh`, `scripts/ci-build.sh` (both run by CI on every
+pull request) and `make test` (see Building). Security problems go through
 [SECURITY.md](SECURITY.md), not public issues.
 
 ## License

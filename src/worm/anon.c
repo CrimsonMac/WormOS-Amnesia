@@ -49,7 +49,9 @@
 #define TOR          "/usr/bin/tor"
 #define TOR_RUN      "/run/tor"
 #define TOR_PID      TOR_RUN "/tor.pid"
+#ifndef TOR_LOG			/* tests/unit uses another file */
 #define TOR_LOG      TOR_RUN "/notices.log"
+#endif
 #define TOR_DATA     "/var/lib/tor"
 #define ANON_HOLD    "/run/worm/anon-hold"
 #define LYREBIRD     "/opt/tor-browser/Browser/TorBrowser/Tor/PluggableTransports/lyrebird"

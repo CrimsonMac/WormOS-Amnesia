@@ -287,7 +287,9 @@ static int remove_tree(int at, const char *name)
 		return errno == ENOENT ? 0 : -1;
 	if (!S_ISDIR(st.st_mode))
 		return unlinkat(at, name, 0);
-	fchmodat(at, name, 0700, 0);
+	/* Best effort: if the directory still cannot be opened, that is reported below. */
+	if (fchmodat(at, name, 0700, 0) < 0) {
+	}
 	fd = openat(at, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
 	if (fd < 0 || !(d = fdopendir(fd))) {
 		if (fd >= 0)

@@ -1,0 +1,49 @@
+# Every push and pull request: quick checks (recipes, scripts, documents,
+# files that must not be committed) and WormOS's own programs built with
+# GCC and Clang, warnings as errors, plus the unit tests. No image is built
+# here: a full build takes hours (see release-tests.yml for the images).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/lint.sh
+
+  build:
+    name: Build (${{ matrix.cc }})
+    runs-on: ubuntu-24.04
+    # Debian testing: kernel headers and GTK 4 recent enough for the
+    # Landlock scopes and GTK calls WormOS uses (its own are newer still).
+    container: debian:testing
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential clang pkg-config curl \
+            ca-certificates git libcrypt-dev libgtk-4-dev libgtk4-layer-shell-dev libwayland-dev \
+            libwayland-bin wayland-protocols meson ninja-build
+      - uses: actions/checkout@v7
+      - name: Build and run the unit tests
+        run: scripts/ci-build.sh ${{ matrix.cc }}

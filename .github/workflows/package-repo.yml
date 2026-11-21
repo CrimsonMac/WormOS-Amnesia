@@ -1,0 +1,25 @@
+# Every day: the published package repository as a WormOS system sees it
+# (signed index, every package present with the size and SHA-256 the index
+# gives, dependencies, source archives). A failure here means systems
+# cannot install or upgrade.
+name: Package repository
+
+on:
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the package repository
+    if: github.repository == 'CrimsonMac/WormOS'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/check-package-repo.sh

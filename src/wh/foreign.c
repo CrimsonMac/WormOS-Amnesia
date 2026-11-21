@@ -754,10 +754,15 @@ int wormhole_setup(const char *name)
 	mkdirs_at(root_fd, "usr/bin", 0755);
 	mkdirs_at(root_fd, "usr/sbin", 0755);
 	mkdirs_at(root_fd, "usr/lib64", 0755);
-	symlinkat("usr/bin", root_fd, "bin");
-	symlinkat("usr/sbin", root_fd, "sbin");
-	symlinkat("usr/lib", root_fd, "lib");
-	symlinkat("usr/lib64", root_fd, "lib64");
+	for (int i = 0; i < 4; i++) {
+		static const char *const merged[][2] = {
+			{ "usr/bin", "bin" }, { "usr/sbin", "sbin" },
+			{ "usr/lib", "lib" }, { "usr/lib64", "lib64" },
+		};
+
+		if (symlinkat(merged[i][0], root_fd, merged[i][1]) < 0 && errno != EEXIST)
+			die("cannot link /%s to %s: %s", merged[i][1], merged[i][0], strerror(errno));
+	}
 	mkdirs_at(root_fd, "usr/lib", 0755);
 	for (int i = 0; i < d.n; i++) {
 		char path[PATH_MAX + 512], *base;

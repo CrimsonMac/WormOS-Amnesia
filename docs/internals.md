@@ -1289,6 +1289,28 @@ in the README.
 
 ## Tests
 
+- Continuous integration (`.github/workflows`): `ci.yml` on every push
+  (`scripts/lint.sh`; `scripts/ci-build.sh` builds `src/*` with the
+  runner's GCC and Clang, `-Werror -Wno-error=format-truncation`, wh with
+  Monocypher from its recipe's source, then `make -C tests/unit check`);
+  `release-tests.yml` on each release, weekly and by hand (downloads the
+  release's assets, checks `SHA256SUMS`, opens `/dev/kvm` to the runner's
+  user with a udev rule, runs `desktop-test.py --release`, `iso-test.py
+  --live-only` on both ISOs and `editions-test.py barebones --release`,
+  keeps `build/*.log` and screendumps when a test fails); `package-repo.yml`
+  daily (`scripts/check-package-repo.sh` compares the signed index with the
+  release's assets through the GitHub API, whose `digest` is each asset's
+  SHA-256, so only the index is downloaded); `updates.yml` weekly
+  (`scripts/check-updates.py` asks Repology's API, one request a second,
+  for the newest release of each recipe's project; versions count once two
+  repositories have them; long-term series stay on their series: Linux by
+  major.minor, OpenSSL 3.5, Python 3.13, Lua 5.4, GTK 3). Jobs that only
+  make sense for WormOS check `github.repository`, since the workflows also
+  reach WormOS Amnesia's repository through merges.
+- Unit tests (`tests/unit`): small C programs that include one source
+  file and stub what it calls (`skew.c` includes `src/worm/anon.c`, whose
+  `TOR_LOG` it redirects to a temporary file).
+
 - `make test` (`tests/boot-test.py`) boots a throwaway copy of the image
   (`run-qemu.sh --snapshot`), logs in over serial, runs the checks and powers
   off with the ACPI power button (`system_powerdown` on the QEMU monitor,

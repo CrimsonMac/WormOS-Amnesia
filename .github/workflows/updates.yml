@@ -1,0 +1,38 @@
+# Every week: recipes with newer upstream releases (from Repology), kept in
+# one issue titled "Outdated packages", closed when everything is current.
+name: Upstream updates
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Look for newer upstream releases
+    if: github.repository == 'CrimsonMac/WormOS'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TITLE: Outdated packages
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compare with upstream
+        run: scripts/check-updates.py --markdown > body.md && cat body.md
+      - name: Update the issue
+        run: |
+          issue=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"$TITLE\"" \
+            --json number,title -q ".[] | select(.title == \"$TITLE\") | .number" | head -1)
+          if grep -q '^0 packages have newer' body.md; then
+            [ -z "$issue" ] || gh issue close "$issue" -R "$GITHUB_REPOSITORY" \
+              -c "Every package is at its newest upstream release."
+          elif [ -n "$issue" ]; then
+            gh issue edit "$issue" -R "$GITHUB_REPOSITORY" --body-file body.md
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body-file body.md
+          fi

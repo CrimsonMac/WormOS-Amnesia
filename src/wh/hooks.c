@@ -77,7 +77,7 @@ static void run_hook(const char *name, char *exec)
 		warn("hook %s: exec must start with an absolute path", name);
 		return;
 	}
-	root_path(loader, sizeof(loader), LOADER + 1);
+	root_path(loader, sizeof(loader), &LOADER[1]);
 	root_path(libs, sizeof(libs), "usr/lib");
 	argv[argc++] = loader;
 	argv[argc++] = "--library-path";
