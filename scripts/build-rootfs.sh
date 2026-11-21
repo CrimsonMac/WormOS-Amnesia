@@ -41,7 +41,7 @@ SYSTEM=(base-files glibc gcc-libs busybox worminit wormrd snap wh worm linux
 case $VARIANT in
 standard)  PACKAGES=("${SYSTEM[@]}" wormos-standard) ;;
 barebones) PACKAGES=("${SYSTEM[@]}" wormos-installer) ;;
-amnesia)   PACKAGES=("${SYSTEM[@]}" "${TOR[@]}" wormos-amnesia) ;;
+amnesia)   PACKAGES=("${SYSTEM[@]}" wormos-amnesia) ;;
 *)         die "unknown variant '$VARIANT' (standard, barebones or amnesia)" ;;
 esac
 WH=$BUILD/host/wh
