@@ -94,7 +94,9 @@ def main():
     check("a tampered manifest is refused", rc != 0 and "signature" in out, out)
     open(manifest, "w").write(good)
     rc, out = run(["--yes"])
-    same = open(stick, "rb").read() == open(new, "rb").read()
+    # A stick is larger than any ISO: only the ISO's length counts.
+    want = open(new, "rb").read()
+    same = open(stick, "rb").read()[:len(want)] == want
     check("the old ISO becomes the new one", rc == 0 and same, out[-500:])
     m = re.search(r"(\d+) of (\d+) blocks are already", out)
     if m:
