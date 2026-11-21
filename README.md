@@ -5,6 +5,14 @@ sends every connection through Tor from the moment it starts, and forgets
 everything when it stops. Nothing can make it keep anything: there is no
 installer, root cannot log in, and no disk is ever touched.
 
+Before the desktop, a start screen asks how to reach Tor (directly, or
+through snowflake, obfs4, meek or pasted bridges; Tor waits for the
+answer, so a network that blocks Tor never sees a direct attempt) and
+offers an administrator for this session only. Without one, the default,
+nothing can change the system or reach a disk. At shutdown the session is
+deleted and its memory wiped as it is freed; pulling out the USB stick it
+started from shuts it down the same way.
+
 This repository is WormOS with Amnesia on top: the `wormos-amnesia`
 package (`recipes/wormos-amnesia`), its plan ([docs/amnesia.md](docs/amnesia.md))
 and its tests. Everything below the line is WormOS's own README, which
@@ -13,7 +21,7 @@ applies here too.
 ```
 make iso-amnesia                       # out/wormos-amnesia.iso
 tests/editions-test.py amnesia         # boot it and check what Amnesia promises
-make release-amnesia VERSION=1.7       # the release ISO in out/release
+make release-amnesia VERSION=1.8       # the release ISO in out/release
 ```
 
 ---
