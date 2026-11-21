@@ -8,7 +8,8 @@ sha256=(67e07c21b770a6d884c5e50ba1d2cfc90732ea57459367d8732ec7ecbeb3be5f)
 
 build() {
 	# _GLIBCXX_ASSERTIONS records libstdc++ header paths: map the toolchain's.
-	make CXX="$CXX" STATIC= GPU_SUPPORT=false \
+	# GIT_COMMIT: it would take the commit of a repository around the build.
+	make CXX="$CXX" STATIC= GPU_SUPPORT=false GIT_COMMIT= \
 		ADDFLAGS="$LDFLAGS -ffile-prefix-map=$TOOLS=/usr" -j"$JOBS"
 }
 

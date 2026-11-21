@@ -12,7 +12,7 @@ recommends=(wormos-installer
 	# Full versions of BusyBox's commands.
 	grep sed gawk findutils diffutils patch
 	# Development and analysis.
-	git python sqlite strace binutils gdb yara ssdeep
+	git python sqlite strace lsof binutils gdb yara ssdeep
 	# Archives.
 	xz bzip2 libarchive zip 7zip lz4 pigz pv
 	# Network.

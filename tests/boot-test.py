@@ -398,11 +398,11 @@ ANON_CHECKS = [
     ("survives a firewall reload", "worm fw load && nft list chain inet worm anon_nat | grep -c 9040",
      r"^1$"),
     ("bridges through Tor Browser's transports",
-     "worm anon bridges snowflake | head -1; grep -c '^Bridge snowflake' /etc/tor/torrc.d/bridges.conf; "
+     "worm anon bridges snowflake > /tmp/br; head -1 /tmp/br; grep -c '^Bridge snowflake' /etc/tor/torrc.d/bridges.conf; "
      "nft list chain inet worm output | grep -c 'l4proto udp accept'; "
      "tor -f /etc/tor/torrc --verify-config | tail -1",
      r"snowflake bridges?\.\n[1-9]\n1\nConfiguration was valid"),
-    ("bridges off", "worm anon bridges off | head -1; ls /etc/tor/torrc.d | wc -l; "
+    ("bridges off", "worm anon bridges off > /tmp/br; head -1 /tmp/br; ls /etc/tor/torrc.d | wc -l; "
      "nft list chain inet worm output | grep -c 'l4proto udp accept'",
      r"^Tor connects directly again(.|\n)*^0\n0$"),
     ("worm anon off", "worm anon off", r"^Anonymous mode is off"),
@@ -557,7 +557,7 @@ TOOL_CHECKS = [
     ("the standard edition's package", "wh list | grep -c '^wormos-standard '", r"^1$"),
     ("btop, mc, fastfetch, gdb", "btop --version | head -1; mc --version | head -1; "
      "fastfetch --version; gdb --version | head -1",
-     r"^btop version 1\.4(.|\n)*GNU Midnight Commander 4\.8(.|\n)*fastfetch 2\.(.|\n)*GNU gdb"),
+     r"^btop version: \S*1\.4\.\d+(.|\n)*GNU Midnight Commander 4\.8(.|\n)*fastfetch 2\.(.|\n)*GNU gdb"),
     ("fastfetch shows the WormOS logo", "fastfetch --pipe false -s os | grep -c -e @ -e WormOS", r"^[2-9]$"),
     ("ext4 and exFAT", "cd /tmp && dd if=/dev/zero of=e.img bs=1M count=16 2>/dev/null && "
      "mkfs.ext4 -q -F e.img && e2fsck -fn e.img | tail -1 && mkfs.exfat e.img > /dev/null && "
@@ -566,7 +566,7 @@ TOOL_CHECKS = [
     ("yara finds a pattern", "cd /tmp && printf 'rule w { strings: $a = \"wormhole\" condition: $a }' > w.yar "
      "&& echo 'a wormhole here' > w.txt && yara w.yar w.txt", r"^w w\.txt$"),
     ("ssdeep", "ssdeep -s /usr/bin/bash | tail -1", r"^\d+:\S+:\S+,\"/usr/bin/bash\"$"),
-    ("lz4, pigz and pv", "echo ok | lz4 -q | lz4 -dq; echo ok | pigz | pv -q | unpigz", r"^ok\nok$"),
+    ("lz4, pigz and pv", "echo ok | lz4 -q | lz4 -dqc; echo ok | pigz | pv -q | unpigz", r"^ok\nok$"),
     ("disk and firmware tools", "smartctl --version | head -1; hdparm -V; dmidecode -s system-manufacturer",
      r"^smartctl 7\.5(.|\n)*hdparm v9\.65(.|\n)*QEMU"),
     ("busybox links taken over cleanly", "readlink /usr/bin/tar; test -L /usr/bin/less || "

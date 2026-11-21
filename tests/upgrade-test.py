@@ -5,8 +5,11 @@ The image (such as wormos-1.3-x86_64.qcow2 from an earlier release) boots
 with the desktop test's virtual GPU and keyboard; the first-boot setup is
 typed on the keyboard, then root logs in on the serial console, points wh
 at out/repo (served over HTTP) and runs wh upgrade, the way a user of that
-release would. Disk writes are discarded. The console output is written to
-build/upgrade.log.
+release would. Releases without the edition package (before 1.8) need a
+second wh upgrade, with the new wh, to get the programs the standard
+edition now comes with; the test runs it, then removes one of them and
+checks that upgrades leave it removed. Disk writes are discarded. The
+console output is written to build/upgrade.log.
 
 Usage: tests/upgrade-test.py IMAGE [--timeout SECONDS]
 """
