@@ -63,7 +63,7 @@ jobs:
           path: tagged
       - name: Download the release
         run: |
-          mkdir -p out/release tagged/build
+          mkdir -p out/release tagged/build tagged/out
           gh release download "${{ steps.release.outputs.tag }}" -R "$GITHUB_REPOSITORY" -D out/release
       - name: Check the files amnesia-update uses
         run: scripts/check-amnesia-release.sh out/release
