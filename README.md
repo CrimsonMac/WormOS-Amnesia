@@ -11,9 +11,13 @@ answer, so a network that blocks Tor never sees a direct attempt).
 There is no administrator at all: nothing can change the system or reach
 a disk, yet programs can still be installed into memory (`wh install`,
 `worm kit install`). `amnesia-update` brings the USB stick up to the latest
-release, downloading only what changed. At shutdown the session is
-deleted and its memory wiped as it is freed; pulling out the USB stick it
-started from shuts it down the same way.
+release, downloading only what changed (a notification says when one
+exists). The start screen also sets the keyboard layout; there is no
+microphone or camera, each destination gets its own Tor circuit, and a
+clock too far off for Tor (an empty clock battery) is set from what
+Tor's relays report. At
+shutdown the session is deleted and its memory wiped as it is freed;
+pulling out the USB stick it started from shuts it down the same way.
 
 Download the ISO from the
 [release page](https://github.com/CrimsonMac/WormOS-Amnesia/releases/latest),
@@ -46,7 +50,7 @@ A lightweight, security-focused Linux operating system built around instant, tam
 > It runs live from an ISO and installs onto a disk, or as a ready-made
 > disk image in QEMU and virt-manager. Three editions: the standard one,
 > Barebones (the operating system alone) and Amnesia (a live system that
-> forgets everything and sends all traffic through Tor; a preview).
+> forgets everything and sends all traffic through Tor).
 
 ## Philosophy
 

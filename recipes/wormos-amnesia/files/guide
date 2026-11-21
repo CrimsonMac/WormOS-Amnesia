@@ -29,5 +29,12 @@
     bh open --vm lab       the same on a kernel of its own
     bh close lab           stop it and delete what is in it
 
+  Programs and updates
+    wh install NAME        add a program, into memory (gone next time)
+    worm kit install web   a set of tools at once (worm kit list)
+    Update Amnesia         in the launcher: brings the USB stick up to the
+                           latest version, downloading only what changed
+
   There is no administrator: root cannot log in, so nothing can make this
-  system keep anything or reach a disk.
+  system keep anything or reach a disk. Nothing can use a microphone or a
+  camera either.

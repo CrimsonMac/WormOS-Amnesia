@@ -7,9 +7,9 @@ the Barebones system plus Tor and Tor Browser, with stricter settings and a
 grey look of its own. It is not meant for real work: nothing can be kept.
 
 This document is the plan: what Amnesia promises, what the first version
-does, and what comes next. The first version ships as
-`wormos-VERSION-amnesia-x86_64.iso` and is marked as a preview until the
-second stage below is done.
+does, and what comes next. It ships as
+`wormos-VERSION-amnesia-x86_64.iso`; the second stage below is done
+(since 1.10), so it is no longer a preview.
 
 ## Promises
 
@@ -51,7 +51,8 @@ second stage below is done.
   WormOS system; the user's home folder, `/tmp` and `/var` are writable,
   so downloading and working inside the session behave normally.
 - **Start screen.** Before the desktop, the login screen (wormlogin and the
-  greeter in `amnesia` mode) asks how Tor should connect: directly, through
+  greeter in `amnesia` mode) asks for the keyboard layout (written to the
+  live user's labwc environment, as that user) and how Tor should connect: directly, through
   the Tor Project's default snowflake, obfs4 or meek bridges, or through
   pasted bridge lines (`worm anon bridges`, with the transports Tor Browser
   ships). Tor waits for the answer (`14-anon-hold` creates
@@ -97,6 +98,23 @@ second stage below is done.
   state in `/var/lib/tor`, in memory: new guards on every start, so
   sessions cannot be linked through them. Tor Browser uses the system Tor
   (`TOR_PROVIDER=none`, SOCKS on 9050), as in anonymous mode elsewhere.
+- **Clock.** Tor copes with a clock a few hours off, but not days or
+  years (a computer whose clock battery is empty starts in 2000). While
+  Tor cannot connect, `worm time sync` (every 30 s at first) reads
+  the skew relays report in Tor's log ("our clock is behind by 5 hours"),
+  sets the clock by it and restarts Tor; the HTTPS check follows once Tor
+  is up. Amnesia never writes the computer's hardware clock.
+- **Stream isolation.** Tor's TransPort gives every destination address
+  its own circuit (`IsolateDestAddr`), so an exit relay cannot link the
+  connections of different programs or to different sites; Tor Browser
+  isolates its own sites through SOCKS.
+- **No microphone, no camera.** The kernel has no camera drivers at all.
+  A udev rule (`90-amnesia-microphone.rules`) gives the sound capture
+  devices to root alone, so neither PipeWire nor any program can record;
+  playback works. With no root, nothing can change that.
+- **Update notice.** Once Tor is connected, the session checks once for a
+  newer release (`amnesia-update --check`, signed manifest) and says so in
+  a notification.
 - **Look.** The session reads `/etc/worm/variant`: `/etc/xdg/amnesia` comes
   first in `XDG_CONFIG_DIRS` (labwc's `rc.xml` and `autostart`, foot's
   `foot.ini`, GTK's `settings.ini`), `GTK_THEME=WormOS-Amnesia` (GTK's
@@ -132,30 +150,29 @@ second stage below is done.
   the system image itself (public data) and kernel memory are not wiped;
   switching back to a shutdown initramfs that detaches the RAM disk would
   free those too.
-- **Encrypted memory filesystem.** The in-memory system and home on a
-  dm-crypt device keyed by a random key made at each start (needs
-  `CONFIG_DM_CRYPT`, which the LUKS work in the installer needs anyway),
-  so a memory image taken from outside shows no file contents.
-- **Updates offered by themselves.** Today the user runs
-  `amnesia-update`; a later version checks once Tor is connected and says
-  in a notification when an update exists.
-- **Time.** Tor needs a roughly correct clock. Today the clock check runs
-  over HTTPS (through Tor); a stage-2 check reads the time from Tor's
-  consensus instead and warns when the clock is far off.
+- **Encrypted memory filesystem: not planned.** The key of a dm-crypt
+  device made at each start would live in the same memory it protects: a
+  memory image taken while the system runs, or a cold-boot attack after
+  it stops, finds the key with the data. It would also cost memory (the
+  image's empty space must be written through the cipher: about 660 MB
+  more for a 1 GB image with 340 MB used). Wiping, which Amnesia does at
+  every shutdown (above), is what defends against reading memory
+  afterwards.
+- **Updates offered by themselves.** Done: a notification once Tor is
+  connected.
+- **Time.** Done: the clock is set from Tor's skew reports when it is too
+  far off for Tor to connect.
 
 ### Stage 3: more anonymity
 
 - **Bridges** are done (snowflake, obfs4, meek and pasted lines, including
   webtunnel, on the start screen). Still to do: requesting bridges from
   inside Amnesia (moat), and Conjure.
-- **Stream isolation:** different programs on different Tor circuits
-  (separate SOCKS ports per program, `IsolateDestAddr`).
+- **Stream isolation:** done for destinations (`IsolateDestAddr`); still
+  to do: separate SOCKS ports per program.
 - **Uniform fingerprint:** the same screen size steps for Tor Browser
   (letterboxing is already on in Tor Browser), the same fonts, a fixed
   keyboard layout list, UTC everywhere.
-- **No microphone or camera:** their kernel drivers left out of the
-  Amnesia kernel command line (`modprobe.blacklist`), or the devices
-  unbound at start.
 - **Wi-Fi with a random MAC from the first probe** (WormOS has no Wi-Fi
   stack yet; when it gets one, Amnesia randomises before scanning).
 - **Reproducible ISO**, so anyone can check that the published image is

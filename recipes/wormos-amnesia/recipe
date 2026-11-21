@@ -1,5 +1,5 @@
 name=wormos-amnesia
-version=1.2
+version=1.3
 description="WormOS Amnesia: the live edition that forgets everything and goes through Tor"
 depends=(wormos-desktop worm wh tor tor-browser tor-browser-runtime tor-browser-bundle curl)
 # GTK's theme sources, for the grey GTK theme (as in wormos-gtk-theme).
@@ -47,6 +47,11 @@ package() {
 	install -Dm4755 amnesia-update "$pkgdir/usr/bin/amnesia-update"
 	install -Dm644 "$f/amnesia-update.desktop" \
 		"$pkgdir/usr/share/applications/org.wormos.AmnesiaUpdate.desktop"
+	# Said once Tor is connected, when a newer release exists.
+	install -Dm755 "$f/update-notice" "$pkgdir/usr/lib/worm/amnesia-update-notice"
+	# No microphone (the kernel has no camera drivers at all).
+	install -Dm644 "$f/90-amnesia-microphone.rules" \
+		"$pkgdir/usr/lib/udev/rules.d/90-amnesia-microphone.rules"
 	# No root: programs go straight into memory, and the user may install
 	# them (wh hands user changes to its helper).
 	install -Dm644 /dev/null "$pkgdir/etc/wh/live"

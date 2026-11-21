@@ -1,0 +1,16 @@
+#!/bin/sh
+# WormOS Amnesia: once Tor is connected, look for a newer release and say
+# so in a notification. Started with the live user's desktop; checks once.
+i=0
+until worm anon status 2>/dev/null | grep -q '(connected)'; do
+	i=$((i + 1))
+	[ "$i" -le 180 ] || exit 0
+	sleep 10
+done
+found=$(amnesia-update --check 2>/dev/null | grep 'is available') || exit 0
+gdbus call --session --dest org.freedesktop.Notifications \
+	--object-path /org/freedesktop/Notifications \
+	--method org.freedesktop.Notifications.Notify \
+	"Update Amnesia" 0 system-software-update "Update available" \
+	"$found Open Update Amnesia in the launcher to update the USB stick, downloading only what changed." \
+	'[]' '{}' 0 > /dev/null

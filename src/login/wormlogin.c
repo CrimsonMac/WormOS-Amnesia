@@ -26,10 +26,11 @@
  * WormOS Amnesia first shows its start screen (the greeter in "amnesia"
  * mode), once per start:
  *
- *     amnesia HOW BRIDGES
+ *     amnesia HOW BRIDGES LAYOUT
  *
  * HOW is direct, snowflake, obfs4, meek or custom (BRIDGES then holds the
- * bridge lines). wormlogin sets the bridges (worm anon bridges), lets Tor
+ * bridge lines); LAYOUT is the keyboard layout for the desktop (such as
+ * de), written to the live user's labwc environment. wormlogin sets the bridges (worm anon bridges), lets Tor
  * start (it waits for this, /run/worm/anon-hold) and then starts the live
  * user's desktop. There is no administrator.
  *
@@ -271,7 +272,44 @@ static int feed(char *const argv[], const char *input)
 	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
 }
 
-/* Amnesia's start screen answered: bridges, then Tor. */
+/* The live user's keyboard layout, written as that user. */
+static int set_layout(const char *layout)
+{
+	struct passwd *pw;
+	pid_t pid;
+	int status;
+
+	if (!*layout || strlen(layout) > 16 || strspn(layout, "abcdefghijklmnopqrstuvwxyz") != strlen(layout))
+		return -1;
+	if (!strcmp(layout, "us"))
+		return 0;
+	if (!(pw = getpwnam("live")))
+		return -1;
+	if ((pid = fork()) == 0) {
+		char path[512];
+		FILE *f;
+
+		if (setgroups(0, NULL) < 0 || setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) < 0 ||
+		    setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) < 0)
+			_exit(1);
+		snprintf(path, sizeof(path), "%s/.config", pw->pw_dir);
+		mkdir(path, 0700);
+		snprintf(path, sizeof(path), "%s/.config/labwc", pw->pw_dir);
+		mkdir(path, 0700);
+		snprintf(path, sizeof(path), "%s/.config/labwc/environment", pw->pw_dir);
+		if (!(f = fopen(path, "we")))
+			_exit(1);
+		fprintf(f, "XKB_DEFAULT_LAYOUT=%s\n", layout);
+		_exit(fclose(f) == 0 ? 0 : 1);
+	}
+	if (pid < 0)
+		return -1;
+	while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+		;
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
+}
+
+/* Amnesia's start screen answered: keyboard layout, bridges, then Tor. */
 static int amnesia_start(char **f, char *msg, size_t len)
 {
 	static const char *const kinds[] = { "direct", "snowflake", "obfs4", "meek", "custom", NULL };
@@ -281,6 +319,10 @@ static int amnesia_start(char **f, char *msg, size_t len)
 		known |= !strcmp(f[1], kinds[i]);
 	if (!known) {
 		snprintf(msg, len, "Unknown way to connect.");
+		return -1;
+	}
+	if (set_layout(f[3]) < 0) {
+		snprintf(msg, len, "Unknown keyboard layout.");
 		return -1;
 	}
 	if (!strcmp(f[1], "custom") && !strstr(f[2], " ")) {
@@ -384,7 +426,7 @@ static void handle(int fd, char *buf, size_t len)
 			say("first-boot setup created %s", f[1]);
 			reply(fd, "ok", NULL);
 		}
-	} else if (n == 3 && !strcmp(f[0], "amnesia")) {
+	} else if (n == 4 && !strcmp(f[0], "amnesia")) {
 		char msg[256] = "";
 		int fd2;
 

@@ -94,6 +94,17 @@ AMNESIA_CHECKS = [
      r"Done: changed in the running system(.|\n)*directories"),
     ("welcome says what it is", "welcome | head -12",
      r"WormOS [\d.]+ Amnesia(.|\n)*Nothing here is kept"),
+    ("the keyboard layout from the start screen",
+     "cat /home/live/.config/labwc/environment; "
+     "tr '\\0' '\\n' < /proc/$(pidof worm-shell)/environ | grep ^XKB_DEFAULT_LAYOUT=",
+     r"^XKB_DEFAULT_LAYOUT=de\nXKB_DEFAULT_LAYOUT=de$"),
+    ("no microphone: sound capture is root's alone, playback works",
+     "stat -c '%a %U' /dev/snd/pcmC0D0c /dev/snd/pcmC0D0p", r"^600 root\n660 root$"),
+    ("each destination gets its own Tor circuit", "grep ^TransPort /etc/tor/torrc",
+     r"IsolateDestAddr"),
+    ("updates are looked for once Tor is connected",
+     "ls /usr/lib/worm/amnesia-update-notice; grep -c amnesia-update-notice "
+     "/etc/xdg/amnesia/labwc/autostart", r"amnesia-update-notice\n1$"),
 ]
 
 # Checked as root only (with --release the live user logs in).
@@ -127,6 +138,10 @@ def main():
     parser.add_argument("--release", action="store_true",
                         help="a release ISO: root is locked, the live user logs in")
     parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("--skew", type=int, metavar="HOURS",
+                        help="start with the clock this many hours behind (negative: ahead), "
+                             "far enough that Tor cannot connect (amnesia, e.g. -48): "
+                             "it must be set from Tor's reports")
     args = parser.parse_args()
     iso = args.iso or os.path.join(ROOT, "out", f"wormos-{args.edition}.iso")
 
@@ -166,6 +181,15 @@ def main():
     subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", disk, "4G"], check=True)
     extra = (f"-vga none -device virtio-gpu-pci -monitor unix:{mon_path},server,nowait "
              f"-vnc unix:{os.path.join(tmp, 'vnc')}")
+    if args.edition == "amnesia":
+        # A sound card with a microphone, which Amnesia must not let anyone use.
+        extra += " -audiodev none,id=snd0 -device ich9-intel-hda -device hda-duplex,audiodev=snd0"
+    if args.skew:
+        behind = time.gmtime(time.time() - args.skew * 3600)
+        # Without kvmclock the guest takes its time from the (skewed) RTC.
+        extra += " -rtc base=" + time.strftime("%Y-%m-%dT%H:%M:%S", behind)
+        if os.access("/dev/kvm", os.W_OK):
+            extra += " -cpu host,kvmclock=off"
     env = dict(os.environ, IMAGE=disk, QEMU_MEM="3072", QEMU_EXTRA=extra)
     env["USB_ISO" if args.edition == "amnesia" else "ISO"] = os.path.abspath(iso)
     proc = subprocess.Popen([os.path.join(ROOT, "scripts", "run-qemu.sh")],
@@ -173,6 +197,11 @@ def main():
                             stderr=subprocess.STDOUT, env=env)
     checks = COMMON_CHECKS + (BAREBONES_CHECKS if args.edition == "barebones"
                               else AMNESIA_CHECKS)
+    if args.skew:
+        checks = checks + [("the clock was set from Tor's reports",
+                            "for i in $(seq 60); do logread | grep -q 'reported by Tor' && break; "
+                            "sleep 2; done; logread | grep -o 'clock corrected.*'; date -u +%s",
+                            r"clock corrected by [-+]\d+ s \(reported by Tor's relays\)")]
     if args.release and args.edition == "amnesia":
         checks = checks + [("root cannot log in",
                             "echo | su -c 'echo got-root' root 2>&1; echo rc=$?",
@@ -212,7 +241,19 @@ def main():
                       re.search(r"^screen\n/run/worm/anon-hold\nno-tor$" if not args.release
                                 else r"^/run/worm/anon-hold\nno-tor$", out, re.M), out)
                 time.sleep(3)
-                mon.key("ret")          # Start Amnesia: Tor directly, no administrator
+                # The keyboard layout (two fields back from the start button;
+                # forwards are the restart and shut-down buttons), then Tor
+                # directly, no administrator.
+                mon.key("shift-tab")
+                mon.key("shift-tab")
+                mon.key("spc")
+                time.sleep(1)
+                mon.type("German")
+                mon.key("ret")
+                time.sleep(1)
+                mon.key("tab")
+                mon.key("tab")
+                mon.key("ret")
             for name, cmd, pattern in checks:
                 if args.release:
                     cmd = re.sub(r"su live -c '([^']*)'", r"\1", cmd)

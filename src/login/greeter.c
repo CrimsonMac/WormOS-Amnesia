@@ -857,6 +857,7 @@ static void start_done(struct request *r, gpointer data)
 static void start_clicked(GtkWidget *widget, gpointer data)
 {
 	guint w = MIN(gtk_drop_down_get_selected(GTK_DROP_DOWN(way)), G_N_ELEMENTS(ways) - 1);
+	guint l = MIN(gtk_drop_down_get_selected(GTK_DROP_DOWN(layout)), G_N_ELEMENTS(layouts) - 1);
 	GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(bridge_text));
 	GtkTextIter from, to;
 	char *bridges;
@@ -872,7 +873,8 @@ static void start_clicked(GtkWidget *widget, gpointer data)
 	gtk_widget_set_visible(progress, TRUE);
 	gtk_spinner_start(GTK_SPINNER(progress));
 	gtk_label_set_text(GTK_LABEL(start_error), "");
-	send_request(g_strdupv((char *[]){ "amnesia", (char *)ways[w][0], bridges, NULL }),
+	send_request(g_strdupv((char *[]){ "amnesia", (char *)ways[w][0], bridges,
+					    (char *)layouts[l][0], NULL }),
 		     start_done, NULL);
 	g_free(bridges);
 }
@@ -880,13 +882,23 @@ static void start_clicked(GtkWidget *widget, gpointer data)
 static void build_amnesia(void)
 {
 	GtkWidget *card = card_box(), *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6), *scroll;
-	GtkStringList *names = gtk_string_list_new(NULL);
+	GtkStringList *names = gtk_string_list_new(NULL), *layout_names = gtk_string_list_new(NULL);
+	GHashTable *search = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
 
 	gtk_box_append(GTK_BOX(card), page);
 	gtk_box_append(GTK_BOX(page), text("WormOS Amnesia", "title"));
 	gtk_box_append(GTK_BOX(page), text(
 		"Nothing you do here is kept: when the computer stops, it is all gone. "
 		"Every connection goes through Tor.", NULL));
+
+	label(page, "Keyboard layout");
+	for (guint i = 0; i < G_N_ELEMENTS(layouts); i++) {
+		gtk_string_list_append(layout_names, layouts[i][1]);
+		g_hash_table_insert(search, g_strdup(layouts[i][1]),
+				    g_strdup_printf("%s %s", layouts[i][1], layouts[i][0]));
+	}
+	layout = search_drop_down(layout_names, search);
+	gtk_box_append(GTK_BOX(page), layout);
 
 	label(page, "Connect to Tor");
 	for (guint i = 0; i < G_N_ELEMENTS(ways); i++)
