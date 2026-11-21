@@ -45,7 +45,8 @@ binary package: the recipe, the WormOS patches and the unmodified upstream
 archives, which together are the complete corresponding source. The build
 scripts and the toolchain recipe are in `wormos-build-tools.tar` there.
 These archives stay available for as long as the binary packages are
-offered.
+offered. The source of WormOS's own programs (init, snapshots, packages,
+desktop shell and the rest) is this repository.
 
 ### Tor Browser
 

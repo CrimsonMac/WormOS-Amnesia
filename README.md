@@ -75,8 +75,9 @@ A lightweight, security-focused Linux operating system built around instant, tam
 
 ## Trying it
 
-Download a release from the release page and check it against
-`SHA256SUMS`. All of them start with UEFI or BIOS firmware (Secure Boot
+Download a release from the
+[release page](https://github.com/CrimsonMac/WormOS/releases/latest) and
+check it against `SHA256SUMS`. All of them start with UEFI or BIOS firmware (Secure Boot
 off).
 
 ### Editions
@@ -625,14 +626,19 @@ Use these tools only on systems and data you are allowed to examine.
 
 ## Roadmap
 
-1. Minimal bootable base system (kernel, libc, init)
-2. Snapshot system and package manager
-3. Security baseline (firewall, sandboxing, hardening)
-4. Graphics stack and Wayland compositor
-5. Desktop shell and snapshot timeline
-6. Tool kits (first set done)
+1. Minimal bootable base system (kernel, libc, init) (done)
+2. Snapshot system and package manager (done)
+3. Security baseline (firewall, sandboxing, hardening) (done)
+4. Graphics stack and Wayland compositor (done)
+5. Desktop shell and snapshot timeline (done)
+6. Tool kits (done; more as they are asked for)
 7. Bootable ISO and installer (live ISO and disk installer done; disk
    encryption still to come)
+8. Editions: Barebones (done) and
+   [WormOS Amnesia](https://github.com/CrimsonMac/WormOS-Amnesia)
+
+Next: disk encryption in the installer, Wi-Fi, a graphical sandbox mode
+(`bh open --gui`) and Bluetooth.
 
 ## Building
 
@@ -791,6 +797,15 @@ package() {
 
 Build it with `tools/wbuild example`. Every source is verified against its
 pinned SHA-256 checksum before use.
+
+## Contributing
+
+Bug reports and ideas are welcome as issues; please include the WormOS
+version (`grep VERSION_ID /etc/os-release`) and what you did. Pull requests
+should keep to the style of the code around them, update the README and
+[docs/internals.md](docs/internals.md) when they change behaviour, and
+pass `make test` (see Building). Security problems go through
+[SECURITY.md](SECURITY.md), not public issues.
 
 ## License
 

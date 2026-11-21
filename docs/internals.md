@@ -1257,8 +1257,9 @@ in the README.
   VMware bundle and no open-vm-tools (the kernel keeps its VMware
   drivers).
 - Package repository: `/etc/wh/repo` (set in `recipes/wh/recipe`) is the
-  release `core` of the public repository `CrimsonMac/wormos-packages`;
-  this repository itself stays private. `scripts/source-archives.sh`
+  release `core` of the public repository `CrimsonMac/wormos-packages`,
+  which holds packages only (releases of WormOS itself are on this
+  repository's release page). `scripts/source-archives.sh`
   writes `out/sources/NAME-VER-REL.src.tar` for every package built from
   upstream sources (recipe directory and upstream archives; glibc and
   gcc-libs take theirs from the toolchain, linux and linux-headers the
