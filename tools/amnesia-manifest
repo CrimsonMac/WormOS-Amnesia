@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+"""Write the update manifest of a WormOS Amnesia ISO: amnesia-manifest ISO VERSION OUT
+
+amnesia-update (src/amnesia/update.c) reads it: the version, the ISO's
+name, size and SHA-256, then for every block of BLOCK bytes its index, a
+rolling (rsync-style) checksum and the first 16 bytes of its SHA-256, so
+the updater can find blocks the old ISO already has, at any offset.
+"""
+
+import hashlib
+import os
+import sys
+
+BLOCK = 65536
+
+
+def weak(data):
+    a = b = 0
+    n = len(data)
+    for i, x in enumerate(data):
+        a += x
+        b += (n - i) * x
+    return ((a & 0xFFFF) | ((b & 0xFFFF) << 16)) & 0xFFFFFFFF
+
+
+def weak_fast(data):
+    # The same sums, without a Python loop per byte.
+    n = len(data)
+    a = sum(data)
+    b = sum((n - i) * x for i, x in enumerate(data)) if n < 4096 else \
+        n * a - sum(i * x for i, x in enumerate(data))
+    return ((a & 0xFFFF) | ((b & 0xFFFF) << 16)) & 0xFFFFFFFF
+
+
+def main():
+    iso, version, out = sys.argv[1:4]
+    size = os.path.getsize(iso)
+    whole = hashlib.sha256()
+    lines = []
+    with open(iso, "rb") as f:
+        i = 0
+        while True:
+            data = f.read(BLOCK)
+            if not data:
+                break
+            whole.update(data)
+            lines.append(f"{i} {weak_fast(data):08x} {hashlib.sha256(data).hexdigest()[:32]}\n")
+            i += 1
+    with open(out, "w") as f:
+        f.write("# WormOS Amnesia update manifest (amnesia-update)\n")
+        f.write(f"version = {version}\n")
+        f.write(f"iso = {os.path.basename(iso)}\n")
+        f.write(f"size = {size}\n")
+        f.write(f"sha256 = {whole.hexdigest()}\n")
+        f.write(f"block = {BLOCK}\n")
+        f.writelines(lines)
+
+
+if __name__ == "__main__":
+    main()

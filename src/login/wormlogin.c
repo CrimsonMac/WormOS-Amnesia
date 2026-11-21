@@ -26,13 +26,12 @@
  * WormOS Amnesia first shows its start screen (the greeter in "amnesia"
  * mode), once per start:
  *
- *     amnesia HOW BRIDGES ADMIN-PASSWORD
+ *     amnesia HOW BRIDGES
  *
  * HOW is direct, snowflake, obfs4, meek or custom (BRIDGES then holds the
- * bridge lines); an empty password means no administrator. wormlogin sets
- * the bridges (worm anon bridges), gives root the password if there is
- * one, lets Tor start (it waits for this, /run/worm/anon-hold) and then
- * starts the live user's desktop.
+ * bridge lines). wormlogin sets the bridges (worm anon bridges), lets Tor
+ * start (it waits for this, /run/worm/anon-hold) and then starts the live
+ * user's desktop. There is no administrator.
  *
  * If the login screen cannot run (no graphics device, no greeter user, or
  * it ends three times in a row without a login), the console login takes
@@ -272,7 +271,7 @@ static int feed(char *const argv[], const char *input)
 	return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
 }
 
-/* Amnesia's start screen answered: bridges, administrator, then Tor. */
+/* Amnesia's start screen answered: bridges, then Tor. */
 static int amnesia_start(char **f, char *msg, size_t len)
 {
 	static const char *const kinds[] = { "direct", "snowflake", "obfs4", "meek", "custom", NULL };
@@ -288,30 +287,11 @@ static int amnesia_start(char **f, char *msg, size_t len)
 		snprintf(msg, len, "Paste at least one bridge line.");
 		return -1;
 	}
-	if (has_newline(f[3])) {
-		snprintf(msg, len, "The password cannot contain line breaks.");
-		return -1;
-	}
 	if (strcmp(f[1], "direct") &&
 	    feed((char *[]){ "/usr/bin/worm", "anon", "bridges", f[1], NULL },
 		 !strcmp(f[1], "custom") ? f[2] : NULL) < 0) {
 		snprintf(msg, len, "The bridges could not be set up.");
 		return -1;
-	}
-	if (*f[3]) {
-		char line[600];
-		int ok;
-
-		snprintf(line, sizeof(line), "root:%s\n", f[3]);
-		ok = feed((char *[]){ "/bin/sh", "-c",
-				      "mount -o remount,bind,rw / && chpasswd -c sha512; s=$?; "
-				      "mount -o remount,bind,ro /; exit $s", NULL }, line) == 0;
-		explicit_bzero(line, sizeof(line));
-		if (!ok) {
-			snprintf(msg, len, "The administrator password could not be set.");
-			return -1;
-		}
-		say("an administrator password was set for this session");
 	}
 	unlink(ANON_HOLD);
 	if (feed((char *[]){ "/usr/bin/worm", "anon", "start", NULL }, NULL) < 0)
@@ -404,7 +384,7 @@ static void handle(int fd, char *buf, size_t len)
 			say("first-boot setup created %s", f[1]);
 			reply(fd, "ok", NULL);
 		}
-	} else if (n == 4 && !strcmp(f[0], "amnesia")) {
+	} else if (n == 3 && !strcmp(f[0], "amnesia")) {
 		char msg[256] = "";
 		int fd2;
 

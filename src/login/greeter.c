@@ -5,8 +5,7 @@
  * wormlogin, which checks passwords and creates the first account; this
  * program only asks and passes the answers on (see wormlogin.c for the
  * messages). WORMOS_GREETER_MODE is "login", "setup" or "amnesia" (WormOS
- * Amnesia's start screen: how to reach Tor, an optional administrator for
- * the session). It exits once a login, the setup or the start has
+ * Amnesia's start screen: how to reach Tor). It exits once a login, the setup or the start has
  * succeeded, and wormlogin starts the desktop.
  */
 
@@ -830,7 +829,7 @@ static const char *const ways[][2] = {
 	{ "meek", "Through meek bridges (slow, hard to block)" },
 	{ "custom", "Through bridges I paste" },
 };
-static GtkWidget *way, *bridge_box, *bridge_text, *admin1, *admin2, *start_error, *start_button;
+static GtkWidget *way, *bridge_box, *bridge_text, *start_error, *start_button;
 
 static void way_changed(GObject *o, GParamSpec *p, gpointer data)
 {
@@ -857,7 +856,6 @@ static void start_done(struct request *r, gpointer data)
 
 static void start_clicked(GtkWidget *widget, gpointer data)
 {
-	const char *a = gtk_editable_get_text(GTK_EDITABLE(admin1));
 	guint w = MIN(gtk_drop_down_get_selected(GTK_DROP_DOWN(way)), G_N_ELEMENTS(ways) - 1);
 	GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(bridge_text));
 	GtkTextIter from, to;
@@ -867,10 +865,6 @@ static void start_clicked(GtkWidget *widget, gpointer data)
 	(void)data;
 	if (busy)
 		return;
-	if (strcmp(a, gtk_editable_get_text(GTK_EDITABLE(admin2)))) {
-		gtk_label_set_text(GTK_LABEL(start_error), "The two passwords are not the same.");
-		return;
-	}
 	gtk_text_buffer_get_bounds(buffer, &from, &to);
 	bridges = gtk_text_buffer_get_text(buffer, &from, &to, FALSE);
 	busy = TRUE;
@@ -878,7 +872,7 @@ static void start_clicked(GtkWidget *widget, gpointer data)
 	gtk_widget_set_visible(progress, TRUE);
 	gtk_spinner_start(GTK_SPINNER(progress));
 	gtk_label_set_text(GTK_LABEL(start_error), "");
-	send_request(g_strdupv((char *[]){ "amnesia", (char *)ways[w][0], bridges, (char *)a, NULL }),
+	send_request(g_strdupv((char *[]){ "amnesia", (char *)ways[w][0], bridges, NULL }),
 		     start_done, NULL);
 	g_free(bridges);
 }
@@ -917,21 +911,16 @@ static void build_amnesia(void)
 	gtk_widget_set_visible(bridge_box, FALSE);
 	gtk_box_append(GTK_BOX(page), bridge_box);
 
-	label(page, "Administrator for this session (optional)");
-	admin1 = entry(page, "Leave empty for none", TRUE);
-	admin2 = entry(page, "The same password again", TRUE);
 	gtk_box_append(GTK_BOX(page), text(
-		"Without one, nothing can change this system or reach a disk: everything "
-		"is forgotten, guaranteed. With one, root can install programs in memory for "
-		"this session, but could also write to disks, the USB stick included.", "dim"));
+		"There is no administrator: nothing can change this system or reach a disk. "
+		"Programs can still be installed into memory (wh install, worm kit install).",
+		"dim"));
 	start_error = text("", "error");
 	gtk_box_append(GTK_BOX(page), start_error);
 	progress = gtk_spinner_new();
 	gtk_widget_set_visible(progress, FALSE);
 	gtk_box_append(GTK_BOX(page), progress);
 	start_button = button_row(page, NULL, "Start Amnesia", G_CALLBACK(start_clicked));
-	g_signal_connect(admin1, "activate", G_CALLBACK(next_field), admin2);
-	g_signal_connect(admin2, "activate", G_CALLBACK(start_clicked), NULL);
 
 	frame(card);
 	gtk_widget_grab_focus(start_button);
