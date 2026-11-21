@@ -40,12 +40,39 @@
 #include "sha256.h"
 #include "sig.h"
 
-#define UPDATE_URL  "https://github.com/CrimsonMac/wormos-packages/releases/download/amnesia/"
 #define MANIFEST    "amnesia.update"
-#define PUBLIC_KEY  "/usr/share/wh/keys/core.pub"
-#define MEDIUM      "/dev/wormos-medium"
-#define WORK        "/var/cache/amnesia-update"
 #define MAX_BLOCKS  (1 << 20)
+
+/*
+ * A test build (-DAMNESIA_UPDATE_TEST, tools/amnesia-update-test) takes
+ * these from the environment and works on an ISO file instead of a stick;
+ * the installed program has them fixed.
+ */
+#ifdef AMNESIA_UPDATE_TEST
+#define SETTING(name, fixed) (getenv("TEST_" #name) ? getenv("TEST_" #name) : fixed)
+#else
+#define SETTING(name, fixed) (fixed)
+#endif
+#define UPDATE_URL  SETTING(URL, "https://github.com/CrimsonMac/wormos-packages/releases/download/amnesia/")
+#define PUBLIC_KEY  SETTING(KEY, "/usr/share/wh/keys/core.pub")
+#define MEDIUM      "/dev/wormos-medium"
+#ifdef AMNESIA_UPDATE_TEST
+#define PROTO "=http,https"
+#else
+#define PROTO "=https"
+#endif
+static char WORK[256] = "/var/cache/amnesia-update";
+
+/* A path in the work folder. */
+static const char *work(const char *name)
+{
+	static char paths[4][PATH_MAX];
+	static int next;
+	char *p = paths[next++ % 4];
+
+	snprintf(p, PATH_MAX, "%s/%s", WORK, name);
+	return p;
+}
 
 struct block {
 	uint32_t weak;
@@ -92,7 +119,7 @@ static int fetch(const char *name, const char *path)
 	char url[512];
 
 	snprintf(url, sizeof(url), "%s%s", UPDATE_URL, name);
-	return run((char *[]){ "/usr/bin/curl", "-fsSL", "--retry", "3", "--proto", "=https",
+	return run((char *[]){ "/usr/bin/curl", "-fsSL", "--retry", "3", "--proto", PROTO,
 			       "-o", (char *)path, url, NULL });
 }
 
@@ -315,9 +342,12 @@ done:
 /* Download the blocks not found, in merged ranges, several at a time. */
 static int download_missing(const char *iso_path)
 {
-	char config[] = WORK "/ranges", url[512];
-	FILE *f = fopen(config, "we");
+	char config[PATH_MAX], url[512];
+	FILE *f;
 	long ranges = 0;
+
+	snprintf(config, sizeof(config), "%s", work("ranges"));
+	f = fopen(config, "we");
 
 	if (!f)
 		return -1;
@@ -336,15 +366,17 @@ static int download_missing(const char *iso_path)
 
 		if (to >= new_size)
 			to = new_size - 1;
-		fprintf(f, "url = \"%s\"\nrange = \"%lld-%lld\"\noutput = \"%s/part.%ld\"\n",
-			url, from, to, WORK, i);
+		/* Each transfer its own options: "next" starts the next one. */
+		fprintf(f, "%surl = \"%s\"\nrange = \"%lld-%lld\"\noutput = \"%s/part.%ld\"\n"
+			"fail\nlocation\nretry = 3\nproto = \"%s\"\n",
+			ranges ? "next\n" : "", url, from, to, WORK, i, PROTO);
 		ranges++;
 		i = j;
 	}
 	if (fclose(f) != 0)
 		return -1;
-	if (ranges && run((char *[]){ "/usr/bin/curl", "-fsSL", "--retry", "3", "--proto", "=https",
-				      "-Z", "--parallel-max", "6", "-K", config, NULL }) < 0)
+	if (ranges && run((char *[]){ "/usr/bin/curl", "-sS", "-Z", "--parallel-max", "6",
+				      "-K", config, NULL }) < 0)
 		return -1;
 	/* Put the parts in place. */
 	int out = open(iso_path, O_WRONLY | O_CLOEXEC);
@@ -365,6 +397,18 @@ static int download_missing(const char *iso_path)
 		snprintf(part, sizeof(part), "%s/part.%ld", WORK, i);
 		if (!(data = read_all(part, &n)))
 			return -1;
+		/* Exactly the range asked for: a server that ignores ranges
+		 * sends the whole file. */
+		{
+			long long want = (long long)j * block_size;
+
+			if (want > new_size)
+				want = new_size;
+			if ((long long)n != want - (long long)i * block_size) {
+				free(data);
+				return -1;
+			}
+		}
 		if (pwrite(out, data, n, (off_t)i * block_size) != (ssize_t)n)
 			return -1;
 		free(data);
@@ -397,7 +441,7 @@ static int file_sha256(int fd, long long size, char hex[65])
 
 int main(int argc, char **argv)
 {
-	char version[32], dev[64], sha[65], iso_path[] = WORK "/new.iso";
+	char version[32], dev[PATH_MAX], sha[65], iso_path[PATH_MAX];
 	uint8_t key[SIG_PUBLIC_LEN];
 	int check = argc > 1 && !strcmp(argv[1], "--check");
 	int yes = argc > 1 && !strcmp(argv[1], "--yes");
@@ -407,22 +451,29 @@ int main(int argc, char **argv)
 
 	if (argc > 2 || (argc == 2 && !check && !yes))
 		die("usage: amnesia-update [--check | --yes]%s", "");
+#ifdef AMNESIA_UPDATE_TEST
+	snprintf(WORK, sizeof(WORK), "%s", SETTING(WORK, WORK));
+#else
 	clearenv();
 	setenv("PATH", "/usr/bin:/usr/sbin", 1);
-	umask(077);
 	if (setresgid(0, 0, 0) < 0 || setresuid(0, 0, 0) < 0)
 		die("not installed setuid root%s", "");
-
+#endif
+	umask(077);
 	mkdir(WORK, 0700);
+	snprintf(iso_path, sizeof(iso_path), "%s", work("new.iso"));
 	printf("Looking for an update (through Tor)...\n");
 	fflush(stdout);
-	if (fetch(MANIFEST, WORK "/manifest") < 0 || fetch(MANIFEST ".sig", WORK "/manifest.sig") < 0)
+	if (fetch(MANIFEST, work("manifest")) < 0 || fetch(MANIFEST ".sig", work("manifest.sig")) < 0)
 		die("cannot reach the update server; is Tor connected? (worm anon status)%s", "");
 	if (read_hex_file(PUBLIC_KEY, key, sizeof(key)) < 0 ||
-	    sig_verify_file(key, WORK "/manifest", WORK "/manifest.sig") < 0)
+	    sig_verify_file(key, work("manifest"), work("manifest.sig")) < 0)
 		die("the update's signature is not WormOS's: refusing it%s", "");
-	read_manifest(WORK "/manifest");
+	read_manifest(work("manifest"));
 	current_version(version, sizeof(version));
+#ifdef AMNESIA_UPDATE_TEST
+	snprintf(version, sizeof(version), "%s", SETTING(VERSION, version));
+#endif
 	if (!newer(new_version, version)) {
 		printf("WormOS Amnesia %s is the latest version.\n", version);
 		return 0;
@@ -430,7 +481,11 @@ int main(int argc, char **argv)
 	printf("WormOS Amnesia %s is available (this is %s).\n", new_version, version);
 	if (check)
 		return 0;
+#ifdef AMNESIA_UPDATE_TEST
+	snprintf(dev, sizeof(dev), "%s", SETTING(MEDIUM, ""));
+#else
 	medium(dev, sizeof(dev));
+#endif
 	if (!yes) {
 		char answer[16] = "";
 

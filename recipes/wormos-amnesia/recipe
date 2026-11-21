@@ -1,7 +1,7 @@
 name=wormos-amnesia
-version=1.1
+version=1.2
 description="WormOS Amnesia: the live edition that forgets everything and goes through Tor"
-depends=(wormos-desktop worm tor tor-browser tor-browser-runtime tor-browser-bundle)
+depends=(wormos-desktop worm wh tor tor-browser tor-browser-runtime tor-browser-bundle curl)
 # GTK's theme sources, for the grey GTK theme (as in wormos-gtk-theme).
 source=(https://download.gnome.org/sources/gtk/4.24/gtk-4.24.1.tar.xz)
 sha256=(e98abe720e16129c8c0f50761dee0a2e9ae2478055e31018f6cf977fcf6513e9)
@@ -16,6 +16,10 @@ build() {
 	cd "$srcdir"
 	# The wallpaper, in greys.
 	python3 "$recipedir/../wormos-desktop/files/wallpaper.py" --grey wormos-amnesia.png 2560 1440
+	# The updater (src/amnesia), with wh's signature check and snap's SHA-256.
+	local src=$WORMOS_ROOT/src
+	$CC $CFLAGS $LDFLAGS -std=gnu17 -Wall -Wextra -I"$src/snap" -I"$src/wh" \
+		-o amnesia-update "$src/amnesia/update.c" "$src/wh/sig.c" "$src/snap/sha256.c" -lmonocypher
 }
 
 package() {
@@ -39,6 +43,14 @@ package() {
 	install -Dm644 "$f/variant.css" "$pkgdir/usr/share/wormos/shell/variant.css"
 	install -Dm644 "$f/guide" "$pkgdir/usr/share/wormos/guide-amnesia"
 	install -Dm755 "$f/medium-watch" "$pkgdir/usr/lib/worm/medium-watch"
+	# Updating the stick, for the user (setuid: see src/amnesia/update.c).
+	install -Dm4755 amnesia-update "$pkgdir/usr/bin/amnesia-update"
+	install -Dm644 "$f/amnesia-update.desktop" \
+		"$pkgdir/usr/share/applications/org.wormos.AmnesiaUpdate.desktop"
+	# No root: programs go straight into memory, and the user may install
+	# them (wh hands user changes to its helper).
+	install -Dm644 /dev/null "$pkgdir/etc/wh/live"
+	install -Dm644 /dev/null "$pkgdir/etc/wh/users-may-install"
 	install -Dm644 "$f/services/04-medium" "$pkgdir/etc/worm/services/04-medium"
 	install -Dm644 "$f/services/14-anon-hold" "$pkgdir/etc/worm/services/14-anon-hold"
 	install -Dm755 "$f/shutdown.d/50-forget" "$pkgdir/etc/worm/shutdown.d/50-forget"

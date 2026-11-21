@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Update Amnesia
+Comment=Bring the USB stick Amnesia started from up to the latest version
+Exec=foot --title "Update Amnesia" sh -c 'amnesia-update; echo; echo "Press Enter to close."; read _'
+Icon=system-software-update
+Terminal=false
+Categories=System;
