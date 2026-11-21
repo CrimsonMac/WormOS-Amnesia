@@ -1,7 +1,8 @@
 # WormOS internals
 
 How the build, the boot and the system tools fit together. Build commands are
-in the README.
+in [building.md](building.md); what each feature does for the user, in the
+[user guide](guide.md).
 
 ## Toolchain and packages
 

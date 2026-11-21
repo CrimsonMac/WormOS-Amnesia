@@ -107,7 +107,7 @@ have their own privacy policies.
 WormOS is provided "as is", without warranty of any kind, as stated in
 sections 15 and 16 of the GNU General Public License. Snapshots,
 blackholes, the firewall and anonymous mode reduce risk, within the limits
-the README states; they do not guarantee that data cannot be lost, that
+the [user guide](guide.md) states; they do not guarantee that data cannot be lost, that
 untrusted software cannot escape, or that you cannot be identified.
 
 ## Export

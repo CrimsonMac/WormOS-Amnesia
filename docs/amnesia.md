@@ -151,7 +151,9 @@ does, and what comes next. It ships as
   edition test in QEMU with KVM. `sync-upstream.yml` checks every day for
   WormOS commits not merged here and whether they merge cleanly, in an
   issue titled "Merge WormOS" (the merge is done by hand: the workflow
-  token may not push changes to workflows).
+  token may not push changes to workflows). The README is Amnesia's own:
+  `.gitattributes` keeps it in merges (`git config merge.ours.driver
+  true`).
 
 ## Next stages
 

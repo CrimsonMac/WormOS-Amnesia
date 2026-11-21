@@ -1,4 +1,4 @@
-# WormOS build entry points. See README.md for details.
+# WormOS build entry points. See docs/building.md for details.
 
 # In build order: later packages build against earlier ones.
 PACKAGES := base-files busybox worminit wormrd snap \

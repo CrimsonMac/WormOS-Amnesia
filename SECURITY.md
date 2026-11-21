@@ -17,7 +17,8 @@ unless you prefer otherwise.
 
 ## What counts
 
-WormOS's security features have stated limits (see the README). Problems
+WormOS's security features have stated limits (see the
+[user guide](docs/guide.md)). Problems
 inside these boundaries are vulnerabilities:
 
 - **Blackholes:** a program inside reaching the host's files, processes,

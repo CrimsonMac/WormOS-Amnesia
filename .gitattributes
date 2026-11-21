@@ -1,0 +1,3 @@
+# WormOS Amnesia keeps its own README when merging WormOS (needs:
+# git config merge.ours.driver true).
+README.md merge=ours

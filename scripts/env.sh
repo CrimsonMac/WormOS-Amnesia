@@ -24,7 +24,7 @@ PKGDIR=$BUILD/pkgs          # staged package contents, one directory per package
 FSROOT=$BUILD/fsroot        # top level of the btrfs image (one dir per subvolume)
 ROOTFS=$FSROOT/@            # assembled root filesystem (the @ subvolume)
 
-# ~/.local/bin: a newer meson than Debian's (pipx install meson, see README).
+# ~/.local/bin: a newer meson than Debian's (pipx install meson, see docs/building.md).
 export PATH=$TOOLS/bin:$HOME/.local/bin:/usr/sbin:/sbin:$PATH
 export LC_ALL=C
 # Files and directories built here end up in the system: never group- or
