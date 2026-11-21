@@ -95,6 +95,14 @@ done < <(git ls-files -z -- '*.md')
 printf 'document links: %d checked\n' "$links"
 
 # ---- files that must never be committed ----
+# Symbolic links must stay inside the repository (a link to a folder on
+# the build machine breaks every other checkout).
+while IFS= read -r f; do
+	target=$(git cat-file -p "HEAD:$f" 2>/dev/null || readlink "$f")
+	case $target in
+	/*|*../../*) fail "$f: symbolic link outside the repository ($target)" ;;
+	esac
+done < <(git ls-files -s | awk '$1 == "120000" { print $4 }')
 # By content: private keys of any kind, and wsign's secret key (a 64-byte
 # hex line, as ~/.config/wormos/core.key holds; public keys have 32 bytes).
 while IFS= read -r f; do

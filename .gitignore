@@ -8,7 +8,7 @@
 *.ko
 
 # Downloaded sources and caches
-/sources/
+/sources
 /downloads/
 /cache/
 *.tar
