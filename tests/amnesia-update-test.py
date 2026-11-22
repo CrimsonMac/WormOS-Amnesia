@@ -144,6 +144,9 @@ def main():
     if m:
         print(f"      reused {m.group(1)} of {m.group(2)} blocks "
               f"({100 * int(m.group(1)) // int(m.group(2))}%)")
+    m = re.search(r"Wrote (\d+) of (\d+) MB", out)
+    if m:
+        print(f"      wrote {m.group(1)} of {m.group(2)} MB to the stick")
     rc, out = run(["--check"], TEST_VERSION="99.0")
     check("an up-to-date system says so", rc == 0 and "latest version" in out, out)
     server.shutdown()

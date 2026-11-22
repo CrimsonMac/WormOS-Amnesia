@@ -11,7 +11,7 @@ import hashlib
 import os
 import sys
 
-BLOCK = 65536
+BLOCK = int(os.environ.get("AMNESIA_BLOCK", 65536))  # AMNESIA_BLOCK: for experiments
 
 
 def weak(data):

@@ -21,6 +21,7 @@
 #define SOCKET_PATH "/run/wormlogin/socket"
 #define CSS         "/usr/share/wormos/greeter/greeter.css"
 #define WALLPAPER   "/usr/share/backgrounds/wormos.png"
+#define AMNESIA_CSS "/usr/share/wormos/greeter/amnesia.css"
 #define AMNESIA_WALLPAPER "/usr/share/backgrounds/wormos-amnesia.png"
 #define REQUEST_MAX 8192
 
@@ -951,6 +952,15 @@ static void activate(GtkApplication *application, gpointer data)
 						   GTK_STYLE_PROVIDER(css),
 						   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 	g_object_unref(css);
+	/* Amnesia's start screen is grey, like the rest of it. */
+	if (mode && !strcmp(mode, "amnesia") && access(AMNESIA_CSS, R_OK) == 0) {
+		css = gtk_css_provider_new();
+		gtk_css_provider_load_from_path(css, AMNESIA_CSS);
+		gtk_style_context_add_provider_for_display(gdk_display_get_default(),
+							   GTK_STYLE_PROVIDER(css),
+							   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION + 1);
+		g_object_unref(css);
+	}
 	window = gtk_application_window_new(application);
 	gtk_window_set_title(GTK_WINDOW(window), "WormOS");
 	gtk_widget_add_css_class(window, "greeter");

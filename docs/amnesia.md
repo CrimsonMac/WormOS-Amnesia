@@ -83,8 +83,11 @@ does, and what comes next. It ships as
   64 KiB block. Amnesia runs from memory, so the stick is free: the
   updater rebuilds the new ISO in memory from the blocks the stick already
   holds, found at any offset with a rolling checksum as rsync and zsync
-  do, downloads only the rest through Tor (HTTP range requests), checks
-  the whole against the signed SHA-256, writes the stick and reads it back.
+  do, downloads only the rest through Tor (HTTP range requests, running
+  on over gaps of up to four found blocks: over Tor a request costs more
+  than a few blocks), checks the whole against the signed SHA-256, writes
+  only the 64 KiB pieces that differ from what the stick holds at that
+  place (sticks read much faster than they write), and reads it back.
   The system image is compressed `--rsyncable`, so unchanged parts stay
   the same bytes. The updater is setuid but takes nothing from the user:
   a fixed URL and key, and it writes only to the device Amnesia started
@@ -121,8 +124,10 @@ does, and what comes next. It ships as
   theme with grey colours; errors stay red), and `WORM_SHELL_PANEL=bottom`
   moves the panel to the bottom edge with its menus opening upwards.
   `/usr/share/wormos/shell/variant.css` turns the panel, launcher and
-  notifications grey; the wallpaper is the WormOS one drawn in greys; the
-  welcome logo is grey and the welcome terminal opens at every start with
+  notifications grey; `/usr/share/wormos/greeter/amnesia.css` (loaded by
+  the greeter in Amnesia mode after its own stylesheet) does the same for
+  the start screen, and `/etc/zsh/prompt-colors` for the shell prompt; the
+  wallpaper is the WormOS one drawn in greys; the welcome logo is grey and the welcome terminal opens at every start with
   what Amnesia does and does not do (`/usr/share/wormos/guide-amnesia`).
 - **Emergency shutdown.** wormrd links the device the system started from
   as `/dev/wormos-medium`; on Amnesia the service `04-medium`

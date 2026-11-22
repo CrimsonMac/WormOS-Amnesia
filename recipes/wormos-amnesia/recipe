@@ -1,5 +1,5 @@
 name=wormos-amnesia
-version=1.3
+version=1.4
 description="WormOS Amnesia: the live edition that forgets everything and goes through Tor"
 depends=(wormos-desktop worm wh tor tor-browser tor-browser-runtime tor-browser-bundle curl)
 # GTK's theme sources, for the grey GTK theme (as in wormos-gtk-theme).
@@ -41,6 +41,8 @@ package() {
 	cp -r gtk/theme/Default/assets "$d/assets"
 	chmod -R go-w "$d"
 	install -Dm644 "$f/variant.css" "$pkgdir/usr/share/wormos/shell/variant.css"
+	install -Dm644 "$f/greeter.css" "$pkgdir/usr/share/wormos/greeter/amnesia.css"
+	install -Dm644 "$f/prompt-colors" "$pkgdir/etc/zsh/prompt-colors"
 	install -Dm644 "$f/guide" "$pkgdir/usr/share/wormos/guide-amnesia"
 	install -Dm755 "$f/medium-watch" "$pkgdir/usr/lib/worm/medium-watch"
 	# Updating the stick, for the user (setuid: see src/amnesia/update.c).

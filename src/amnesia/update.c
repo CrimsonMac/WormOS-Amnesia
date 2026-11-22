@@ -43,6 +43,7 @@
 
 #define MANIFEST    "amnesia.update"
 #define MAX_BLOCKS  (1 << 20)
+#define WRITE_CHUNK (1 << 16)
 
 /*
  * A test build (-DAMNESIA_UPDATE_TEST, tools/amnesia-update-test) takes
@@ -340,6 +341,35 @@ done:
 	return found;
 }
 
+/*
+ * The range of blocks to download that starts at block i (not found in the
+ * old ISO): up to RANGE_MAX blocks, running on over gaps of up to GAP_MAX
+ * blocks that were found. Over Tor each request costs a round trip of a
+ * second or more, more than downloading a few blocks again.
+ */
+#define RANGE_MAX 256
+#define GAP_MAX   4
+
+static long range_end(long i)
+{
+	long j = i + 1, end = i + 1;
+
+	while (j < nblocks && j - i < RANGE_MAX) {
+		if (!blocks[j].have) {
+			end = ++j;
+			continue;
+		}
+		long gap = j;
+
+		while (gap < nblocks && blocks[gap].have && gap - j < GAP_MAX)
+			gap++;
+		if (gap >= nblocks || blocks[gap].have || gap - i >= RANGE_MAX)
+			break;
+		j = gap;
+	}
+	return end;
+}
+
 /* Download the blocks not found, in merged ranges, several at a time. */
 static int download_missing(const char *iso_path)
 {
@@ -360,8 +390,7 @@ static int download_missing(const char *iso_path)
 			i++;
 			continue;
 		}
-		for (j = i; j < nblocks && !blocks[j].have && j - i < 256; j++)
-			;
+		j = range_end(i);
 		long long from = (long long)i * block_size;
 		long long to = (long long)j * block_size - 1;
 
@@ -393,8 +422,7 @@ static int download_missing(const char *iso_path)
 			i++;
 			continue;
 		}
-		for (j = i; j < nblocks && !blocks[j].have && j - i < 256; j++)
-			;
+		j = range_end(i);
 		snprintf(part, sizeof(part), "%s/part.%ld", WORK, i);
 		if (!(data = read_all(part, &n)))
 			return -1;
@@ -515,23 +543,34 @@ int main(int argc, char **argv)
 
 	printf("Writing the stick...\n");
 	fflush(stdout);
-	int w = open(dev, O_WRONLY | O_CLOEXEC);
-	uint8_t *buf = malloc(1 << 22);
-	long long done = 0;
+	/* Sticks read much faster than they write: only the pieces that
+	 * differ from what the stick already holds at that place are
+	 * written. The new ISO is complete in memory, so nothing on the
+	 * stick is needed any more. */
+	int w = open(dev, O_RDWR | O_CLOEXEC);
+	uint8_t *buf = malloc(WRITE_CHUNK), *cur = malloc(WRITE_CHUNK);
+	long long done = 0, written = 0;
 
-	if (w < 0 || !buf)
+	if (w < 0 || !buf || !cur)
 		die("cannot write the stick: %s", strerror(errno));
 	while (done < new_size) {
-		size_t n = new_size - done < (1 << 22) ? (size_t)(new_size - done) : (1 << 22);
+		size_t n = new_size - done < WRITE_CHUNK ? (size_t)(new_size - done) : WRITE_CHUNK;
 
-		if (pread(out, buf, n, done) != (ssize_t)n || pwrite(w, buf, n, done) != (ssize_t)n)
-			die("writing the stick failed: %s; start the old version from a "
-			    "fresh ISO if it no longer starts", strerror(errno));
+		if (pread(out, buf, n, done) != (ssize_t)n)
+			die("cannot read the new ISO: %s", strerror(errno));
+		if (done + (long long)n > old_size || pread(w, cur, n, done) != (ssize_t)n ||
+		    memcmp(buf, cur, n)) {
+			if (pwrite(w, buf, n, done) != (ssize_t)n)
+				die("writing the stick failed: %s; start the old version from a "
+				    "fresh ISO if it no longer starts", strerror(errno));
+			written += n;
+		}
 		done += n;
 	}
 	if (fsync(w) < 0)
 		die("writing the stick failed: %s", strerror(errno));
 	close(w);
+	printf("Wrote %lld of %lld MB (the rest was already there).\n", written >> 20, new_size >> 20);
 	/* Read it back from the stick itself, not from the cache. */
 	if ((w = open(dev, O_RDONLY | O_CLOEXEC)) >= 0)
 		ioctl(w, BLKFLSBUF, 0);
