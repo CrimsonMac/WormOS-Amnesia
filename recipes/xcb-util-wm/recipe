@@ -1,0 +1,19 @@
+name=xcb-util-wm
+version=0.4.2
+description="XCB helpers for the ICCCM and EWMH window manager standards"
+depends=(glibc libxcb)
+# Checksum pinned from the release download.
+source=(https://xcb.freedesktop.org/dist/xcb-util-wm-$version.tar.xz)
+sha256=(62c34e21d06264687faea7edbf63632c9f04d55e72114aa4a57bb95e4f888a0b)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sysconfdir=/etc --localstatedir=/var --disable-static
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/doc"
+}

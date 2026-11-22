@@ -354,7 +354,9 @@ static GtkWidget *volume_button(struct panel *panel)
 
 /* ---- the power menu ---- */
 
-static const double scales[] = { 0, 1, 1.25, 1.5, 1.75, 2 };
+/* Below 100%: more room on large screens (a 2560x1440 window at 80% has
+ * the space of a 3200x1800 one). */
+static const double scales[] = { 0, 0.75, 0.8, 0.9, 1, 1.25, 1.5, 1.75, 2 };
 
 static void scale_selected(GtkDropDown *dropdown, GParamSpec *pspec, gpointer data)
 {
@@ -430,8 +432,8 @@ static void power_menu_closed(GtkPopover *popover, gpointer data)
 
 static GtkWidget *power_menu(struct panel *panel)
 {
-	static const char *const names[] = { "Automatic", "100%", "125%", "150%", "175%",
-					     "200%", NULL };
+	static const char *const names[] = { "Automatic", "75%", "80%", "90%", "100%", "125%",
+					     "150%", "175%", "200%", NULL };
 	GtkWidget *button = gtk_menu_button_new(), *popover = gtk_popover_new();
 	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6), *row, *dropdown, *user;
 	double current = outputs_scale_setting();

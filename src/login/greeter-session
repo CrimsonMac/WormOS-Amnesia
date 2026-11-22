@@ -6,5 +6,8 @@
 . /usr/lib/worm/session-env
 # No session bus or settings store for the login screen.
 export GSETTINGS_BACKEND=memory GTK_USE_PORTAL=0
+# No X11 programs here: no Xwayland (it would also take X11's socket
+# folder for the greeter user).
+export LABWC_NO_XWAYLAND=1
 run_labwc "$XDG_RUNTIME_DIR/labwc.log" -C /usr/share/wormos/greeter/labwc \
 	-S /usr/bin/wormos-greeter

@@ -53,6 +53,24 @@ on top of this one.
   finished frames. Without it, everything still works, but SPICE sends
   each change as image pieces that the viewer paints as they arrive, so
   large changes (a scrolling terminal) visibly roll down the screen.
+  QEMU and virt-manager's window must use the same GPU: choose, under
+  *OpenGL*, the GPU your desktop runs on. If that is an NVIDIA card with
+  its own driver, libvirt hides the card's device files from QEMU
+  (`eglInitialize failed`); allow them once, as root, then choose the
+  NVIDIA card:
+  ```
+  cat >> /etc/libvirt/qemu.conf <<'EOF'
+  cgroup_device_acl = [
+      "/dev/null", "/dev/full", "/dev/zero", "/dev/random", "/dev/urandom",
+      "/dev/ptmx", "/dev/userfaultfd",
+      "/dev/nvidia0", "/dev/nvidiactl", "/dev/nvidia-modeset",
+      "/dev/nvidia-uvm", "/dev/nvidia-uvm-tools"
+  ]
+  EOF
+  systemctl restart libvirtd
+  ```
+  (With another GPU chosen, the window stays black: the NVIDIA driver
+  cannot show frames rendered on a different GPU.)
 
   From the command line:
   ```
@@ -132,6 +150,25 @@ idles at well under 100 MB of memory.
   clipboard (`ls | clip copy`).
 - Settings: `/etc/xdg/labwc` (copy files to `~/.config/labwc` to change
   them; `environment` sets the keyboard layout) and `/etc/xdg/foot/foot.ini`.
+- Windows: drag one to a screen edge for half the screen, into a corner
+  for a quarter, to the top to maximize; hold Ctrl, Alt or Shift while
+  dragging to drop it into a third. Screen edges and other windows' edges
+  hold a moving window briefly, so windows line up. From the keyboard:
+  Super+Left/Right/Up for halves, two of them in a row (Left then Up) for
+  a quarter, Super+Alt+Left/Up/Right for thirds, Super+Down to restore,
+  Super+F to maximize, Super+C to centre. Super with the left mouse
+  button moves a window from anywhere in it, with the right button
+  resizes it; the size shows while resizing.
+- Display scale (power menu, *Display scale*): Automatic (200% from 2000
+  pixels high), 75% to 200%. Below 100% everything gets smaller and more
+  fits on the screen. On a host that scales its own desktop (KDE or GNOME
+  at 125%), virt-manager gives the VM its window size in scaled pixels and
+  the host enlarges the picture again, so WormOS looks big: 80% there
+  gives the same amount of room as the host's own windows. The choice is
+  kept in `~/.config/wormos/display` (`scale = 0.8`).
+- Programs for X11 (Java programs such as Ghidra and Burp Suite, older
+  toolkits, and anything installed from Debian or Kali that does not
+  speak Wayland) run in Xwayland, which starts with the first one.
 - Screen resolution: `wlr-randr` lists outputs and their modes, and
   `wlr-randr --output NAME --custom-mode 1920x1080` changes one. To keep a
   setting, add the command to `~/.config/labwc/autostart`.

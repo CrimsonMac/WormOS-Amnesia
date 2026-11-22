@@ -1,0 +1,20 @@
+name=libfontenc
+version=1.1.10
+description="X font encoding library"
+depends=(glibc zlib)
+# Checksum pinned from the release download.
+source=(https://www.x.org/releases/individual/lib/libfontenc-$version.tar.xz)
+sha256=(daa186a49e3cc2b6fc585ca09971351e6f010f618abc6a164eda82e42e4aa4d6)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sysconfdir=/etc --localstatedir=/var --disable-static \
+		--with-encodingsdir=/usr/share/fonts/X11/encodings
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/doc"
+}

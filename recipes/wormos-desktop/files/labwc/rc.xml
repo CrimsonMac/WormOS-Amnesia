@@ -10,6 +10,42 @@
   <placement>
     <policy>cascade</policy>
   </placement>
+  <!--
+    Snapping: drag a window to an edge for half the screen, into a corner
+    for a quarter, to the top edge to maximize. Hold Ctrl, Alt or Shift
+    while dragging to drop it into a third of the screen instead. Edges of
+    the screen and of other windows hold a moving window for a moment, so
+    windows line up with each other.
+  -->
+  <snapping>
+    <range inner="16" outer="16" />
+    <cornerRange>120</cornerRange>
+    <overlay enabled="yes">
+      <delay inner="150" outer="150" />
+      <placement>below</placement>
+    </overlay>
+    <topMaximize>yes</topMaximize>
+    <notifyClient>always</notifyClient>
+  </snapping>
+  <regions>
+    <region name="left-third"   x="0%"  y="0%" width="33%" height="100%" />
+    <region name="center-third" x="33%" y="0%" width="34%" height="100%" />
+    <region name="right-third"  x="67%" y="0%" width="33%" height="100%" />
+  </regions>
+  <resistance>
+    <screenEdgeStrength>24</screenEdgeStrength>
+    <windowEdgeStrength>24</windowEdgeStrength>
+    <unSnapThreshold>24</unSnapThreshold>
+    <unMaximizeThreshold>120</unMaximizeThreshold>
+  </resistance>
+  <!-- Easier to grab: wider invisible borders and corners, and the size
+       shown while resizing. -->
+  <resize>
+    <popupShow>Always</popupShow>
+    <drawContents>yes</drawContents>
+    <minimumArea>10</minimumArea>
+    <cornerRange>18</cornerRange>
+  </resize>
   <theme>
     <name>WormOS</name>
     <cornerRadius>8</cornerRadius>
@@ -27,9 +63,19 @@
     <keybind key="Super_L" onRelease="yes"><action name="Execute" command="worm-shell --launcher" /></keybind>
     <keybind key="W-space"><action name="Execute" command="worm-shell --launcher" /></keybind>
     <keybind key="W-q"><action name="Close" /></keybind>
-    <keybind key="W-Up"><action name="ToggleMaximize" /></keybind>
-    <keybind key="W-Left"><action name="SnapToEdge" direction="left" /></keybind>
-    <keybind key="W-Right"><action name="SnapToEdge" direction="right" /></keybind>
+    <!-- Super+arrows tile: one arrow for a half, two (Left then Up) for a
+         quarter; Super+Alt+arrows for thirds; Super+F maximizes, Super+C
+         centres, Super+Down restores a tiled window. -->
+    <keybind key="W-Left"><action name="SnapToEdge" direction="left" combine="yes" /></keybind>
+    <keybind key="W-Right"><action name="SnapToEdge" direction="right" combine="yes" /></keybind>
+    <keybind key="W-Up"><action name="SnapToEdge" direction="up" combine="yes" /></keybind>
+    <keybind key="W-Down"><action name="UnSnap" /></keybind>
+    <keybind key="W-A-Left"><action name="SnapToRegion" region="left-third" /></keybind>
+    <keybind key="W-A-Down"><action name="SnapToRegion" region="center-third" /></keybind>
+    <keybind key="W-A-Up"><action name="SnapToRegion" region="center-third" /></keybind>
+    <keybind key="W-A-Right"><action name="SnapToRegion" region="right-third" /></keybind>
+    <keybind key="W-f"><action name="ToggleMaximize" /></keybind>
+    <keybind key="W-c"><action name="AutoPlace" policy="center" /></keybind>
     <keybind key="Print"><action name="Execute" command="/usr/lib/worm/screenshot" /></keybind>
     <keybind key="XF86AudioRaiseVolume"><action name="Execute" command="worm-shell --volume up" /></keybind>
     <keybind key="XF86AudioLowerVolume"><action name="Execute" command="worm-shell --volume down" /></keybind>

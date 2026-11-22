@@ -1,0 +1,20 @@
+name=libxfont2
+version=2.0.10
+description="X font rasterisation library (for Xwayland; built-in fonts only)"
+depends=(glibc zlib freetype libfontenc)
+# Checksum pinned from the release download.
+source=(https://www.x.org/releases/individual/lib/libXfont2-$version.tar.xz)
+sha256=(cef1f4ad9cd69f439bb1ac484bdc8f9d7f8e70215b92d8ca86b96e31513e5f9c)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sysconfdir=/etc --localstatedir=/var --disable-static \
+		--disable-devel-docs --without-fop --without-xmlto --disable-bzip2
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/doc"
+}

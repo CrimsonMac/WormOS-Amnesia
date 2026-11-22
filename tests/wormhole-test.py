@@ -89,6 +89,17 @@ CHECKS = [
      "sleep 5; WAYLAND_DISPLAY=wayland-0 timeout 10 whc debian script -qfc wev /tmp/wev.log "
      "> /dev/null 2>&1; "
      "grep -c xdg_toplevel /tmp/wev.log'; kill $(pidof labwc)", r"^[1-9]"),
+    # X11 programs from a wormhole open on the desktop through Xwayland,
+    # which the compositor starts when the first one connects.
+    ("x11 programs from debian", "wh -y install --from debian x11-apps x11-utils 2>&1 | tail -1; "
+     "ls -1 /usr/local/bin/xeyes /usr/local/bin/xwininfo", r"^/usr/local/bin/xwininfo$"),
+    ("x11 program shows a window",
+     "su tester -c 'export XDG_RUNTIME_DIR=/run/user/1000 "
+     "WLR_BACKENDS=headless WLR_RENDERER=pixman; labwc > /tmp/labwc-x.log 2>&1 & "
+     "sleep 5; d=:$(ls /tmp/.X11-unix | sed -n \"s/^X//p\" | head -1); "
+     "DISPLAY=$d xeyes > /tmp/xeyes.log 2>&1 & sleep 6; "
+     "DISPLAY=$d xwininfo -root -tree | grep -c -i xeyes; kill %2'; kill $(pidof labwc)",
+     r"^[1-9]"),
     ("core command not shadowed", "ls /usr/local/bin/ls 2>&1", r"No such file"),
     ("debian remove", "wh -y remove zathura && ls /usr/local/bin/zathura 2>&1",
      r"No such file"),
@@ -139,7 +150,9 @@ CHECKS = [
      "worm anon status", r"connected"),
     ("traffic goes through Tor",
      "curl -s -m 60 https://check.torproject.org/api/ip", r'"IsTor":\s*true'),
-    ("names resolve through Tor", "nslookup deb.debian.org 2>&1 | tail -2", r"Address"),
+    ("names resolve through Tor",
+     "for i in 1 2 3; do nslookup -type=a deb.debian.org 2>&1 | grep -A1 '^Name:' && break; "
+     "sleep 5; done", r"Address"),
     ("clock checked through Tor", "worm time sync", r"(right|corrected)"),
     ("anonymous mode off", "worm anon off", r"^Anonymous mode is off"),
     # The resolver reconnects first, which can take a while.
@@ -148,10 +161,55 @@ CHECKS = [
 ]
 
 
+# --apps: real programs across the toolkits people install, each started
+# as a user with X11 (GTK and Qt told to use it too, which they otherwise
+# would not, so that xwininfo sees every window). (package, source,
+# command, window name pattern, seconds to wait for the window)
+APPS = [
+    ("mousepad", "debian", "mousepad", "Mousepad", 60),
+    ("qbittorrent", "debian", "qbittorrent", "qBittorrent", 90),
+    ("idle", "debian", "idle", "IDLE|Python", 60),
+    ("ghidra", "kali", "ghidra", "Ghidra", 240),
+    ("burpsuite", "kali", "burpsuite", "Burp", 240),
+]
+
+APP_SESSION = (
+    "worm unlock >/dev/null; id tester >/dev/null 2>&1 || adduser -D tester; "
+    "worm lock >/dev/null; /usr/lib/worm/runtime-dirs; "
+    "su tester -c 'export XDG_RUNTIME_DIR=/run/user/1000 WLR_BACKENDS=headless "
+    "WLR_RENDERER=pixman; labwc > /tmp/labwc-apps.log 2>&1 & "
+    # A session bus, as on the desktop: GTK programs stall without one.
+    "dbus-daemon --session --address=unix:path=/run/user/1000/bus --fork "
+    ">/dev/null'; sleep 5; "
+    "ls /tmp/.X11-unix")
+
+
+def app_check(con, name, source, cmd, pattern, wait):
+    """Install a program and wait for its window; returns (ok, output)."""
+    out = con.run(f"wh -y install --from {source} {name} 2>&1 | tail -3", 3600)
+    if "wh:" in out and "->" not in out and "already" not in out:
+        return False, out
+    start = (f"su tester -c 'cd; export XDG_RUNTIME_DIR=/run/user/1000 DISPLAY=:0 "
+             f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus "
+             f"GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb; "
+             f"unset WAYLAND_DISPLAY; {cmd} > /tmp/app-{name}.log 2>&1 &'")
+    con.run(start)
+    look = (f"for i in $(seq {wait // 3}); do su tester -c 'DISPLAY=:0 xwininfo -root -tree' "
+            f"2>/dev/null | grep -E -c '{pattern}' && break; sleep 3; done")
+    found = con.run(look, wait + 60)
+    con.run(f"pkill -u tester -f '{cmd}' 2>/dev/null; sleep 2; "
+            f"pkill -9 -u tester java 2>/dev/null; true")
+    ok = re.search(r"^[1-9]", found, re.M) is not None
+    return ok, found + con.run(f"tail -5 /tmp/app-{name}.log")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=int, default=3600,
                         help="seconds to wait for each step")
+    parser.add_argument("--apps", action="store_true",
+                        help="also install and start real programs (Ghidra, Burp Suite, GTK, "
+                             "Qt and Tk programs; several GB of downloads)")
     parser.add_argument("--dns", metavar="ADDR",
                         help="name server for the VM, instead of QEMU's relay")
     args = parser.parse_args()
@@ -182,6 +240,17 @@ def main():
                 print(f"{'PASS' if ok else 'FAIL'}  {name} ({time.time() - start:.0f}s)")
                 if not ok:
                     print(f"      output: {out[-400:]!r}")
+            if args.apps:
+                con.run(APP_SESSION, 120)
+                for app in APPS:
+                    begin = time.time()
+                    ok, out = app_check(con, *app)
+                    passed += ok
+                    failures += not ok
+                    print(f"{'PASS' if ok else 'FAIL'}  {app[0]} opens a window "
+                          f"({time.time() - begin:.0f}s)")
+                    if not ok:
+                        print(f"      output: {out[-600:]!r}")
             con.send("poweroff\n")
             con.expect("Power down", 120)
         except (TimeoutError, RuntimeError) as e:
@@ -190,7 +259,7 @@ def main():
         finally:
             if proc.poll() is None:
                 proc.kill()
-    print(f"{passed}/{len(CHECKS)} checks passed")
+    print(f"{passed}/{len(CHECKS) + (len(APPS) if args.apps else 0)} checks passed")
     return 1 if failures else 0
 
 

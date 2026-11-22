@@ -42,6 +42,9 @@ make test       # boot the image and run automated checks
 
 `make test-wormholes` checks the Debian and Kali wormholes against the real
 archives; it needs internet access and takes several minutes.
+`tests/wormhole-test.py --apps` also installs real programs across the
+toolkits (Ghidra and Burp Suite from Kali, a GTK, a Qt and a Tk program
+from Debian; several GB of downloads) and checks that each opens a window.
 
 `make test-upgrade FROM=wormos-1.8-x86_64.qcow2` sets up an older release
 image and upgrades it to the packages just built.

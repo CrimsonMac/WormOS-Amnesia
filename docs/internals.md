@@ -947,6 +947,21 @@ in [building.md](building.md); what each feature does for the user, in the
   `/etc/fonts/conf.d/60-*.conf`.
 - glibc ships the `C.UTF-8` locale (compiled by the target's localedef
   through its own loader); `/etc/profile` sets `LANG=C.UTF-8`.
+- Xwayland (since 1.12): `xwayland` 24.1 (glamor and DRI3, no GLX since
+  Mesa has none, no XDMCP or TCP, keymaps compiled by `xkbcomp` into
+  `/tmp`, built-in fonts only) with libxkbfile, libxfont2, libfontenc,
+  libxcvt and libxshmfence; wlroots and labwc are built with it (and
+  xcb-util-wm). labwc starts Xwayland lazily, on the first X11
+  connection, and sets `DISPLAY` for everything it starts; wlroots reads
+  the Xwayland path from its pkg-config file, so the recipe removes the
+  sysroot from `build/include/config.h`. `/tmp/.X11-unix` is created by
+  root at boot (`runtime-dirs`, mode 1777): created by the first
+  compositor it would belong to that user. The login screen runs without
+  Xwayland (`LABWC_NO_XWAYLAND=1` in `greeter-session`, a three-line labwc
+  patch). Wormholes share `/tmp` and the environment, so their X11
+  programs reach the user's Xwayland; blackholes have their own `/tmp`
+  and no `DISPLAY`. Tor Browser stays on Wayland (`GDK_BACKEND=wayland`,
+  no `DISPLAY`).
 
 ## Message bus
 

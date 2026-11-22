@@ -1,0 +1,16 @@
+name=libxcvt
+version=0.1.3
+description="VESA CVT mode line calculator (for Xwayland)"
+depends=(glibc)
+# Checksum pinned from the release download.
+source=(https://www.x.org/releases/individual/lib/libxcvt-$version.tar.xz)
+sha256=(a929998a8767de7dfa36d6da4751cdbeef34ed630714f2f4a767b351f2442e01)
+
+build() {
+	meson_build
+}
+
+package() {
+	meson_package
+	rm -f "$pkgdir/usr/bin/cvt"
+}

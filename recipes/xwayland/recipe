@@ -1,0 +1,27 @@
+name=xwayland
+version=24.1.15
+description="X server for X11 programs on the Wayland desktop"
+depends=(glibc pixman libdrm mesa libepoxy wayland libxfont2 libxcvt libxshmfence
+	libxau openssl xkbcomp xkeyboard-config)
+# Checksum pinned from the release download.
+source=(https://www.x.org/releases/individual/xserver/xwayland-$version.tar.xz)
+sha256=(7311b4bcda22cfc19cb99680eb1c35cfc1ea885981310639f0429fe2948c122e)
+
+build() {
+	# Glamor draws with the GPU (OpenGL ES through Mesa, or software);
+	# no GLX (Mesa is built without it), no remote logins (XDMCP, TCP),
+	# and no libei. Xwayland runs as the user and compiles keymaps into
+	# xkb_output_dir: /tmp (the root filesystem is read-only).
+	meson_build -Dglamor=true -Dglx=false -Ddri3=true \
+		-Dxwayland_ei=false -Dlibdecor=false -Dxvfb=false -Dxdmcp=false \
+		-Dxdm-auth-1=false -Dsecure-rpc=false -Dlisten_tcp=false -Dlisten_local=false \
+		-Dlisten_unix=true -Dxselinux=false -Dlibunwind=false -Dsha1=libcrypto \
+		-Dxkb_dir=/usr/share/X11/xkb -Dxkb_output_dir=/tmp \
+		-Dxkb_bin_dir=/usr/bin -Ddefault_font_path=built-ins \
+		-Ddocs=false -Ddevel-docs=false -Ddtrace=false -Dsystemd_notify=false
+}
+
+package() {
+	meson_package
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/doc"
+}

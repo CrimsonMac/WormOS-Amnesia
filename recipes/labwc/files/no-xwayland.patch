@@ -1,0 +1,15 @@
+--- a/src/xwayland.c
++++ b/src/xwayland.c
+@@ -1092,6 +1092,12 @@
+ void
+ xwayland_server_init(struct wlr_compositor *compositor)
+ {
++	/* WormOS: a session can do without Xwayland (the login screen). */
++	if (getenv("LABWC_NO_XWAYLAND")) {
++		wlr_log(WLR_INFO, "xwayland disabled (LABWC_NO_XWAYLAND)");
++		unsetenv("DISPLAY");
++		return;
++	}
+ 	server.xwayland =
+ 		wlr_xwayland_create(server.wl_display,
+ 			compositor, /* lazy */ !rc.xwayland_persistence);

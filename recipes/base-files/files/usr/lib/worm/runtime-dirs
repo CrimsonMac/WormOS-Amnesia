@@ -6,3 +6,7 @@ awk -F: '$3 >= 1000 && $3 < 65534 { print $3, $4 }' /etc/passwd |
 while read -r uid gid; do
 	[ -d "/run/user/$uid" ] || install -d -m 0700 -o "$uid" -g "$gid" "/run/user/$uid"
 done
+# X11's socket folder, shared by every user's Xwayland: root's, sticky and
+# writable for all. Created by a user's compositor instead, it would belong
+# to that user and lock the others out.
+[ -d /tmp/.X11-unix ] || install -d -m 1777 -o root -g root /tmp/.X11-unix

@@ -1,0 +1,20 @@
+name=xkbcomp
+version=1.5.0
+description="X keymap compiler (used by Xwayland)"
+depends=(glibc libx11 libxkbfile xkeyboard-config)
+# Checksum pinned from the release download.
+source=(https://www.x.org/releases/individual/app/xkbcomp-$version.tar.xz)
+sha256=(2ac31f26600776db6d9cd79b3fcd272263faebac7eb85fb2f33c7141b8486060)
+
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sysconfdir=/etc --localstatedir=/var --disable-static \
+		--with-xkb-config-root=/usr/share/X11/xkb
+	make -j"$JOBS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/doc"
+}
