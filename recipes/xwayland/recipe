@@ -1,5 +1,6 @@
 name=xwayland
 version=24.1.15
+release=2
 description="X server for X11 programs on the Wayland desktop"
 depends=(glibc pixman libdrm mesa libepoxy wayland libxfont2 libxcvt libxshmfence
 	libxau openssl xkbcomp xkeyboard-config)
@@ -24,4 +25,5 @@ build() {
 package() {
 	meson_package
 	rm -rf "$pkgdir/usr/share/man" "$pkgdir/usr/share/doc"
+	install -Dm755 "$recipedir/files/xwayland-gles" "$pkgdir/usr/lib/xwayland/xwayland-gles"
 }

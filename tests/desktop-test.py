@@ -113,7 +113,8 @@ SESSION_CHECKS = [
     ("an X11 program connects through Xwayland",
      f"d=$(tr '\\0' '\\n' < /proc/$(pidof foot | cut -d' ' -f1)/environ | sed -n 's/^DISPLAY=//p'); "
      f"su {USER} -c \"DISPLAY=$d xkbcomp -xkb $d /tmp/x11.xkb\" 2>&1 | grep -v -i warning | head -3; "
-     "grep -c xkb_keymap /tmp/x11.xkb; pidof Xwayland | wc -w",
+     "grep -c xkb_keymap /tmp/x11.xkb; pidof Xwayland | wc -w; "
+     "grep -a -e '(EE)' -e '(II)' -e glamor -e GLX -e EGL /run/user/1000/desktop.log | head -40",
      r"^1\n1$"),
 ]
 

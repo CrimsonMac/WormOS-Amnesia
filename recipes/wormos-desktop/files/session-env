@@ -48,6 +48,8 @@ if [ -z "${WLR_RENDERER:-}" ]; then
 	done
 	[ -n "$renderer" ] && export WLR_RENDERER=$renderer
 fi
+# X11 programs: Xwayland's glamor on OpenGL ES (Mesa has no desktop GL).
+[ -x /usr/lib/xwayland/xwayland-gles ] && export WLR_XWAYLAND=/usr/lib/xwayland/xwayland-gles
 # There is no accessibility bus (at-spi) yet.
 export GTK_A11Y=none
 # Without a hardware OpenGL driver, GTK draws with cairo too.

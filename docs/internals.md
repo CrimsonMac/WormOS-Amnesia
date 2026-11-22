@@ -952,7 +952,11 @@ in [building.md](building.md); what each feature does for the user, in the
   `/tmp`, built-in fonts only) with libxkbfile, libxfont2, libfontenc,
   libxcvt and libxshmfence; wlroots and labwc are built with it (and
   xcb-util-wm). labwc starts Xwayland lazily, on the first X11
-  connection, and sets `DISPLAY` for everything it starts; wlroots reads
+  connection, and sets `DISPLAY` for everything it starts. The session
+  sets `WLR_XWAYLAND=/usr/lib/xwayland/xwayland-gles`, which runs it with
+  `-glamor es`: glamor tries desktop OpenGL first, which Mesa here lacks,
+  and libepoxy aborted Xwayland on a GPU (virgl); without a GPU, glamor
+  gives up and Xwayland draws in software; wlroots reads
   the Xwayland path from its pkg-config file, so the recipe removes the
   sysroot from `build/include/config.h`. `/tmp/.X11-unix` is created by
   root at boot (`runtime-dirs`, mode 1777): created by the first

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Xwayland with glamor on OpenGL ES: WormOS's Mesa has no desktop OpenGL,
+# and glamor's default (desktop GL first) aborts on a GPU (virgl, Intel).
+# The session points wlroots here (WLR_XWAYLAND).
+exec /usr/bin/Xwayland -glamor es "$@"
