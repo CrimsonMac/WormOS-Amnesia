@@ -12,6 +12,7 @@
  */
 
 #define _GNU_SOURCE
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -192,15 +193,23 @@ int index_load(struct index *idx, const char *path)
 			snprintf(p->recommends, sizeof(p->recommends), "%s", val);
 		else if (strcmp(key, "description") == 0)
 			snprintf(p->description, sizeof(p->description), "%s", val);
+		else if (strcmp(key, "delta") == 0 &&
+			 sscanf(val, "%63s %127s %lld %64s", p->delta_from, p->delta_file,
+				&p->delta_size, p->delta_sha256) != 4)
+			p->delta_from[0] = '\0';
 	}
 	fclose(f);
 
 	/* Package file names come from the index; never let them leave the repo. */
-	for (int i = 0; i < idx->count; i++)
-		if (strchr(idx->pkgs[i].file, '/') || idx->pkgs[i].file[0] == '.' ||
-		    strlen(idx->pkgs[i].sha256) != 64)
-			die("the package index has an invalid entry for %s",
-			    idx->pkgs[i].name);
+	for (int i = 0; i < idx->count; i++) {
+		struct package *q = &idx->pkgs[i];
+
+		if (strchr(q->file, '/') || q->file[0] == '.' || strlen(q->sha256) != 64)
+			die("the package index has an invalid entry for %s", q->name);
+		if (q->delta_from[0] && (strchr(q->delta_file, '/') || q->delta_file[0] == '.' ||
+					 strlen(q->delta_sha256) != 64 || q->delta_size <= 0))
+			q->delta_from[0] = '\0';
+	}
 	return 0;
 }
 
@@ -280,35 +289,161 @@ int repo_load(struct index *idx)
 	return 0;
 }
 
-/* Download a package into the cache (if needed) and check it. */
-int repo_fetch(const char *url, const struct package *p, char *out, size_t len)
+/* Is path already the file with this SHA-256 and size? */
+static int have_file(const char *path, const char *sha256, long long want)
 {
-	char cache[PATH_MAX], part[PATH_MAX + 8], src[2048], hex[65];
+	char hex[65];
 	long long size;
 
+	return file_sha256(path, hex, &size) == 0 && size == want && strcmp(hex, sha256) == 0;
+}
+
+struct job {
+	char path[PATH_MAX + 128], part[PATH_MAX + 136], url[2048];
+	const char *file, *sha256;
+	long long size;
+};
+
+/* Download the jobs not done yet, all in one parallel curl, and check
+ * each against the index. Returns the number that failed their check. */
+static int fetch_jobs(struct job **jobs, int n)
+{
+	char **urls = calloc(n + 1, sizeof(char *)), **parts = calloc(n + 1, sizeof(char *));
+	int m = 0, bad = 0;
+
+	if (!urls || !parts)
+		die("out of memory");
+	for (int i = 0; i < n; i++) {
+		urls[m] = jobs[i]->url;
+		parts[m++] = jobs[i]->part;
+	}
+	download_many(urls, parts, m);  /* failures show in the checks below */
+	for (int i = 0; i < n; i++) {
+		struct job *j = jobs[i];
+
+		if (!have_file(j->part, j->sha256, j->size)) {
+			unlink(j->part);
+			bad++;
+			j->path[0] = '\0';
+			continue;
+		}
+		if (rename(j->part, j->path) < 0)
+			die("cannot store %s: %s", j->path, strerror(errno));
+	}
+	free(urls);
+	free(parts);
+	return bad;
+}
+
+/*
+ * Download and check the packages of a plan, all at once over shared
+ * connections. A package whose installed version is the one the
+ * repository's delta was made from comes as that delta (only the files
+ * that changed), unless the files it leaves out were changed here; then,
+ * and for everything else, the full package. Files already in the cache
+ * are used as they are. Returns the paths, in the order of pkgs.
+ */
+char **repo_fetch_all(const char *url, struct package **pkgs, int n)
+{
+	char cache[PATH_MAX], **files = calloc(n + 1, sizeof(char *));
+	struct job *jobs = calloc(n ? n : 1, sizeof(*jobs));
+	struct job **todo = calloc(n ? n : 1, sizeof(*todo));
+	long long total = 0, full_total = 0;
+	int ntodo = 0, ndelta = 0;
+
+	if (!files || !jobs || !todo)
+		die("out of memory");
 	root_path(cache, sizeof(cache), WH_CACHE_DIR);
 	if (mkdirs_at(AT_FDCWD, cache, 0755) < 0)
 		die("cannot create %s: %s", cache, strerror(errno));
-	if ((size_t)snprintf(out, len, "%s/%s.wpkg", cache, p->sha256) >= len)
-		die("path too long");
 
-	if (file_sha256(out, hex, &size) == 0 && strcmp(hex, p->sha256) == 0)
-		return 0;
+	/* Deltas first, where they apply. */
+	for (int i = 0; i < n; i++) {
+		struct package *p = pkgs[i], cur;
+		struct job *j = &jobs[i];
+		int use_delta = p->delta_from[0] && db_installed(p->name, &cur) &&
+				strcmp(cur.version, p->delta_from) == 0;
 
-	snprintf(part, sizeof(part), "%s.part", out);
-	snprintf(src, sizeof(src), "%s%s", url, p->file);
-	info("Downloading %s %s (%lld KiB)", p->name, p->version, (p->size + 1023) / 1024);
-	if (download(src, part) < 0) {
-		unlink(part);
-		die("cannot download %s", src);
+		j->file = use_delta ? p->delta_file : p->file;
+		j->sha256 = use_delta ? p->delta_sha256 : p->sha256;
+		j->size = use_delta ? p->delta_size : p->size;
+		snprintf(j->path, sizeof(j->path), "%s/%s.%s", cache, j->sha256,
+			 use_delta ? "wdelta" : "wpkg");
+		snprintf(j->part, sizeof(j->part), "%s.part", j->path);
+		snprintf(j->url, sizeof(j->url), "%s%s", url, j->file);
+		full_total += p->size;
+		if (have_file(j->path, j->sha256, j->size))
+			continue;
+		todo[ntodo++] = j;
+		total += j->size;
+		ndelta += use_delta;
 	}
-	if (file_sha256(part, hex, &size) < 0 || size != p->size ||
-	    strcmp(hex, p->sha256) != 0) {
-		unlink(part);
-		die("%s does not match the package index (corrupted or tampered), "
-		    "it was not used", p->file);
+	if (ntodo) {
+		if (ndelta)
+			info("Downloading %d package%s (%lld KiB; %d as changes only, %lld KiB "
+			     "for the full packages)", ntodo, ntodo == 1 ? "" : "s",
+			     (total + 1023) / 1024, ndelta, (full_total + 1023) / 1024);
+		else
+			info("Downloading %d package%s (%lld KiB)", ntodo, ntodo == 1 ? "" : "s",
+			     (total + 1023) / 1024);
+		fetch_jobs(todo, ntodo);
 	}
-	if (rename(part, out) < 0)
-		die("cannot store %s: %s", out, strerror(errno));
-	return 0;
+
+	/* Then the full package wherever a delta failed or cannot be used. */
+	ntodo = 0;
+	for (int i = 0; i < n; i++) {
+		struct package *p = pkgs[i];
+		struct job *j = &jobs[i];
+		int delta = j->file == p->delta_file;
+
+		if (j->path[0] && (!delta || pkg_delta_usable(j->path, p->name) == 0))
+			continue;
+		if (delta && j->path[0]) {
+			info("%s: files of the installed version were changed; "
+			     "downloading the full package", p->name);
+			unlink(j->path);
+		}
+		j->file = p->file;
+		j->sha256 = p->sha256;
+		j->size = p->size;
+		snprintf(j->path, sizeof(j->path), "%s/%s.wpkg", cache, p->sha256);
+		snprintf(j->part, sizeof(j->part), "%s.part", j->path);
+		snprintf(j->url, sizeof(j->url), "%s%s", url, p->file);
+		if (!have_file(j->path, j->sha256, j->size))
+			todo[ntodo++] = j;
+	}
+	if (ntodo)
+		fetch_jobs(todo, ntodo);
+
+	for (int i = 0; i < n; i++) {
+		if (!jobs[i].path[0])
+			die("cannot download %s, or it does not match the package index "
+			    "(corrupted or tampered); it was not used", jobs[i].url);
+		if (!(files[i] = strdup(jobs[i].path)))
+			die("out of memory");
+	}
+	free(jobs);
+	free(todo);
+	return files;
+}
+
+/* Installed packages are not needed any more: empty the download cache. */
+void repo_clean_cache(void)
+{
+	char cache[PATH_MAX], path[PATH_MAX * 2];
+	struct dirent *d;
+	DIR *dir;
+
+	root_path(cache, sizeof(cache), WH_CACHE_DIR);
+	if (!(dir = opendir(cache)))
+		return;
+	while ((d = readdir(dir))) {
+		const char *dot = strrchr(d->d_name, '.');
+
+		if (!dot || (strcmp(dot, ".wpkg") && strcmp(dot, ".wdelta") && strcmp(dot, ".part")))
+			continue;
+		snprintf(path, sizeof(path), "%s/%s", cache, d->d_name);
+		unlink(path);
+	}
+	closedir(dir);
 }

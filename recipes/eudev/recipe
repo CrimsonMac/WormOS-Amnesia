@@ -1,10 +1,10 @@
 name=eudev
-version=3.2.15
+version=3.3.0
 description="Device manager: device nodes, permissions and module autoloading (udev)"
 depends=(glibc kmod)
 # Signed by Boian Bonev (BA60BC20F37E59444D6D25001365720913D2F22D).
 source=(https://github.com/eudev-project/eudev/releases/download/v$version/eudev-$version.tar.gz)
-sha256=(eb69809fc0d1187f2463ab2149c53aa9f42a78e59f14ebea68eae6cb6b4fc1c3)
+sha256=(8fba6e4f49ea4b1938828a3c2e7cc48874816c68621386e527076b6477f5d6ef)
 
 build() {
 	PKG_CONFIG=pkg-config ./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
@@ -27,11 +27,14 @@ package() {
 	# The hardware database is compiled here: /etc is read-only on the
 	# target. udevadm is ours, run through the sysroot's loader. Network
 	# card vendor names (OUI) are left out, and so are the sources.
-	rm "$pkgdir/etc/udev/hwdb.d/20-OUI.hwdb"
+	# (3.3 installs the sources under /usr/lib, earlier releases under /etc.)
+	local hwdb=$pkgdir/usr/lib/udev/hwdb.d
+	[ -d "$hwdb" ] || hwdb=$pkgdir/etc/udev/hwdb.d
+	rm "$hwdb/20-OUI.hwdb"
 	"$SYSROOT/usr/lib/ld-linux-x86-64.so.2" \
 		--library-path "$pkgdir/usr/lib:$SYSROOT/usr/lib" \
 		"$pkgdir/usr/bin/udevadm" hwdb --update --usr --root "$pkgdir"
 	[ -s "$pkgdir/usr/lib/udev/hwdb.bin" ] || die "hwdb.bin was not generated"
 	chmod 644 "$pkgdir/usr/lib/udev/hwdb.bin"
-	rm -rf "$pkgdir/etc/udev/hwdb.d"
+	rm -rf "$hwdb"
 }

@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""wdelta - make a delta package: only what changed between two versions.
+
+Usage: tools/wdelta OLD.wpkg NEW.wpkg OUT.wdelta
+
+A delta is a .wpkg of the new version that leaves out every regular file
+whose content and mode are the same as in the old version. Its .PKGINFO is
+the new version's, with every file and its SHA-256, plus a line
+"delta-from = VERSION-RELEASE" naming the old version. Directories, links
+and changed or new files are all in it. wh installs a delta only over that
+old version, after checking that each file left out is still the one the
+old version installed; otherwise it downloads the full package.
+"""
+
+import io
+import os
+import subprocess
+import sys
+import tarfile
+
+
+def open_wpkg(path):
+    proc = subprocess.Popen(["zstd", "-dcq", path], stdout=subprocess.PIPE)
+    return proc, tarfile.open(fileobj=proc.stdout, mode="r|")
+
+
+def pkginfo_fields(text):
+    fields, hashes = {}, {}
+    for line in text.splitlines():
+        key, sep, value = line.partition(" = ")
+        if not sep:
+            continue
+        if key == "file":
+            digest, _, path = value.partition(" ")
+            hashes[path] = digest
+        else:
+            fields.setdefault(key, value)
+    return fields, hashes
+
+
+def read_old(path):
+    """The old version: its .PKGINFO fields and each regular file's (hash, mode)."""
+    proc, tar = open_wpkg(path)
+    fields, hashes, modes = {}, {}, {}
+    for m in tar:
+        if m.name == ".PKGINFO":
+            fields, hashes = pkginfo_fields(tar.extractfile(m).read().decode())
+        elif m.isfile():
+            modes[m.name] = m.mode
+    tar.close()
+    proc.wait()
+    if proc.returncode or not fields:
+        sys.exit(f"wdelta: cannot read {path}")
+    return fields, {p: (h, modes.get(p)) for p, h in hashes.items()}
+
+
+def main():
+    if len(sys.argv) != 4:
+        sys.exit(__doc__.strip().splitlines()[2])
+    old_path, new_path, out_path = sys.argv[1:]
+    old_fields, old_files = read_old(old_path)
+    old_version = f"{old_fields['version']}-{old_fields.get('release', '1')}"
+
+    proc, tar = open_wpkg(new_path)
+    raw = io.BytesIO()
+    out = tarfile.open(fileobj=raw, mode="w", format=tarfile.PAX_FORMAT)
+    hashes = {}
+    kept = 0
+    for m in tar:
+        if m.name == ".PKGINFO":
+            info = tar.extractfile(m).read().decode()
+            fields, hashes = pkginfo_fields(info)
+            if fields.get("name") != old_fields.get("name"):
+                sys.exit("wdelta: the two packages are not the same package")
+            data = (info.rstrip("\n") + f"\ndelta-from = {old_version}\n").encode()
+            m.size = len(data)
+            out.addfile(m, io.BytesIO(data))
+            continue
+        if m.isfile() and old_files.get(m.name) == (hashes.get(m.name), m.mode):
+            kept += 1
+            continue
+        out.addfile(m, tar.extractfile(m) if m.isfile() else None)
+    tar.close()
+    proc.wait()
+    if proc.returncode or not hashes:
+        sys.exit(f"wdelta: cannot read {new_path}")
+    out.close()
+    with open(out_path + ".part", "wb") as f:
+        subprocess.run(["zstd", "-q", "-19", "-T0", "-c"], input=raw.getvalue(), stdout=f, check=True)
+    os.replace(out_path + ".part", out_path)
+    print(f"{os.path.basename(out_path)}: {kept} of {len(hashes)} files left out")
+
+
+if __name__ == "__main__":
+    main()

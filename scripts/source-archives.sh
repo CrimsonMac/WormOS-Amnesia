@@ -51,11 +51,12 @@ for wpkg in "$REPO"/*.wpkg; do
 		files=("$SOURCES/glibc-2.44.tar.xz") ;;
 	gcc-libs)
 		files=("$SOURCES/gcc-15.3.0.tar.xz") ;;
-	linux|linux-headers)
-		files=("$SOURCES/$(basename "$(grep -o 'https://[^ ]*/linux-[0-9.]*\.tar\.xz' \
-			"$WORMOS_ROOT/toolchain/sources")")")
-		[ $name = linux ] && files+=("$WORMOS_ROOT/kernel/wormos.config" \
-			"$WORMOS_ROOT/kernel/patches") ;;
+	linux)
+		# The kernel may be newer than the toolchain's headers.
+		files=("$SOURCES/$(sed -n 's/^LINUX=//p' "$WORMOS_ROOT/scripts/build-kernel.sh").tar.xz"
+			"$WORMOS_ROOT/kernel/wormos.config" "$WORMOS_ROOT/kernel/patches") ;;
+	linux-headers)
+		files=("$SOURCES/$(sed -n 's/^LINUX=//p' "$WORMOS_ROOT/scripts/build-toolchain.sh").tar.xz") ;;
 	*)
 		[ -f "$WORMOS_ROOT/recipes/$name/recipe" ] ||
 			die "no recipe for $name"

@@ -1,10 +1,10 @@
 name=zlib
-version=1.3.2
+version=1.4
 description="Deflate compression library"
 depends=(glibc)
 # Signed by Mark Adler (5ED46A6721D365587791E2AA783FCD8E58BCAFBA).
 source=(https://zlib.net/zlib-$version.tar.xz)
-sha256=(d7a0654783a4da529d1bb793b7ad9c3318020af77667bcae35f95d0e42a792f3)
+sha256=(4f11c512053d7bab8d9e9b89bde3575add3e4c50a383b42ef6cb837035fc5a7c)
 
 build() {
 	CHOST="$TARGET" ./configure --prefix=/usr --shared

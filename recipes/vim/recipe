@@ -1,9 +1,9 @@
 name=vim
-version=9.2.1320
+version=9.2.1376
 description="Vi IMproved, the text editor (also vi)"
 depends=(glibc ncurses wayland pixman)
 source=(vim-$version.tar.gz::https://github.com/vim/vim/archive/refs/tags/v$version.tar.gz)
-sha256=(51121aa4fe0716d903a1a71580ceab66ade951fcc3828155e5bddde4dcd7dc48)
+sha256=(6525a5b23cd6bef6225f0e1da7b0a38fd02634951a9c0d54f852d1e8021fff35)
 
 build() {
 	# Answers for checks a cross build cannot run (glibc and ncurses).

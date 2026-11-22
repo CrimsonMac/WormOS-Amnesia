@@ -1,0 +1,4 @@
+Patches in this folder (*.patch) are applied to a freshly unpacked kernel
+tree by scripts/build-kernel.sh, in name order. There are none at the
+moment: 6.18.64 includes its own fix for the fixed-feature power button,
+which an earlier patch here provided.

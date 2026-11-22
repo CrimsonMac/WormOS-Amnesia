@@ -3,8 +3,9 @@
 # the index's signature verifies with the key in keys/core.pub, every
 # package it lists is there with the size and SHA-256 it gives (GitHub
 # records each asset's digest, so nothing is downloaded but the index),
-# every dependency is in the index, and every package built from upstream
-# sources has its source archive next to it. CI runs it every day.
+# so are the deltas it names, every dependency is in the index, and every
+# package built from upstream sources has its source archive next to it.
+# CI runs it every day.
 #
 # Needs curl, a C compiler and the GitHub CLI (gh).
 #
@@ -48,7 +49,7 @@ while read -r name size sum; do
 	asset_sum[$name]=$sum
 done < "$tmp/assets"
 
-pkg="" file="" sum="" size="" deps=""
+pkg="" file="" sum="" size="" deps="" delta=""
 check_entry() {
 	[ -n "$pkg" ] || return 0
 	in_index[$pkg]=1
@@ -58,6 +59,15 @@ check_entry() {
 		fail "$pkg: $file is ${asset_size[$file]} bytes, the index says $size"
 	elif [ -n "${asset_sum[$file]}" ] && [ "${asset_sum[$file]}" != "$sum" ]; then
 		fail "$pkg: $file does not have the SHA-256 the index gives"
+	fi
+	# A delta (only the files changed since an older version) must match too.
+	if [ -n "$delta" ]; then
+		set -- $delta
+		if [ $# -ne 4 ] || [ "${asset_size[$2]:-}" != "$3" ]; then
+			fail "$pkg: its delta $2 is missing or has another size"
+		elif [ -n "${asset_sum[$2]}" ] && [ "${asset_sum[$2]}" != "$4" ]; then
+			fail "$pkg: its delta $2 does not have the SHA-256 the index gives"
+		fi
 	fi
 	printf '%s %s\n' "$pkg" "$deps" >> "$tmp/deps"
 	# Built from upstream sources: its source archive must be there too.
@@ -69,7 +79,8 @@ check_entry() {
 }
 while IFS= read -r line; do
 	case $line in
-	'['*']') check_entry; pkg=${line#[}; pkg=${pkg%]}; file="" sum="" size="" deps="" ;;
+	'['*']') check_entry; pkg=${line#[}; pkg=${pkg%]}; file="" sum="" size="" deps="" delta="" ;;
+	'delta = '*) delta=${line#delta = } ;;
 	'file = '*) file=${line#file = } ;;
 	'sha256 = '*) sum=${line#sha256 = } ;;
 	'size = '*) size=${line#size = } ;;

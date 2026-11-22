@@ -67,9 +67,13 @@ def recipe_info(name):
     return (version.group(1).strip("'\"") if version else None), bool(has_source)
 
 
+SEP = r"[.\-_+]|(?<=\d)p(?=\d)"
+
+
 def key(v):
     # 26.06 and 26.6.0 are the same version: numbers, without trailing zeros.
-    parts = [int(p) if p.isdigit() else p for p in re.split(r"[.\-_+]", v)]
+    # 5.3p20 (a GNU patch level) is our 5.3.20.
+    parts = [int(p) if p.isdigit() else p for p in re.split(SEP, v)]
     while len(parts) > 1 and parts[-1] == 0:
         parts.pop()
     return parts
@@ -105,10 +109,10 @@ def newest(project, series, ours):
             continue
         if p.get("status") == "newest" or series:
             seen[v] = seen.get(v, 0) + 1
-    shape = len(re.split(r"[.\-_+]", ours))
+    shape = len(re.split(SEP, ours))
     best = None
     for v, n in seen.items():
-        if (n >= 2 or len(re.split(r"[.\-_+]", v)) == shape) and (best is None or newer(v, best)):
+        if (n >= 2 or len(re.split(SEP, v)) == shape) and (best is None or newer(v, best)):
             best = v
     return best
 

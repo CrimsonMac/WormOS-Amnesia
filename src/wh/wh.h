@@ -36,6 +36,11 @@ struct package {
 	char sha256[65];
 	long long size;
 	long long installed_size;
+	/* Only the files changed since version delta_from (empty: none). */
+	char delta_from[VERSION_MAX_LEN];
+	char delta_file[NAME_MAX_LEN + 2 * VERSION_MAX_LEN + 24];
+	char delta_sha256[65];
+	long long delta_size;
 };
 
 struct index {
@@ -66,7 +71,8 @@ void index_free(struct index *idx);
 struct package *index_find(struct index *idx, const char *name);
 int repo_update(const char *url);
 int repo_load(struct index *idx);
-int repo_fetch(const char *url, const struct package *p, char *out, size_t len);
+char **repo_fetch_all(const char *url, struct package **pkgs, int n);
+void repo_clean_cache(void);
 const char *repo_url(const char *override);
 int download(const char *url, const char *dest);
 int download_many(char *const *urls, char *const *dests, int n);
@@ -103,6 +109,7 @@ void hooks_run(void);
 
 /* pkg.c */
 int pkg_install(const char *wpkg, const char *expect_name);
+int pkg_delta_usable(const char *wdelta, const char *expect_name);
 int pkg_remove(const char *name);
 int parse_pkginfo(const char *text, struct package *p);
 int tar_unpack(char *const argv[]);

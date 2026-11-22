@@ -1,8 +1,8 @@
 #!/bin/bash
-# Publish the core package repository: out/repo (index, index.sig and the
-# packages) and out/sources (from scripts/source-archives.sh) become the
-# assets of the release "core" of the public packages repository, the URL
-# in /etc/wh/repo. Assets no longer in either folder are removed, so the
+# Publish the core package repository: out/repo (index, index.sig, the
+# packages and their deltas, made here by make-deltas.sh) and out/sources
+# (from scripts/source-archives.sh) become the assets of the release "core"
+# of the public packages repository, the URL in /etc/wh/repo. Assets no longer in either folder are removed, so the
 # release always holds exactly one repository state.
 #
 # Needs the GitHub CLI (gh), logged in with write access to $PACKAGES_REPO.
@@ -26,7 +26,11 @@ if ! gh release view "$TAG" -R "$PACKAGES_REPO" > /dev/null 2>&1; then
 		--notes "The WormOS core package repository, used by wh. Source archives (*.src.tar) hold each package's recipe and upstream sources."
 fi
 
-mapfile -t local_files < <(ls "$REPO"/*.wpkg "$REPO/index" "$REPO/index.sig" "$OUT/sources"/*)
+# Deltas against the packages published now (only the files that changed).
+"$WORMOS_ROOT/scripts/make-deltas.sh"
+
+mapfile -t local_files < <(ls "$REPO"/*.wpkg "$REPO"/*.wdelta "$REPO/index" "$REPO/index.sig" \
+	"$OUT/sources"/* 2>/dev/null)
 # Name and SHA-256 of every asset already published (GitHub records each
 # asset's digest), so unchanged files are not uploaded again.
 declare -A digest

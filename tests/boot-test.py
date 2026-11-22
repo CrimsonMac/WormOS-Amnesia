@@ -36,6 +36,7 @@ CHECKS = [
     ("os-release", ". /etc/os-release; echo $NAME", r"WormOS"),
     ("init is worminit", "readlink /proc/1/exe", r"/worminit$"),
     ("booted through initramfs", "dmesg | grep -c 'Freeing initrd memory'", r"^1$"),
+    ("udev rules name only known groups", "dmesg | grep -c 'Unknown group'", r"^0$"),
     ("root on @ subvolume", "grep ' / ' /proc/mounts", r"subvol=/@\s"),
     ("root is read-only", "grep ' / ' /proc/mounts", r"\sro[,\s]"),
     ("root cannot be written", "touch /probe 2>&1", r"Read-only file system"),
@@ -731,8 +732,8 @@ def fetch(port, timeout=10):
 REQUESTS = []
 
 
-def serve_repo():
-    """Serve out/repo over HTTP; the VM reaches it at 10.0.2.2."""
+def serve_repo(directory=None):
+    """Serve out/repo (or directory) over HTTP; the VM reaches it at 10.0.2.2."""
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -741,7 +742,7 @@ def serve_repo():
             REQUESTS.append(self.path)
             super().do_GET()
 
-    handler = functools.partial(Quiet, directory=os.path.join(ROOT, "out", "repo"))
+    handler = functools.partial(Quiet, directory=directory or os.path.join(ROOT, "out", "repo"))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return f"http://10.0.2.2:{server.server_address[1]}/"

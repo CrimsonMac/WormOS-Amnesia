@@ -3,10 +3,13 @@
 
 . "$(dirname "$0")/env.sh"
 
-LINUX=linux-6.18.57
+LINUX=linux-6.18.64
 KOBJ=$BUILD/kernel
 
 [ -x "$TOOLS/bin/$TARGET-gcc" ] || die "toolchain missing, run scripts/build-toolchain.sh first"
+
+shopt -s nullglob
+patches=("$WORMOS_ROOT"/kernel/patches/*.patch)
 
 # Built again only when the sources, the configuration or the build scripts
 # changed (WBUILD_FORCE=1 builds anyway).
@@ -14,7 +17,7 @@ key=$({
 	echo "kernel cache 1 $LINUX"
 	echo "env $(build_env_hash)"
 	cat "$WORMOS_ROOT/scripts/build-kernel.sh" "$WORMOS_ROOT/kernel/wormos.config" \
-		"$WORMOS_ROOT"/kernel/patches/*.patch
+		"${patches[@]}"
 } | sha256sum | cut -c1-64)
 if [ "${WBUILD_FORCE:-}" != 1 ] && [ -d "$PKGDIR/linux" ] &&
    [ -f "$BUILD/pkginfo/linux.info" ] && [ -f "$CACHE/linux.key" ] &&
@@ -27,7 +30,7 @@ rm -f "$CACHE/linux.key"
 
 # A fresh tree, so that the patches in kernel/patches apply exactly once.
 unpack "$SOURCES/$LINUX.tar.xz" "$WORK/linux"
-for p in "$WORMOS_ROOT"/kernel/patches/*.patch; do
+for p in "${patches[@]}"; do
 	msg "Applying $(basename "$p")"
 	patch -d "$WORK/linux" -p1 < "$p"
 done

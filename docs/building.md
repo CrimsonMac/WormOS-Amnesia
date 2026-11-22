@@ -46,6 +46,12 @@ archives; it needs internet access and takes several minutes.
 `make test-upgrade FROM=wormos-1.8-x86_64.qcow2` sets up an older release
 image and upgrades it to the packages just built.
 
+`make test-delta` checks how wh upgrades (deltas, unchanged files left in
+place, the download cache emptied): it makes a second repository from
+`out/repo` with three packages changed, deltas for them with
+`scripts/make-deltas.sh`, and upgrades the development image to it, with
+one file of a package changed first so that its delta cannot be used.
+
 `make test` also runs `tests/desktop-test.py`: the VM gets a virtio GPU,
 keyboard and tablet, and the test types on the graphical console through
 the QEMU monitor like a user would. It answers the first-boot setup, logs
@@ -130,7 +136,10 @@ disk is 20 GiB, and the output is the ISO and a qcow2 image in
 `out/release`. `make publish-repo` writes the source archives
 (`scripts/source-archives.sh`, into `out/sources`) and uploads them with
 the repository to the package release (`scripts/publish-repo.sh`, needs
-the GitHub CLI).
+the GitHub CLI). Before uploading, `scripts/make-deltas.sh` downloads the
+published version of every package that changed and makes a delta
+against it with `tools/wdelta` (the files that differ), lists it in the
+index and signs the index again.
 
 The root filesystem is read-only; change it with `worm unlock` and
 `worm lock`. (A plain `mount -o remount,ro /` would make the whole btrfs

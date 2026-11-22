@@ -1,10 +1,10 @@
 name=mesa
-version=26.2.5
+version=26.3.1
 description="OpenGL (ES) and EGL drivers: Intel (iris, crocus), virtual GPUs (virgl, svga) and softpipe"
 depends=(glibc gcc-libs zlib zstd expat libdrm wayland)
 # Signed by Eric Engestrom (57551DE15B968F6341C248F68D8E31AFC32428A6).
 source=(https://archive.mesa3d.org/mesa-$version.tar.xz)
-sha256=(794b3d1729075dae7ebd47c7283b7ca0cdb5dec668f7f11cc0a5d82f6138a0a5)
+sha256=(4e4e438eac7b840a9383988cbb7c08dad8041da544b9319fc26d319fa7348961)
 
 build() {
 	# The Intel drivers compile OpenCL kernels while building, with

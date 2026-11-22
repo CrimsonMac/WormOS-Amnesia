@@ -1,10 +1,10 @@
 name=sqlmap
-version=1.10.10
+version=1.10.11
 description="sqlmap: automatic SQL injection testing (for systems you may test)"
 depends=(python)
 # Upstream publishes no signature: checksum pinned from the tagged archive.
 source=(sqlmap-$version.tar.gz::https://github.com/sqlmapproject/sqlmap/archive/refs/tags/$version.tar.gz)
-sha256=(7dd690c62fb1ae58bd8555b91012896863c47fc245dc6d39ba300362a3368d17)
+sha256=(22a8dbd1b18b2249302029a3ed259a92adecc9103cc2fa4908aac0d3743e8ad0)
 
 package() {
 	mkdir -p "$pkgdir/usr/share/sqlmap"

@@ -433,21 +433,10 @@ static void edition_package(char *out, size_t len)
 	snprintf(out, len, "wormos-%s", id);
 }
 
-/* Download and check every package of the plan. */
+/* Download and check every package of the plan (all at once). */
 static char **fetch_plan(struct plan *pl, const char *url)
 {
-	char **files = calloc(pl->count + 1, sizeof(char *));
-
-	if (!files)
-		die("out of memory");
-	for (int i = 0; i < pl->count; i++) {
-		char path[PATH_MAX];
-
-		repo_fetch(url, pl->pkgs[i], path, sizeof(path));
-		if (!(files[i] = strdup(path)))
-			die("out of memory");
-	}
-	return files;
+	return repo_fetch_all(url, pl->pkgs, pl->count);
 }
 
 static void install_plan(struct plan *pl, char **files)
@@ -463,6 +452,8 @@ static void install_plan(struct plan *pl, char **files)
 		if (strcmp(pl->pkgs[i]->name, "linux") == 0)
 			kernel_changed = 1;
 	}
+	/* Everything is in place: the downloads are not needed any more. */
+	repo_clean_cache();
 }
 
 static void plan_names(struct plan *pl, char *out, size_t len)

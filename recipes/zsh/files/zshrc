@@ -219,7 +219,10 @@ esac
 if [[ $TERM == dumb ]]; then
 	PROMPT='%(!..%n@)%m:%~%(!.#.$) '
 else
-	PROMPT='${_wormos_state}%B%F{%(!.red.magenta)}%(!..%n@)%m%f%b:%B%F{blue}%~%f%b${_wormos_git}%(!.#.$) '
+	# An edition may choose other colours (Amnesia's are grey).
+	_wormos_host_color=magenta _wormos_dir_color=blue
+	[[ -r /etc/zsh/prompt-colors ]] && . /etc/zsh/prompt-colors
+	PROMPT="\${_wormos_state}%B%F{%(!.red.$_wormos_host_color)}%(!..%n@)%m%f%b:%B%F{$_wormos_dir_color}%~%f%b\${_wormos_git}%(!.#.$) "
 	# The status of a failed command and the time of a slow one, on the right.
 	RPROMPT='%(?..%F{red}%? ✘%f)${_wormos_took}'
 fi

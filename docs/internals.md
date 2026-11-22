@@ -10,14 +10,16 @@ in [building.md](building.md); what each feature does for the user, in the
   `x86_64-wormos-linux-gnu` into `build/tools`, with target headers and
   libraries in `build/sysroot` (binutils 2.47, gcc 15.3.0, glibc 2.44, Linux
   6.18.57 headers). Finished steps are stamped in `build/stamps/`.
-- `scripts/build-kernel.sh` builds Linux 6.18.57 LTS: x86_64_defconfig with
+- `scripts/build-kernel.sh` builds Linux 6.18.64 LTS (the toolchain keeps
+  the 6.18.57 headers): x86_64_defconfig with
   `kernel/wormos.config` merged on top, out of tree in `build/kernel`, staged
   as the package `build/pkgs/linux`. The build warns about any option in the
-  fragment that did not survive dependency resolution. `kernel/patches/`
-  are applied to a freshly unpacked tree: `acpi-fixed-buttons.patch` gives
-  the fixed-feature power and sleep buttons (QEMU's, VMware's, most PCs')
-  a platform device, since 6.18.57's button driver is a platform driver
-  and was never bound to them, so no "Power Button" input device existed.
+  fragment that did not survive dependency resolution. `kernel/patches/*.patch`
+  are applied to a freshly unpacked tree. There are none now: up to 1.10,
+  `acpi-fixed-buttons.patch` gave the fixed-feature power and sleep buttons
+  (QEMU's, most PCs') a platform device, since 6.18.57's button driver is
+  a platform driver and was never bound to them; 6.18.64 does the same
+  itself (`acpi_default_enumeration` in `acpi_bus_scan_fixed`).
 - Kernel security: nftables only (built in, no iptables or xtables), lockdown
   forced to integrity mode, LSMs `lockdown,yama,integrity,landlock` (AppArmor
   is built but only enabled with `lsm=`), and modules must be signed with the
@@ -292,6 +294,28 @@ in [building.md](building.md); what each feature does for the user, in the
   which knows neither, so their second `wh upgrade` brings the programs
   (the welcome text says so while the package is missing).
 
+- Downloads (since 1.11): `repo_fetch_all` fetches every package of a
+  plan with one parallel curl (`download_many`) and checks each against
+  the index; once the plan is installed, `repo_clean_cache` empties
+  `/var/cache/wh` (earlier releases kept every package downloaded).
+- Deltas (since 1.11): an index entry may carry
+  `delta = FROM-VERSION FILE SIZE SHA256`. When the installed version is
+  FROM, wh downloads FILE, a `.wdelta`: a package of the new version
+  (`tools/wdelta OLD NEW OUT`) whose `.PKGINFO` lists every file and its
+  SHA-256 plus `delta-from = FROM`, but whose archive leaves out the
+  regular files whose content and mode did not change. Before staging,
+  `pkg_delta_usable` checks that each left-out file is still the one the
+  installed version owns (same SHA-256, owned by root); if not, the full
+  package is downloaded. `pkg_install` takes a left-out file as installed
+  (after checking it again in the staged root). `scripts/make-deltas.sh`
+  makes the deltas when the repository is published, against the
+  published version, and drops those that save less than a third. Older
+  wh ignores the line.
+- Unchanged files (since 1.11): on an upgrade, a file the old version
+  installed whose content, mode and owner are what the new version ships
+  is left in place (`unchanged_file`): the package's copy is still read
+  and checked, but nothing is written, so the file keeps sharing its
+  blocks with the snapshots and no hook runs for it.
 - `src/wh/`: `wh.c` (commands, transactions), `repo.c` (index, signatures,
   downloads via curl), `db.c` (installed database), `pkg.c` (tar reader using
   openat2 `RESOLVE_IN_ROOT`, capabilities, groups), `sig.c` and `wsign.c`

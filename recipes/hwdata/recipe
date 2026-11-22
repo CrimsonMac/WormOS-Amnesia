@@ -1,9 +1,9 @@
 name=hwdata
-version=0.412
+version=0.413
 description="Display vendor IDs (PNP IDs), used when building display libraries"
 # Upstream publishes no signature: checksum pinned from the release download.
 source=(hwdata-$version.tar.gz::https://github.com/vcrhonek/hwdata/archive/refs/tags/v$version.tar.gz)
-sha256=(f0c64cd7e31d70a5fb3a52e53ab50a61e74c0421a6381eaa45114eec3bde5fe7)
+sha256=(5a71ab7a48c668ef912fcfdbec046949087019f8dd7fb967445d36fbeb778350)
 sysroot_files=(usr/share/hwdata/pnp.ids)
 
 package() {

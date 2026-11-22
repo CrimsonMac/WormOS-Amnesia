@@ -559,9 +559,55 @@ static int ensure_user(const char *name)
 
 /* ---- install ---- */
 
-/* Write one regular file from the stream, checking its hash. */
+/*
+ * The file this package installed at leaf, if it is still exactly what the
+ * new version ships (content, mode, owner): opened read-only, or -1. For a
+ * file a delta leaves out (e is NULL), its content and owner: the delta
+ * holds every file whose content or mode changed.
+ */
+static int unchanged_file(int pfd, const char *leaf, const struct entry *e,
+			  const char *expect)
+{
+	unsigned char buf[65536], sum[SHA256_LEN];
+	char hex[SHA256_HEX];
+	struct sha256 ctx;
+	struct stat st;
+	ssize_t n;
+	int fd;
+
+	if (!expect)
+		return -1;
+	fd = openat(pfd, leaf, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+	if (fd < 0)
+		return -1;
+	if (fstat(fd, &st) < 0 || !S_ISREG(st.st_mode) ||
+	    (e && ((unsigned long long)st.st_size != e->size ||
+		   (st.st_mode & 07777) != (e->mode & 07777))) ||
+	    (geteuid() == 0 && (st.st_uid != 0 || st.st_gid != 0)))
+		goto no;
+	sha256_init(&ctx);
+	while ((n = read(fd, buf, sizeof(buf))) > 0)
+		sha256_update(&ctx, buf, n);
+	if (n < 0)
+		goto no;
+	sha256_final(&ctx, sum);
+	sha256_hex(sum, hex);
+	if (strcmp(hex, expect) == 0)
+		return fd;
+no:
+	close(fd);
+	return -1;
+}
+
+/*
+ * Write one regular file from the stream, checking its hash. On an upgrade,
+ * a file the package already installed and that has not changed is left in
+ * place (returns 1): nothing is written, and the system keeps sharing its
+ * blocks with the snapshots taken before. Returns 0 when the file was
+ * written, -1 on errors.
+ */
 static int extract_file(struct stream *s, const struct entry *e, int pfd,
-			const char *leaf, const char *tmp, const char *expect)
+			const char *leaf, const char *tmp, const char *expect, int owned)
 {
 	unsigned char buf[65536], sum[SHA256_LEN];
 	struct timespec times[2] = { { 0, UTIME_OMIT }, { e->mtime, 0 } };
@@ -569,6 +615,36 @@ static int extract_file(struct stream *s, const struct entry *e, int pfd,
 	struct sha256 ctx;
 	char hex[SHA256_HEX];
 	int fd;
+
+	if (owned && (fd = unchanged_file(pfd, leaf, e, expect)) >= 0) {
+		/* Still read (and check) the package's copy. */
+		sha256_init(&ctx);
+		while (left > 0) {
+			size_t take = left < sizeof(buf) ? left : sizeof(buf);
+
+			if (read_full(s, buf, take) < 0) {
+				close(fd);
+				return -1;
+			}
+			sha256_update(&ctx, buf, take);
+			left -= take;
+		}
+		sha256_final(&ctx, sum);
+		sha256_hex(sum, hex);
+		if (strcmp(hex, expect) != 0) {
+			close(fd);
+			errno = EBADMSG;
+			return -1;
+		}
+		/* Capabilities are set again afterwards from the new version. */
+		if (fremovexattr(fd, "security.capability") < 0 && errno != ENODATA) {
+			close(fd);
+			return -1;
+		}
+		futimens(fd, times);
+		close(fd);
+		return skip(s, padded(e->size) - e->size) < 0 ? -1 : 1;
+	}
 
 	unlinkat(pfd, tmp, 0);
 	fd = openat(pfd, tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
@@ -603,7 +679,7 @@ static int extract_file(struct stream *s, const struct entry *e, int pfd,
 		unlinkat(pfd, tmp, 0);
 		return -1;
 	}
-	return skip(s, padded(e->size) - e->size);
+	return skip(s, padded(e->size) - e->size) < 0 ? -1 : 0;
 }
 
 /* Is something at leaf that this package may not replace? */
@@ -754,12 +830,90 @@ static void remove_leftovers(const char *name, struct set *now)
 	db_free_files(paths, count);
 }
 
+/*
+ * Can this delta be installed here? It must have been made from the
+ * installed version, and every file it leaves out must still be the one
+ * that version installed. Otherwise the full package is used.
+ */
+int pkg_delta_usable(const char *wdelta, const char *expect_name)
+{
+	struct set *hashes = set_new(), *old = NULL;
+	char *pkginfo = NULL, delta_from[VERSION_MAX_LEN] = "";
+	struct package p, cur;
+	struct stream s;
+	struct entry e;
+	int r, ok = 0;
+
+	if (open_stream(wdelta, &s) < 0)
+		goto out_free;
+	if (next_entry(&s, &e) != 1 || strcmp(e.path, ".PKGINFO") != 0 ||
+	    e.size > (1 << 24) || !(pkginfo = malloc(padded(e.size) + 1)) ||
+	    read_full(&s, pkginfo, padded(e.size)) < 0)
+		goto out;
+	pkginfo[e.size] = '\0';
+	if (parse_pkginfo(pkginfo, &p) < 0 || strcmp(p.name, expect_name) != 0)
+		goto out;
+	for (char *line = pkginfo; line && *line; ) {
+		char *end = strchr(line, '\n'), sum[65], path[PATH_MAX];
+
+		if (end)
+			*end = '\0';
+		if (sscanf(line, "file = %64s %4095[^\n]", sum, path) == 2)
+			set_add(hashes, path, sum);
+		else if (strncmp(line, "delta-from = ", 13) == 0)
+			snprintf(delta_from, sizeof(delta_from), "%s", line + 13);
+		line = end ? end + 1 : NULL;
+	}
+	if (!delta_from[0] || !db_installed(p.name, &cur) || strcmp(cur.version, delta_from) != 0)
+		goto out;
+	while ((r = next_entry(&s, &e)) == 1) {
+		struct item *h = set_get(hashes, e.path);
+
+		if (h)
+			h->seen = 1;
+		if (e.size && skip(&s, padded(e.size)) < 0)
+			goto out;
+	}
+	if (r < 0)
+		goto out;
+	old = old_files(p.name);
+	ok = 1;
+	for (int i = 0; i < SET_BUCKETS && ok; i++)
+		for (struct item *h = hashes->b[i]; h && ok; h = h->next) {
+			struct item *was;
+			const char *leaf;
+			int pfd, fd = -1;
+
+			if (h->seen)
+				continue;
+			if ((was = set_get(old, h->key)) && was->value && was->value[0] == 'f' &&
+			    (pfd = open_parent(h->key, &leaf, 0)) >= 0) {
+				fd = unchanged_file(pfd, leaf, NULL, h->value);
+				close(pfd);
+			}
+			if (fd < 0)
+				ok = 0;
+			else
+				close(fd);
+		}
+out:
+	if (close_stream(&s) < 0)
+		ok = 0;
+out_free:
+	free(pkginfo);
+	set_free(hashes);
+	if (old)
+		set_free(old);
+	return ok ? 0 : -1;
+}
+
 int pkg_install(const char *wpkg, const char *expect_name)
 {
 	struct set *hashes = set_new(), *now = set_new(), *old = NULL;
 	char *pkginfo = NULL, *list = NULL, tmp[NAME_MAX];
 	char **caps = NULL, **groups = NULL, **users = NULL;
-	int ncaps = 0, ngroups = 0, nusers = 0, r, ret = -1;
+	int ncaps = 0, ngroups = 0, nusers = 0, r, ret = -1, delta = 0;
+	char delta_from[VERSION_MAX_LEN] = "";
 	size_t listlen = 0;
 	struct package p;
 	struct stream s;
@@ -785,6 +939,9 @@ int pkg_install(const char *wpkg, const char *expect_name)
 			*end = '\0';
 		if (sscanf(line, "file = %64s %4095[^\n]", sum, path) == 2) {
 			set_add(hashes, path, sum);
+		} else if (strncmp(line, "delta-from = ", 13) == 0) {
+			delta = 1;
+			snprintf(delta_from, sizeof(delta_from), "%s", line + 13);
 		} else if (strncmp(line, "cap = ", 6) == 0) {
 			caps = realloc(caps, (ncaps + 1) * sizeof(char *));
 			caps[ncaps++] = strdup(line + 6);
@@ -800,6 +957,15 @@ int pkg_install(const char *wpkg, const char *expect_name)
 		line = end ? end + 1 : NULL;
 	}
 
+	/* A delta holds only what changed since the version it was made
+	 * from, which must be the one installed. */
+	if (delta) {
+		struct package cur;
+
+		if (!db_installed(p.name, &cur) || strcmp(cur.version, delta_from) != 0)
+			die("%s: the update was made for version %s, not the one installed",
+			    p.name, delta_from);
+	}
 	old = old_files(p.name);
 	if (!(files = open_memstream(&list, &listlen)))
 		die("out of memory");
@@ -840,11 +1006,16 @@ int pkg_install(const char *wpkg, const char *expect_name)
 			break;
 		}
 		case '0':
-		case '7':
+		case '7': {
+			struct item *was = set_get(old, e.path);
+			int kept;
+
 			h = set_get(hashes, e.path);
 			if (check_conflict(p.name, e.path, pfd, leaf, old) < 0)
 				goto fail_entry;
-			if (extract_file(&s, &e, pfd, leaf, tmp, h ? h->value : NULL) < 0) {
+			kept = extract_file(&s, &e, pfd, leaf, tmp, h ? h->value : NULL,
+					    was && was->value && was->value[0] == 'f');
+			if (kept < 0) {
 				if (errno == EBADMSG)
 					warn("%s: %s does not match its checksum", p.name, e.path);
 				else
@@ -856,7 +1027,13 @@ int pkg_install(const char *wpkg, const char *expect_name)
 				h->seen = 1;
 			e.size = 0;     /* already consumed */
 			fprintf(files, "f %s\n", e.path);
-			break;
+			set_add(now, e.path, NULL);
+			/* An unchanged file changes no cache a hook builds. */
+			if (!kept)
+				hook_touch(e.path);
+			close(pfd);
+			continue;
+		}
 		case '2':
 			if (busybox_yields(p.name, &e)) {
 				/* A full version of this command is installed. */
@@ -914,11 +1091,33 @@ fail_entry:
 		goto out;
 	}
 	for (int i = 0; i < SET_BUCKETS; i++)
-		for (struct item *h = hashes->b[i]; h; h = h->next)
-			if (!h->seen) {
+		for (struct item *h = hashes->b[i]; h; h = h->next) {
+			struct item *was;
+			const char *leaf;
+			int pfd, fd = -1;
+
+			if (h->seen)
+				continue;
+			/* Left out of a delta: unchanged, already in place. */
+			if (delta && (was = set_get(old, h->key)) && was->value &&
+			    was->value[0] == 'f' && (pfd = open_parent(h->key, &leaf, 0)) >= 0) {
+				fd = unchanged_file(pfd, leaf, NULL, h->value);
+				close(pfd);
+			}
+			if (fd < 0) {
 				warn("%s: %s is listed but missing from the package", p.name, h->key);
 				goto out;
 			}
+			/* Capabilities are set again below. */
+			if (fremovexattr(fd, "security.capability") < 0 && errno != ENODATA) {
+				close(fd);
+				warn("%s: cannot reset %s: %s", p.name, h->key, strerror(errno));
+				goto out;
+			}
+			close(fd);
+			fprintf(files, "f %s\n", h->key);
+			set_add(now, h->key, NULL);
+		}
 
 	remove_leftovers(p.name, now);
 	for (int i = 0; i < ngroups; i++)

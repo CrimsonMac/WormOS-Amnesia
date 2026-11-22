@@ -1,6 +1,5 @@
 name=tor
-version=0.4.9.14
-release=3
+version=0.4.9.17
 description="Anonymity network client (worm anon)"
 depends=(glibc openssl libevent zlib zstd)
 users=(tor)
@@ -8,7 +7,7 @@ users=(tor)
 # (B74417EDDF22AC9F9E90F49142E86A2A11F48D36) and Alexander Færøy
 # (1C1BC007A9F607AA8152C040BEA7B180B1491921).
 source=(https://dist.torproject.org/tor-$version.tar.gz)
-sha256=(182449ac1c8ff43278da27b69b02040e11d03d0327db6d9126e4190ec6235e4a)
+sha256=(ff372c41ee7013557fe5b7acd96c909950b27a7959c59fcb87c02591682fabe2)
 
 build() {
 	# A client only: no relay or directory authority code. The tool name

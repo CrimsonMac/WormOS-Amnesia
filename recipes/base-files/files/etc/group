@@ -13,5 +13,6 @@ input:x:97:
 kvm:x:98:
 render:x:99:
 sgx:x:96:
+clock:x:95:
 users:x:100:
 nogroup:x:65534:

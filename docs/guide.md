@@ -228,6 +228,13 @@ must match the SHA-256 the index lists, and an index older than the one
 already downloaded is refused. Packages are unpacked by wh itself, which
 never writes outside the system it installs into.
 
+Upgrades are quick on the network and on the disk: all packages download
+at once; a package whose installed version is the one published before
+comes as a delta holding only the files that changed (the full package
+if a file it leaves out was changed on this system); files that did not
+change are left in place, so they take no extra space next to the
+snapshots; and downloaded packages are deleted once installed.
+
 The repository is published at
 [CrimsonMac/wormos-packages](https://github.com/CrimsonMac/wormos-packages/releases/tag/core),
 together with a source archive for every package built from upstream

@@ -1,10 +1,10 @@
 name=pipewire
-version=1.6.9
+version=1.6.11
 description="Sound server: PipeWire with its PulseAudio and ALSA compatibility"
 depends=(glibc alsa-lib eudev dbus libsndfile)
 # Upstream publishes no signature: checksum pinned from the release download.
 source=(https://gitlab.freedesktop.org/pipewire/pipewire/-/archive/$version/pipewire-$version.tar.gz)
-sha256=(dbc3624cf71215c26a22fc98f6f71f7b8599f5f6b415eab4a5c90ca96c170c7c)
+sha256=(f3f70c4af173cc93d05070a9d412efe3ef5889bdf4ac32298e2c0d9ae1350559)
 
 build() {
 	# Audio only: ALSA devices, the PulseAudio server (built in) and the
