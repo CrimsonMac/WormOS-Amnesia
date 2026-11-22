@@ -210,7 +210,7 @@ def main():
         checks = checks + ROOT_CHECKS + (BAREBONES_ROOT_CHECKS if args.edition == "barebones"
                                          else AMNESIA_ROOT_CHECKS)
     passed = failures = 0
-    total = len(checks) + 3 + (args.edition == "amnesia")
+    total = len(checks) + 3 + 2 * (args.edition == "amnesia")
 
     def check(name, ok, out=""):
         nonlocal passed, failures
@@ -241,6 +241,14 @@ def main():
                       re.search(r"^screen\n/run/worm/anon-hold\nno-tor$" if not args.release
                                 else r"^/run/worm/anon-hold\nno-tor$", out, re.M), out)
                 time.sleep(3)
+                # The start screen is grey too: no strongly coloured pixels.
+                shot = os.path.join(ROOT, "build", "editions-start.ppm")
+                mon.cmd(f"screendump {shot}")
+                time.sleep(1)
+                width, height, pixels = desktop_test.read_ppm(shot)
+                coloured = sum(1 for i in range(0, width * height, 7)
+                               if max(pixels[3 * i:3 * i + 3]) - min(pixels[3 * i:3 * i + 3]) > 40)
+                check("the start screen is grey", coloured < 20, f"{coloured} coloured pixels")
                 # The keyboard layout (two fields back from the start button;
                 # forwards are the restart and shut-down buttons), then Tor
                 # directly, no administrator.

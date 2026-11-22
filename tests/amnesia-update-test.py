@@ -56,11 +56,15 @@ def synthetic(tmp):
     return paths
 
 
+REQUESTS = []
+
+
 class Ranges(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
     def do_GET(self):
+        REQUESTS.append(self.path)
         path = self.translate_path(self.path)
         r = self.headers.get("Range")
         if not r or not os.path.isfile(path):
@@ -108,6 +112,9 @@ def main():
     subprocess.run([f"{ROOT}/tools/amnesia-manifest", os.path.join(srv, os.path.basename(new)),
                     "99.0", manifest], check=True)
     subprocess.run([wsign, "sign", key, manifest], check=True)
+    latest = os.path.join(srv, "amnesia.latest")
+    open(latest, "w").write("version = 99.0\n")
+    subprocess.run([wsign, "sign", key, latest], check=True)
     handler = lambda *a, **k: Ranges(*a, directory=srv, **k)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -149,6 +156,11 @@ def main():
         print(f"      wrote {m.group(1)} of {m.group(2)} MB to the stick")
     rc, out = run(["--check"], TEST_VERSION="99.0")
     check("an up-to-date system says so", rc == 0 and "latest version" in out, out)
+    REQUESTS.clear()
+    rc, out = run(["--check"])
+    check("a check reads only the signed version",
+          rc == 0 and "99.0 is available" in out and "/amnesia.update" not in REQUESTS,
+          (out, REQUESTS))
     server.shutdown()
     shutil.rmtree(tmp)
     print(f"{passed}/{passed + failures} checks passed")

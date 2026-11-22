@@ -80,7 +80,10 @@ does, and what comes next. It ships as
   (`scripts/publish-amnesia.sh`; the updater reads the latest one) carries,
   with its ISO, a manifest signed
   with the WormOS key: the ISO's size and SHA-256 and two checksums per
-  64 KiB block. Amnesia runs from memory, so the stick is free: the
+  8 KiB block (since 1.11; from 1.10 to 1.11 that found 63% of the new ISO
+  on the stick, 64 KiB blocks found 30%), and `amnesia.latest`, the version
+  alone, also signed, which `--check` and the update notice read instead
+  of the 2 MB manifest. Amnesia runs from memory, so the stick is free: the
   updater rebuilds the new ISO in memory from the blocks the stick already
   holds, found at any offset with a rolling checksum as rsync and zsync
   do, downloads only the rest through Tor (HTTP range requests, running

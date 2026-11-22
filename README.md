@@ -69,8 +69,9 @@ remains. It is not meant for real work: by design, nothing can be kept.
 - **Updates.** When a new release is out, a notification says so.
   *Update Amnesia* in the launcher (`amnesia-update`) brings the USB stick
   up to date, downloading through Tor only the parts that changed (from
-  1.9 to 1.10, 8% of the ISO), and checks everything against a signature
-  before writing.
+  1.9 to 1.10, 8% of the ISO; from 1.10 to 1.11, a release that updated
+  most packages, 37%), writing only what differs, and checks everything
+  against a signature before writing.
 - **A wrong clock** (an empty clock battery) is corrected from what Tor's
   relays report, so Tor still connects. Amnesia never writes the
   computer's hardware clock.

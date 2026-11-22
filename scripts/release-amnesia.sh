@@ -4,6 +4,7 @@
 #   wormos-VERSION-amnesia-x86_64.iso   live only: forgets everything, Tor
 #                                       from the first packet
 #   amnesia.update, .sig                the signed update manifest
+#   amnesia.latest, .sig                its version alone (for checks)
 #   SHA256SUMS
 #
 # VERSION is the WormOS version Amnesia is built on (os-release). Release
@@ -31,6 +32,10 @@ SECRET=${WORMOS_SIGNING_KEY:-$HOME/.config/wormos/core.key}
 "$BUILD/host/wsign" sign "$SECRET" "$DEST/amnesia.update"
 "$BUILD/host/wsign" verify "$WORMOS_ROOT/keys/core.pub" "$DEST/amnesia.update" > /dev/null ||
 	die "the update manifest does not verify"
+# Just the version, also signed: update checks read this instead of the
+# whole manifest (which has a line for every block).
+printf 'version = %s\n' "$VERSION" > "$DEST/amnesia.latest"
+"$BUILD/host/wsign" sign "$SECRET" "$DEST/amnesia.latest"
 (cd "$DEST" && sha256sum "$NAME.iso" > SHA256SUMS)
 msg "WormOS Amnesia $VERSION ready in $DEST:"
 ls -lh "$DEST"

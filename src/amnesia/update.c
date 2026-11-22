@@ -10,7 +10,8 @@
  * ISO, a manifest (MANIFEST; UPDATE_URL follows the latest release) signed
  * with the WormOS key: the version, the ISO's name, size
  * and SHA-256, and a weak (rolling) and a strong checksum for every block
- * of BLOCK bytes. Amnesia runs from memory, so the stick it started from
+ * of BLOCK bytes, and a version file (LATEST, also signed) that update
+ * checks read instead of the long manifest. Amnesia runs from memory, so the stick it started from
  * (/dev/wormos-medium) is free. The new ISO is put together in memory:
  * every block the old ISO on the stick already holds, wherever it moved
  * (a rolling checksum finds it at any offset, as rsync and zsync do), is
@@ -42,6 +43,7 @@
 #include "sig.h"
 
 #define MANIFEST    "amnesia.update"
+#define LATEST      "amnesia.latest"
 #define MAX_BLOCKS  (1 << 20)
 #define WRITE_CHUNK (1 << 16)
 
@@ -178,6 +180,25 @@ static void read_manifest(const char *path)
 			die("a bad manifest%s", "");
 	if (!blocks || i != nblocks || strlen(new_sha) != 64 || !new_version[0] || !new_name[0])
 		die("a bad manifest%s", "");
+}
+
+/* Read the (already verified) version file: "version = X". */
+static void read_latest(const char *path)
+{
+	char line[128];
+	FILE *f = fopen(path, "re");
+
+	new_version[0] = '\0';
+	while (f && fgets(line, sizeof(line), f))
+		if (sscanf(line, "version = %31s", new_version) == 1)
+			break;
+	if (f)
+		fclose(f);
+	for (const char *p = new_version; *p; p++)
+		if (!isdigit((unsigned char)*p) && *p != '.')
+			die("a bad version file%s", "");
+	if (!new_version[0])
+		die("a bad version file%s", "");
 }
 
 /* Version numbers compared part by part: 1.10 is newer than 1.9. */
@@ -493,16 +514,32 @@ int main(int argc, char **argv)
 	snprintf(iso_path, sizeof(iso_path), "%s", work("new.iso"));
 	printf("Looking for an update (through Tor)...\n");
 	fflush(stdout);
-	if (fetch(MANIFEST, work("manifest")) < 0 || fetch(MANIFEST ".sig", work("manifest.sig")) < 0)
-		die("cannot reach the update server; is Tor connected? (worm anon status)%s", "");
-	if (read_hex_file(PUBLIC_KEY, key, sizeof(key)) < 0 ||
-	    sig_verify_file(key, work("manifest"), work("manifest.sig")) < 0)
-		die("the update's signature is not WormOS's: refusing it%s", "");
-	read_manifest(work("manifest"));
+	if (read_hex_file(PUBLIC_KEY, key, sizeof(key)) < 0)
+		die("cannot read the WormOS key%s", "");
 	current_version(version, sizeof(version));
 #ifdef AMNESIA_UPDATE_TEST
 	snprintf(version, sizeof(version), "%s", SETTING(VERSION, version));
 #endif
+	/* The version alone first (a few bytes; releases before 1.11 have
+	 * only the manifest, which has a line for every block). */
+	if (fetch(LATEST, work("latest")) == 0 && fetch(LATEST ".sig", work("latest.sig")) == 0) {
+		if (sig_verify_file(key, work("latest"), work("latest.sig")) < 0)
+			die("the update's signature is not WormOS's: refusing it%s", "");
+		read_latest(work("latest"));
+		if (!newer(new_version, version)) {
+			printf("WormOS Amnesia %s is the latest version.\n", version);
+			return 0;
+		}
+		if (check) {
+			printf("WormOS Amnesia %s is available (this is %s).\n", new_version, version);
+			return 0;
+		}
+	}
+	if (fetch(MANIFEST, work("manifest")) < 0 || fetch(MANIFEST ".sig", work("manifest.sig")) < 0)
+		die("cannot reach the update server; is Tor connected? (worm anon status)%s", "");
+	if (sig_verify_file(key, work("manifest"), work("manifest.sig")) < 0)
+		die("the update's signature is not WormOS's: refusing it%s", "");
+	read_manifest(work("manifest"));
 	if (!newer(new_version, version)) {
 		printf("WormOS Amnesia %s is the latest version.\n", version);
 		return 0;

@@ -29,4 +29,11 @@ get() { sed -n "s/^$1 = //p" "$dir/amnesia.update" | head -1; }
 [ "$(get iso)" = "$(basename "$iso")" ] || die "the manifest names $(get iso), not $(basename "$iso")"
 [ "$(get size)" = "$(stat -c %s "$iso")" ] || die "the manifest gives another size for the ISO"
 [ "$(get sha256)" = "$(sha256sum "$iso" | cut -d' ' -f1)" ] || die "the manifest gives another SHA-256"
+# Since 1.11, update checks read amnesia.latest (the version alone).
+if [ -f "$dir/amnesia.latest" ]; then
+	"$tmp/wsign" verify "$WORMOS_ROOT/keys/core.pub" "$dir/amnesia.latest" > /dev/null ||
+		die "amnesia.latest's signature does not verify with keys/core.pub"
+	[ "$(sed -n 's/^version = //p' "$dir/amnesia.latest")" = "$(get version)" ] ||
+		die "amnesia.latest names another version than the manifest"
+fi
 msg "WormOS Amnesia $(get version): the ISO and its signed manifest agree"
