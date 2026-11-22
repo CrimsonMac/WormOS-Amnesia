@@ -1,6 +1,6 @@
 name=wh
 version=0.1.0
-release=13
+release=14
 description="WormOS package manager"
 depends=(glibc zstd curl snap gnupg wormhole-keyrings)
 # Builds src/wh, which also uses sources from src/snap.

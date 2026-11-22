@@ -49,6 +49,12 @@ VERSION = version_of(os.path.join(ROOT, "recipes", "base-files", "files", "etc",
 AFTER_CHECKS = [
     ("new version", "grep ^VERSION_ID= /etc/os-release", rf"^VERSION_ID={re.escape(VERSION)}$"),
     ("nothing left to upgrade", "wh --repo {repo} upgrade", r"^Everything is up to date\.$"),
+    # wh itself comes along (1.11 kept its version, so upgraded systems
+    # kept the old wh).
+    ("wh is the repository's",
+     "a=$(wh list | awk '$1 == \"wh\" {{print $2}}'); "
+     "b=$(wh --repo {repo} info wh | sed -n 's/^Version: *//p'); "
+     "[ -n \"$a\" ] && [ \"$a\" = \"$b\" ] && echo same $a", r"^same 0\.1\.0-\d+$"),
     # Applets that busybox gave up: their packages must have taken over.
     ("replaced commands still there",
      "for c in less tar cpio unzip xz unxz bzip2 bzcat tree lsof vi xxd strings; do "

@@ -36,28 +36,40 @@ CHECKS = [
      "i=0; until nslookup deb.debian.org >/dev/null 2>&1 || [ $i -ge 30 ]; do sleep 2; i=$((i+1)); done; "
      "nslookup deb.debian.org 2>&1 | tail -3", r"Address:?\s+[0-9a-f.:]+"),
     # Before any wormhole: search reads the package list (root fetches it).
-    ("search without a wormhole", "wh search btop 2>&1 | grep -A1 '^btop '",
-     r"^btop \[debian\]\n    .*resource monitor"),
-    ("debian install", "wh -y install --from debian btop 2>&1 | tail -3",
-     r"btop -> /usr/bin/btop \(debian\)"),
+    # zathura: a Debian program WormOS does not ship, with a desktop entry
+    # and a scalable icon (btop, used before, is a core package since 1.8).
+    ("search without a wormhole", "wh search zathura 2>&1 | grep -A1 '^zathura '",
+     r"^zathura \[debian\]\n    .*document viewer"),
+    ("debian install", "wh -y install --from debian zathura 2>&1 | tail -3",
+     r"zathura -> /usr/bin/zathura \(debian\)"),
     ("debian wormhole ready", "cat /var/lib/wormholes/debian/etc/os-release",
      r"Debian GNU/Linux 13"),
-    ("exported command", "head -2 /usr/local/bin/btop", r"Exported by wh from the debian wormhole"),
-    ("runs as root", "btop --version", r"^btop version: 1\."),
-    ("listed", "wh list | tail -2", r"^btop\s+\S+\s+\[debian\]$"),
-    ("found by search", "wh search btop", r"^btop .*\[debian\]$"),
+    ("exported command", "head -2 /usr/local/bin/zathura", r"Exported by wh from the debian wormhole"),
+    ("runs as root", "zathura --version 2>&1 | head -1", r"^zathura 0\."),
+    ("listed", "wh list | grep zathura", r"^zathura\s+\S+\s+\[debian\]$"),
+    ("found by search", "wh search zathura", r"^zathura .*\[debian\]$"),
     # Without --from: the existing Debian wormhole has it, so Kali is not
     # set up (apt-cache's long answer must not count as a failure).
     ("source found in an existing wormhole", "wh -y install figlet 2>&1 | tail -1; wh list",
      r"^figlet\s+\S+\s+\[debian\]$"),
     ("no second wormhole for it", "ls /var/lib/wormholes | grep -c kali", r"^0$"),
+    # Java's setup links its man page into man1, which a trimmed wormhole
+    # used to lack (openjdk, and Ghidra with it, failed to configure).
+    ("java installs", "wh -y install --from debian openjdk-21-jre-headless 2>&1 | tail -2; "
+     "whc debian java -version 2>&1 | head -1", r'version "21'),
+    ("a broken wormhole repairs itself",
+     "rmdir /var/lib/wormholes/debian/usr/share/man/man1 2>/dev/null; "
+     "wh -y install --from debian sl >/dev/null 2>&1; "
+     "test -d /var/lib/wormholes/debian/usr/share/man/man1 && echo repaired", r"^repaired$"),
     ("desktop entry exported", "grep -E '^(Exec|X-WormOS-Wormhole)=' "
-     "/usr/local/share/applications/btop.desktop", r"^Exec=btop\nX-WormOS-Wormhole=true$"),
-    ("icons exported", "ls /usr/local/share/icons/hicolor/scalable/apps/", r"^btop\.svg$"),
+     "/usr/local/share/applications/org.pwmt.zathura.desktop",
+     r"^Exec=zathura(.|\n)*^X-WormOS-Wormhole=true$"),
+    ("icons exported", "ls /usr/local/share/icons/hicolor/scalable/apps/",
+     r"^org\.pwmt\.zathura\.svg$"),
     ("no setuid escape", "mount | grep ' /var/lib/wormholes '", r"nosuid,nodev"),
     ("add a user", "worm unlock >/dev/null && adduser -D tester && worm lock >/dev/null && echo ok",
      r"^ok$"),
-    ("runs as a user", "su tester -c 'btop --version'", r"^btop version: 1\."),
+    ("runs as a user", "su tester -c 'zathura --version' 2>&1 | head -1", r"^zathura 0\."),
     ("user keeps their identity", "su tester -c 'whc debian id -un'", r"^tester$"),
     ("user cannot change the container",
      "su tester -c 'whc debian touch /usr/x' 2>&1", r"(Permission denied|Read-only)"),
@@ -78,10 +90,11 @@ CHECKS = [
      "> /dev/null 2>&1; "
      "grep -c xdg_toplevel /tmp/wev.log'; kill $(pidof labwc)", r"^[1-9]"),
     ("core command not shadowed", "ls /usr/local/bin/ls 2>&1", r"No such file"),
-    ("debian remove", "wh -y remove btop && ls /usr/local/bin/btop 2>&1",
+    ("debian remove", "wh -y remove zathura && ls /usr/local/bin/zathura 2>&1",
      r"No such file"),
     ("desktop entry and icons removed",
-     "ls /usr/local/share/applications/btop.desktop /usr/local/share/icons/hicolor/scalable/apps/btop.svg 2>&1 | grep -c 'No such file'",
+     "ls /usr/local/share/applications/org.pwmt.zathura.desktop "
+     "/usr/local/share/icons/hicolor/scalable/apps/org.pwmt.zathura.svg 2>&1 | grep -c 'No such file'",
      r"^2$"),
     # Blackholes with a wormhole's system, and Windows programs under Wine.
     ("blackhole with debian's system", "bh open --from debian -- cat /etc/debian_version",

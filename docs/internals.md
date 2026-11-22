@@ -296,7 +296,8 @@ in [building.md](building.md); what each feature does for the user, in the
 
 - Downloads (since 1.11): `repo_fetch_all` fetches every package of a
   plan with one parallel curl (`download_many`) and checks each against
-  the index; once the plan is installed, `repo_clean_cache` empties
+  the index; once the plan is installed, `repo_remove_downloads` deletes
+  them, and each new download first clears what earlier changes left in
   `/var/cache/wh` (earlier releases kept every package downloaded).
 - Deltas (since 1.11): an index entry may carry
   `delta = FROM-VERSION FILE SIZE SHA256`. When the installed version is
@@ -399,6 +400,13 @@ in [building.md](building.md); what each feature does for the user, in the
   excluded, dpkg runs with `force-unsafe-io` (no fsync per file; a broken
   wormhole is set up again rather than repaired) and `policy-rc.d` exits
   101.
+- Repair (since 1.11.1): before every install, removal and upgrade,
+  `wormhole_repair` recreates the empty man page folders (`man1`..`man9`,
+  `info`; documentation stays excluded, but maintainer scripts link into
+  them: update-alternatives fails without `man1`, so openjdk, and Ghidra
+  with it, did not configure) and runs `dpkg --configure -a` and
+  `apt-get -f install` for whatever an earlier change left half done. A
+  failed install is tried once more after `apt-get update` and a repair.
 - `NAME:i386` packages (32-bit, such as `wine32:i386`): `foreign_find`
   picks the first source without looking (its lists are amd64 only), and
   `foreign_install` runs `dpkg --add-architecture i386` and `apt-get
@@ -1062,7 +1070,10 @@ in [building.md](building.md); what each feature does for the user, in the
   Wayland environment and `LIBSEAT_BACKEND=seatd`, and runs labwc with its
   output in `$XDG_RUNTIME_DIR/desktop.log`.
 - Renderer: OpenGL ES when a card is driven by i915, xe or vmwgfx (Mesa
-  svga, VMware with 3D acceleration); otherwise wlroots' pixman renderer
+  svga, VMware with 3D acceleration) or is QEMU's virtio GPU with virgl
+  (since 1.11.1: the DRM card's device is the PCI device, driver
+  `virtio-pci`; the virtio device below it, driver `virtio_gpu`, has
+  VIRTIO_GPU_F_VIRGL as bit 0 of its `features`); otherwise wlroots' pixman renderer
   (`WLR_RENDERER=pixman`), which beats OpenGL emulated on the CPU. With
   VMware's 3D acceleration off, EGL fails at once and the session falls
   back to pixman (below). wlroots checked every client's DMA-BUF by

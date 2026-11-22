@@ -452,8 +452,9 @@ static void install_plan(struct plan *pl, char **files)
 		if (strcmp(pl->pkgs[i]->name, "linux") == 0)
 			kernel_changed = 1;
 	}
-	/* Everything is in place: the downloads are not needed any more. */
-	repo_clean_cache();
+	/* Everything is in place: the downloads are not needed any more
+	 * (they are in the running system's /var, not the staged one). */
+	repo_remove_downloads(files);
 }
 
 static void plan_names(struct plan *pl, char *out, size_t len)

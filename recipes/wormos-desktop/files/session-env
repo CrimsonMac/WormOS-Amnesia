@@ -26,15 +26,24 @@ if [ -r /etc/worm/variant ]; then
 	[ -n "$VARIANT_PANEL" ] && export WORM_SHELL_PANEL=$VARIANT_PANEL
 fi
 
-# Intel GPUs and VMware's (vmwgfx, Mesa svga, with 3D acceleration on)
-# render with OpenGL ES; everything else uses the software renderer, which
-# is faster than OpenGL emulated on the CPU. With VMware's 3D acceleration
-# off, OpenGL ES fails at the start and run_labwc falls back to software.
+# Intel GPUs, VMware's (vmwgfx, Mesa svga, with 3D acceleration on) and
+# QEMU's virtio GPU with 3D (virgl: virt-manager's OpenGL option; bit 0 of
+# the virtio device's features) render with OpenGL ES; everything else uses
+# the software renderer, which is faster than OpenGL emulated on the CPU.
+# With VMware's 3D acceleration off, OpenGL ES fails at the start and
+# run_labwc falls back to software.
 if [ -z "${WLR_RENDERER:-}" ]; then
 	renderer=pixman
 	for driver in /sys/class/drm/card*/device/driver; do
 		case $(basename "$(readlink "$driver")") in
 		i915|xe|vmwgfx) renderer= ;;
+		virtio-pci)
+			# The GPU is the virtio device below the PCI one.
+			for virtio in "${driver%/driver}"/virtio*; do
+				[ "$(basename "$(readlink "$virtio/driver")")" = virtio_gpu ] || continue
+				features=$(cat "$virtio/features" 2>/dev/null)
+				[ "${features%"${features#?}"}" = 1 ] && renderer=
+			done ;;
 		esac
 	done
 	[ -n "$renderer" ] && export WLR_RENDERER=$renderer

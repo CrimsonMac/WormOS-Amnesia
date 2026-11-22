@@ -854,6 +854,8 @@ int wormhole_setup(const char *name)
 
 		snprintf(cmd, sizeof(cmd),
 			 "cd '%s/usr/share' && rm -rf man info && "
+			 "mkdir -p man/man1 man/man2 man/man3 man/man4 man/man5 man/man6 "
+			 "man/man7 man/man8 man/man9 info && "
 			 "find doc -type f ! -name copyright -delete 2>/dev/null; "
 			 "find locale -mindepth 1 -maxdepth 1 ! -name locale.alias "
 			 "-exec rm -rf {} + 2>/dev/null; true", dir);
@@ -1159,6 +1161,24 @@ static void unexport(const char *pkg)
 	unlink(record);
 }
 
+/*
+ * Put a wormhole back in order before apt runs: documentation is left out
+ * (90wormhole), but maintainer scripts expect the man page folders to
+ * exist (update-alternatives links java.1.gz into man1, and fails without
+ * it: openjdk, and with it Ghidra, would not install), and a change that
+ * failed halfway leaves packages unpacked but not configured. Cheap when
+ * there is nothing to do.
+ */
+static void wormhole_repair(const char *source)
+{
+	in_wormhole(source, (char *[]){ "sh", "-c",
+		"mkdir -p /usr/share/man/man1 /usr/share/man/man2 /usr/share/man/man3 "
+		"/usr/share/man/man4 /usr/share/man/man5 /usr/share/man/man6 "
+		"/usr/share/man/man7 /usr/share/man/man8 /usr/share/man/man9 /usr/share/info; "
+		"dpkg --configure -a >/dev/null 2>&1; "
+		"apt-get -q -y -f install >/dev/null 2>&1; true", NULL }, NULL, 0);
+}
+
 int foreign_install(const char *source, const char *pkg)
 {
 	char existing[32];
@@ -1181,10 +1201,19 @@ int foreign_install(const char *source, const char *pkg)
 				die("could not add i386 packages to the %s wormhole", source);
 		}
 	}
+	wormhole_repair(source);
 	info("Installing %s from %s", pkg, source);
 	if (in_wormhole(source, (char *[]){ "apt-get", "-q", "-y", "install", (char *)pkg, NULL },
-			NULL, 0) != 0)
-		die("apt could not install %s", pkg);
+			NULL, 0) != 0) {
+		/* Once more after a repair (and a fresh package list): most
+		 * failures are a half-finished earlier change or stale lists. */
+		info("Retrying after putting the %s wormhole in order", source);
+		in_wormhole(source, (char *[]){ "apt-get", "-q", "update", NULL }, NULL, 0);
+		wormhole_repair(source);
+		if (in_wormhole(source, (char *[]){ "apt-get", "-q", "-y", "install", (char *)pkg,
+						    NULL }, NULL, 0) != 0)
+			die("apt could not install %s", pkg);
+	}
 	export_commands(source, pkg);
 	return 0;
 }
@@ -1195,6 +1224,7 @@ int foreign_remove(const char *pkg)
 
 	if (!foreign_installed(pkg, source, sizeof(source)))
 		return -1;
+	wormhole_repair(source);
 	info("Removing %s from %s", pkg, source);
 	if (in_wormhole(source, (char *[]){ "apt-get", "-q", "-y", "--autoremove", "remove",
 					    (char *)pkg, NULL }, NULL, 0) != 0)
@@ -1227,6 +1257,8 @@ int foreign_refresh(int upgrade)
 		info("%s the %s wormhole", upgrade ? "Upgrading" : "Updating", name);
 		if (in_wormhole(name, (char *[]){ "apt-get", "-q", "update", NULL }, NULL, 0) != 0)
 			warn("apt-get update failed in the %s wormhole", name);
+		if (upgrade)
+			wormhole_repair(name);
 		if (upgrade &&
 		    in_wormhole(name, (char *[]){ "apt-get", "-q", "-y", "upgrade", NULL }, NULL, 0) != 0)
 			warn("apt-get upgrade failed in the %s wormhole", name);

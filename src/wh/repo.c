@@ -289,6 +289,8 @@ int repo_load(struct index *idx)
 	return 0;
 }
 
+static void clean_cache(const char *cache, struct package **pkgs, int n);
+
 /* Is path already the file with this SHA-256 and size? */
 static int have_file(const char *path, const char *sha256, long long want)
 {
@@ -356,6 +358,7 @@ char **repo_fetch_all(const char *url, struct package **pkgs, int n)
 	root_path(cache, sizeof(cache), WH_CACHE_DIR);
 	if (mkdirs_at(AT_FDCWD, cache, 0755) < 0)
 		die("cannot create %s: %s", cache, strerror(errno));
+	clean_cache(cache, pkgs, n);
 
 	/* Deltas first, where they apply. */
 	for (int i = 0; i < n; i++) {
@@ -427,23 +430,39 @@ char **repo_fetch_all(const char *url, struct package **pkgs, int n)
 	return files;
 }
 
-/* Installed packages are not needed any more: empty the download cache. */
-void repo_clean_cache(void)
+/*
+ * Leftovers in the download cache (from interrupted changes, or from
+ * releases before 1.11, which kept every package): everything but the
+ * packages of this plan goes.
+ */
+static void clean_cache(const char *cache, struct package **pkgs, int n)
 {
-	char cache[PATH_MAX], path[PATH_MAX * 2];
+	char path[PATH_MAX * 2];
 	struct dirent *d;
 	DIR *dir;
 
-	root_path(cache, sizeof(cache), WH_CACHE_DIR);
 	if (!(dir = opendir(cache)))
 		return;
 	while ((d = readdir(dir))) {
 		const char *dot = strrchr(d->d_name, '.');
+		int keep = 0;
 
 		if (!dot || (strcmp(dot, ".wpkg") && strcmp(dot, ".wdelta") && strcmp(dot, ".part")))
+			continue;
+		for (int i = 0; i < n && !keep; i++)
+			keep = !strncmp(d->d_name, pkgs[i]->sha256, 64) ||
+			       (pkgs[i]->delta_from[0] && !strncmp(d->d_name, pkgs[i]->delta_sha256, 64));
+		if (keep)
 			continue;
 		snprintf(path, sizeof(path), "%s/%s", cache, d->d_name);
 		unlink(path);
 	}
 	closedir(dir);
+}
+
+/* Installed: the plan's downloads are not needed any more. */
+void repo_remove_downloads(char **files)
+{
+	for (int i = 0; files && files[i]; i++)
+		unlink(files[i]);
 }

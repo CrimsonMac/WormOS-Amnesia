@@ -5,7 +5,9 @@
 #   delta = OLD-VERSION FILE SIZE SHA256
 # for it and is signed again. wh (1.11 and later) downloads the delta
 # instead of the full package when the published version is the one
-# installed. Deltas that would save less than a third are left out.
+# installed. Deltas that would save less than a third are left out. It
+# also refuses packages of WormOS's own code that changed without a new
+# version (installed systems would never get them).
 # publish-repo.sh runs this before uploading.
 #
 # Usage: scripts/make-deltas.sh
@@ -70,6 +72,24 @@ while read -r name version file sum; do
 		"$(sha256sum "$REPO/$delta" | cut -c1-64)" >> "$base/lines"
 	made=$((made + 1)) saved=$((saved + full - size))
 done < <(entries "$REPO/index")
+
+# A package of WormOS's own code (localsrc) whose files changed but whose
+# version did not would never reach installed systems (wh upgrades only
+# when the version changes): stop here and name it. Archives differ in
+# their timestamps on every build, so the files listed inside are compared.
+stale=()
+while read -r name version file sum; do
+	[ "${old_version[$name]:-}" = "$version" ] && [ "${old_sum[$name]}" != "$sum" ] || continue
+	grep -q '^localsrc=' "$WORMOS_ROOT/recipes/$name/recipe" 2>/dev/null || continue
+	old=$base/${old_file[$name]}
+	if [ ! -f "$old" ] || [ "$(sha256sum "$old" | cut -c1-64)" != "${old_sum[$name]}" ]; then
+		curl -fsSL --retry 3 -o "$old" "$url${old_file[$name]}" || die "cannot download ${old_file[$name]}"
+	fi
+	cmp -s <(zstd -dcq "$old" | tar -xOf - .PKGINFO | grep '^file = ') \
+		<(zstd -dcq "$REPO/$file" | tar -xOf - .PKGINFO | grep '^file = ') || stale+=("$name")
+done < <(entries "$REPO/index")
+[ ${#stale[@]} -eq 0 ] ||
+	die "changed but still at the published version (raise release= in their recipes): ${stale[*]}"
 
 # The index with a delta line in each package that has one, signed again.
 awk 'NR == FNR { d[$1] = $2 " " $3 " " $4 " " $5; next }

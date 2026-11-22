@@ -44,8 +44,17 @@ on top of this one.
 
 - **The disk image for QEMU / virt-manager** (`wormos-1.10-x86_64.qcow2`): an
   installed system, ready to start. In virt-manager,
-  import an existing disk image and choose a generic recent Linux. From
-  the command line:
+  import an existing disk image and choose a generic recent Linux.
+
+  For smooth drawing in virt-manager, turn on OpenGL before the first
+  start: in the machine's details, *Display Spice*, set *Listen type* to
+  *None* and tick *OpenGL*; in *Video Virtio*, tick *3D acceleration*.
+  WormOS then draws with the virtual GPU (virgl), and the viewer shows
+  finished frames. Without it, everything still works, but SPICE sends
+  each change as image pieces that the viewer paints as they arrive, so
+  large changes (a scrolling terminal) visibly roll down the screen.
+
+  From the command line:
   ```
   qemu-system-x86_64 -machine q35 -accel kvm -cpu host -m 2048 -smp 2 \
       -drive file=wormos-1.10-x86_64.qcow2,if=virtio \

@@ -392,6 +392,52 @@ class Vnc:
                           struct.pack(">IHHHHI", 0, 0, 0, width, height, 0))
 
 
+class VncScreen(Vnc):
+    """The whole screen through VNC, as a PPM file. QEMU's screendump cannot
+    read a GL screen (virgl with egl-headless: "no surface"); its VNC
+    server can."""
+
+    def grab(self, path):
+        # 32 bits per pixel, little-endian, red at bit 16 (BGRX in memory).
+        self.sock.sendall(struct.pack(">BxxxBBBBHHHBBBxxx", 0, 32, 24, 0, 1,
+                                      255, 255, 255, 16, 8, 0))
+        self.sock.sendall(struct.pack(">BBHHHH", 3, 0, 0, 0, 0xffff, 0xffff))
+        self.sock.settimeout(60)
+        width = height = 0
+        rects = []
+        while True:
+            kind = self.recv(1)[0]
+            if kind == 2:
+                continue
+            if kind == 3:
+                self.recv(struct.unpack(">xxxI", self.recv(7))[0])
+                continue
+            if kind != 0:
+                raise RuntimeError(f"unexpected VNC message {kind}")
+            count = struct.unpack(">xH", self.recv(3))[0]
+            for _ in range(count):
+                x, y, w, h, enc = struct.unpack(">HHHHi", self.recv(12))
+                if enc == 0:
+                    rects.append((x, y, w, h, self.recv(w * h * 4)))
+                    width, height = max(width, x + w), max(height, y + h)
+                elif enc == -308:
+                    n = struct.unpack(">Bxxx", self.recv(4))[0]
+                    self.recv(16 * n)
+            if rects:
+                break
+        rgb = bytearray(width * height * 3)
+        for x, y, w, h, data in rects:
+            for row in range(h):
+                line = data[row * w * 4:(row + 1) * w * 4]
+                out = ((y + row) * width + x) * 3
+                rgb[out:out + w * 3:3] = line[2::4]
+                rgb[out + 1:out + w * 3:3] = line[1::4]
+                rgb[out + 2:out + w * 3:3] = line[0::4]
+        with open(path, "wb") as f:
+            f.write(b"P6\n%d %d\n255\n" % (width, height) + bytes(rgb))
+        self.sock.close()
+
+
 class VncClipboard(Vnc):
     """A VNC client using the clipboard, as viewers do: plain ClientCutText
     to copy, and the extended clipboard (notify, request, provide) to paste
@@ -494,6 +540,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=int, default=600,
                         help="seconds to wait for the login prompt")
+    parser.add_argument("--virgl", action="store_true",
+                        help="a 3D virtio GPU (virgl), as virt-manager with OpenGL on; "
+                             "needs a render node on this machine")
     parser.add_argument("--release", metavar="IMAGE",
                         help="check this release image (root locked until set up)")
     args = parser.parse_args()
@@ -503,7 +552,24 @@ def main():
     vnc_path = os.path.join(tmp, "vnc")
     qmp_path = os.path.join(tmp, "qmp")
     wav_path = os.path.join(tmp, "sound.wav")
-    extra = (f"-vga none -device virtio-gpu-pci,addr=0x10,id=video0 "
+    gpu = ("virtio-gpu-gl-pci,addr=0x10,id=video0 -display egl-headless" if args.virgl
+           else "virtio-gpu-pci,addr=0x10,id=video0")
+    if args.virgl:
+        # With a GPU the session renders with GLES, and GTK with GL.
+        for checks in (SESSION_CHECKS, GTK_CHECKS):
+            for i, (name, cmd, pattern) in enumerate(checks):
+                if name == "software renderer on a virtual GPU":
+                    checks[i] = ("GLES renderer on the 3D virtual GPU",
+                                 "p=$(pidof labwc | cut -d' ' -f1); "
+                                 "tr '\\0' '\\n' < /proc/$p/environ | grep -c WLR_RENDERER=pixman; "
+                                 "grep -c -e virtio_gpu -e libgallium /proc/$p/maps",
+                                 r"^0\n[1-9]")
+                elif name == "GTK draws with cairo on a virtual GPU":
+                    # GTK 4.24 keeps drawing with cairo here; the compositor
+                    # uses the GPU either way.
+                    checks[i] = ("GTK draws on the 3D virtual GPU", cmd,
+                                 r"^renderer=Gsk(GL|NGL|Cairo)Renderer$")
+    extra = (f"-vga none -device {gpu} "
              f"-device virtio-keyboard-pci,addr=0x11 -device virtio-tablet-pci,addr=0x12 "
              f"-monitor unix:{mon_path},server,nowait -vnc unix:{vnc_path} "
              f"-qmp unix:{qmp_path},server,nowait "
@@ -556,9 +622,17 @@ def main():
             print(f"booted to login prompt in {time.time() - start:.0f}s")
             mon = Monitor(mon_path)
 
+            def screendump(path):
+                if os.path.exists(path):
+                    os.unlink(path)
+                if args.virgl:
+                    VncScreen(vnc_path).grab(path)
+                    return ""
+                return mon.cmd(f"screendump {path}")
+
             def screen(name):
                 path = os.path.join(ROOT, "build", f"desktop-{name}.ppm")
-                mon.cmd(f"screendump {path}")
+                screendump(path)
                 time.sleep(1)
                 return read_ppm(path)
 
@@ -699,8 +773,10 @@ def main():
             # dark terminal, not a blank or text console.
             time.sleep(3)
             shot = os.path.join(tmp, "screen.ppm")
-            mon.cmd(f"screendump {shot}")
+            said = screendump(shot)
             time.sleep(1)
+            if not os.path.exists(shot):
+                raise RuntimeError(f"no screendump: {said!r}")
             width, height, pixels = read_ppm(shot)
             colors = {pixels[i:i + 3] for i in range(0, len(pixels), 3 * 997)}
             purple = sum(1 for c in colors if c[2] > c[1] + 40 and c[0] > c[1] + 20)
@@ -750,7 +826,7 @@ def main():
                 deadline = time.time() + 60
                 while True:
                     time.sleep(2)
-                    mon.cmd(f"screendump {shot}")
+                    screendump(shot)
                     time.sleep(1)
                     got = read_ppm(shot)[:2]
                     if got == want or time.time() > deadline:
@@ -891,8 +967,12 @@ def main():
             check("snapshot taken from the program", "From the desktop test" in out, out[-300:])
             time.sleep(3)
             screen("snapshots-after")
+            # With a GPU compositor GTK reports frame timings it could not
+            # match (virgl): noise, not a fault of the program.
+            noise = " | grep -v gdk_frame_timings" if args.virgl else ""
             check("no warnings from Snapshots",
-                  con.run("grep -c -i -e critical -e warning /tmp/snapshots.log") == "0",
+                  con.run(f"grep -i -e critical -e warning /tmp/snapshots.log{noise} | grep -c .")
+                  == "0",
                   con.run("cat /tmp/snapshots.log"))
 
             # Log out: the login screen comes back. A wrong password is

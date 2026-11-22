@@ -60,6 +60,10 @@ Super+Enter, checks a screendump of the real screen, and compares memory
 use and system size with their budgets. `tests/desktop-test.py --release
 out/release/wormos-1.10-x86_64.qcow2` runs the same checks on a release
 image, where root can only log in once the first-boot setup is done.
+`tests/desktop-test.py --virgl` runs them on a virtio GPU with 3D (virgl,
+as virt-manager with OpenGL), rendered on this machine's GPU through
+`-display egl-headless`; screenshots then come through VNC, since QEMU's
+screendump cannot read a GL screen.
 
 `make test` boots a throwaway copy of the image, checks the running system
 and exercises snapshots end to end (take, diff, restore, browse, rewind of

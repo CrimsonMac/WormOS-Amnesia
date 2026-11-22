@@ -72,7 +72,7 @@ struct package *index_find(struct index *idx, const char *name);
 int repo_update(const char *url);
 int repo_load(struct index *idx);
 char **repo_fetch_all(const char *url, struct package **pkgs, int n);
-void repo_clean_cache(void);
+void repo_remove_downloads(char **files);
 const char *repo_url(const char *override);
 int download(const char *url, const char *dest);
 int download_many(char *const *urls, char *const *dests, int n);
