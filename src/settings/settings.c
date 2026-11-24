@@ -1587,7 +1587,7 @@ static void vm_fill(void)
 		{ "hypervisor", "Hypervisor" }, { "accel", "Acceleration" }, { "product", "Machine" },
 		{ "gpu", "Graphics" }, { "gl", "3D acceleration" }, { "spice", "SPICE channel" },
 		{ "agent-port", "Guest agent channel" }, { "balloon", "Memory balloon" },
-		{ "shares", "Shared folders" },
+		{ "share-tags", "Shared folders" },
 	};
 	char *hv = vm_value("hypervisor"), *out, *tips;
 	GtkWidget *child;

@@ -975,8 +975,8 @@ in [building.md](building.md); what each feature does for the user, in the
   `vm.conf` (other lines and comments kept) with `/` writable for the
   moment, then run setup again.
 - `worm vm setup` (service `13-vm`, after the filesystems) applies and
-  writes `/run/worm/vm` (KEY=VALUE, mode 0644): the detection and every
-  setting resolved. Tuning in a VM: scheduler `none` and `add_random` 0
+  writes `/run/worm/vm` (KEY=VALUE, mode 0644): the detection (the shares
+  found as `share-tags`) and every setting resolved. Tuning in a VM: scheduler `none` and `add_random` 0
   for vd/sd/nvme/xvd disks, `vm.dirty_background_ratio` 5 and
   `vm.dirty_ratio` 10. Shares: a 1 MB tmpfs on `/media` (root is
   read-only) holds the mount points; virtiofs, or 9p with

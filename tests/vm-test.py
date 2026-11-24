@@ -40,7 +40,7 @@ boot_test = load("boot_test", "boot-test.py")
 CHECKS = [
     ("hypervisor found", "worm vm", r"^Virtual machine: QEMU with KVM|^Virtual machine: QEMU \(emulated"),
     ("written for the desktop", "cat /run/worm/vm",
-     r"(?s)^hypervisor=qemu$.*^agent-port=yes$.*^shares=hostshare$.*^renderer=software$"),
+     r"(?s)^hypervisor=qemu$.*^agent-port=yes$.*^share-tags=hostshare$.*^renderer=software$.*^shares=on$"),
     ("SPICE channel seen", "grep -x spice=yes /run/worm/vm", r"^spice=yes$"),
     ("readable by users", "stat -c %a /run/worm/vm", r"^644$"),
     ("base settings for each hypervisor", "ls /usr/share/worm/vm | tr '\\n' ' '",

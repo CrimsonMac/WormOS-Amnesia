@@ -465,7 +465,7 @@ static void write_run(const struct vm *vm)
 	if (!(f = fopen(VM_RUN ".new", "we")))
 		die("cannot write " VM_RUN ": %s", strerror(errno));
 	fprintf(f, "hypervisor=%s\naccel=%s\nvendor=%s\nproduct=%s\ngpu=%s\ngl=%s\n"
-		"spice=%s\nagent-port=%s\nballoon=%s\nshares=%s\n",
+		"spice=%s\nagent-port=%s\nballoon=%s\nshare-tags=%s\n",
 		vm->hypervisor, vm->accel, vm->vendor, vm->product, vm->gpu,
 		vm->gl ? "yes" : "no", vm->spice ? "yes" : "no", vm->agent_port ? "yes" : "no",
 		vm->balloon ? "yes" : "no", vm->shares);
