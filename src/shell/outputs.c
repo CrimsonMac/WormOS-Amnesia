@@ -54,6 +54,12 @@ double outputs_scale_setting(void)
 
 		if (sscanf(text, "scale = %lf", &v) == 1 && v >= 0.5 && v <= 4)
 			setting = v;
+	} else if (g_getenv("WORM_DEFAULT_SCALE")) {
+		/* No choice of the user's: the machine's (worm vm set scale). */
+		double v = g_ascii_strtod(g_getenv("WORM_DEFAULT_SCALE"), NULL);
+
+		if (v >= 0.5 && v <= 4)
+			setting = v;
 	}
 	g_free(text);
 	g_free(path);
@@ -128,6 +134,16 @@ static void apply(uint32_t serial)
 }
 
 static uint32_t last_serial;
+
+/* The file changed (the Settings program, or another shell's menu). */
+void outputs_reload(void)
+{
+	double old = setting;
+
+	setting = -1;
+	if (outputs_scale_setting() != old && manager && heads)
+		apply(last_serial);
+}
 
 void outputs_set_scale(double scale)
 {

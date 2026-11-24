@@ -71,6 +71,14 @@ place, the download cache emptied): it makes a second repository from
 `scripts/make-deltas.sh`, and upgrades the development image to it, with
 one file of a package changed first so that its delta cannot be used.
 
+`make test-vm` checks the virtual machine support on the development
+image: QEMU gets a guest agent channel on a socket of this machine and a
+folder shared over 9p; the test checks `worm vm` and `/run/worm/vm`, the
+shared folder under `/media`, `worm vm set`/`reset`, then talks to the
+guest agent as libvirt does (sync, info, OS, host name, time, addresses,
+a refused `guest-exec`, a command sent in two pieces) and shuts the VM
+down through it.
+
 `make test` also runs `tests/desktop-test.py`: the VM gets a virtio GPU,
 keyboard and tablet, and the test types on the graphical console through
 the QEMU monitor like a user would. It answers the first-boot setup, logs

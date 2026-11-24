@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Screenshot in 5 seconds
+Comment=Time to open a menu first
+Exec=/usr/lib/worm/quick-action screenshot 5
+Icon=camera-photo-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=screenshot;delay;timer;capture;

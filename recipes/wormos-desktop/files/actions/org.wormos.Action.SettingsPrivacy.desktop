@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Network and privacy
+Comment=Network, Tor, firewall, automatic snapshots
+Exec=wormos-settings --page privacy
+Icon=network-wired-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=settings;network;ip;tor;anonymous;firewall;privacy;

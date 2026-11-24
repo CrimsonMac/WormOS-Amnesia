@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=WormOS guide
+GenericName=Guide
+Comment=The WormOS guide and its commands
+Exec=foot --title "WormOS guide" sh -c "welcome --full | less -R"
+Icon=wormos-guide
+Terminal=false
+TryExec=welcome
+Categories=System;Documentation;
+Keywords=help;guide;manual;commands;docs;worm;

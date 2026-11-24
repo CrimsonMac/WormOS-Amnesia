@@ -42,7 +42,7 @@ on top of this one.
   passwords, as in the disk image below. The live system's snapshots and
   files are not carried over.
 
-- **The disk image for QEMU / virt-manager** (`wormos-1.13-x86_64.qcow2`): an
+- **The disk image for QEMU / virt-manager** (`wormos-1.14-x86_64.qcow2`): an
   installed system, ready to start. In virt-manager,
   import an existing disk image and choose a generic recent Linux.
 
@@ -136,10 +136,45 @@ on top of this one.
   If QEMU says WHPX is not available, use `-accel tcg` instead: it works
   without the Windows feature, but much more slowly. Ctrl+Alt+G releases
   the mouse.
+- **VirtualBox:** create a 64-bit "Other Linux" machine with EFI or BIOS,
+  2 GB of memory or more, graphics controller VMSVGA (3D acceleration on
+  for OpenGL ES drawing) and boot the ISO. WormOS draws the pointer itself
+  there and mounts shared folders under `/media` (`worm vm`). VirtualBox's
+  shared clipboard and window resizing need its Guest Additions, which
+  WormOS does not ship: set the screen size in Settings > Display.
 - **VMware is not supported for now.** It cannot be tested at the moment,
   so there is no VMware bundle and the VMware guest tools are left out.
   The ISO may still work in VMware, but nothing is promised; QEMU,
   virt-manager (KVM) and real PCs are the supported targets.
+
+### In a virtual machine
+
+WormOS finds the hypervisor at every start and sets itself up for it
+(`worm vm` shows what it found, what it set and tips for the host):
+
+- **Base settings per hypervisor** ship in the image
+  (`/usr/share/worm/vm/qemu.conf`, `virtualbox.conf`, `hyperv.conf`...):
+  how the desktop draws (OpenGL ES on a 3D-capable virtual GPU, software
+  otherwise), whether the pointer is drawn into the picture (virgl,
+  VMSVGA, Hyper-V), the SPICE agent, the guest agent, shared folders and
+  disk tuning. Change one with `worm vm set KEY VALUE` (as root, kept in
+  `/etc/worm/vm.conf`; `worm vm reset KEY` undoes it) or in
+  Settings > Virtual machine.
+- **Guest agent:** give the VM a guest agent channel (virt-manager: *Add
+  Hardware* → *Channel* → `org.qemu.guest_agent.0`, or `-device
+  virtserialport,name=org.qemu.guest_agent.0` with a chardev) and
+  virt-manager shows WormOS's IP addresses, *Shut Down* works through the
+  agent, and `virsh domtime --sync` sets the clock after the host slept.
+  WormOS's agent only reports and shuts down: it has no commands to run
+  programs or read and write files in the guest.
+- **Shared folders:** folders the host shares (virt-manager:
+  *Add Hardware* → *Filesystem*, driver virtiofs or 9p, or VirtualBox's
+  shared folders) appear under `/media/TAG` at start; `worm vm shares`
+  mounts ones added later.
+- **Tuning:** virtual disks get no I/O scheduler (the host has one) and
+  writeback starts earlier, so small VMs do not stall on large writes;
+  the memory balloon gives unused memory back to the host when its
+  free page reporting is on.
 
 On the first start of an installed system (from the ISO or the disk
 image), WormOS asks for your name, a user name, a password for it and a
@@ -160,16 +195,36 @@ idles at well under 100 MB of memory.
   (Reconnaissance, Credential Access, Discovery, Forensics and so on).
   Programs with a window show as tiles; command line tools as rows that
   open a terminal running the tool's help, ready to use it.
-- Right click on the background (or Super+Space) opens the menu: terminals,
-  applications installed from wormholes, snapshots, screenshots, log out.
-- Super+Enter opens a terminal, Super+Q closes a window, Alt+Tab switches,
-  Super+Arrow keys maximize or snap windows, Print saves a screenshot in
-  `~/Pictures`.
+  The launcher also has **quick actions**, found by searching: "snapshot"
+  takes one, "screenshot" (also in five seconds), "do not disturb",
+  "wallpaper", "keyboard", "time zone", "virtual machine" and the other
+  pages of Settings.
+- Right click on the background opens the menu: terminals, applications
+  installed from wormholes, snapshots, Settings, screenshots, log out.
+- The **quick settings** (the power button at the right of the panel):
+  Settings, a terminal, a screenshot, Snapshots, a system monitor, *Do not
+  disturb* (only urgent notifications show), the display scale, panic,
+  log out, restart and shut down.
+- Keys: Super+Enter a terminal, Super+Q closes a window, Alt+Tab
+  switches, Super+Arrow keys snap windows, Super+I Settings, Super+E files
+  (Midnight Commander), Super+S a snapshot, Super+N do not disturb, Print
+  a screenshot in `~/Pictures` (its path is copied, and a notification
+  says where it went), Shift+Print one in five seconds.
+- **Settings** (`wormos-settings`, Super+I) has pages for the display
+  (scale, the screen's mode), appearance (wallpaper: WormOS's, a plain
+  colour or a picture; the panel at the top or bottom), keyboard (layout,
+  key repeat), mouse and touchpad (speed, natural scrolling, left-handed,
+  tap to click), sound (output and input devices and their volume),
+  notifications, date and time (time zone, the panel clock's format),
+  network and privacy (addresses, anonymous mode, automatic snapshots,
+  the firewall), the virtual machine and About (version, hardware, the
+  computer's name, your password). Changes to the system ask for the root
+  password. `wormos-settings --page sound` opens one page.
 - Sound goes through [PipeWire](https://pipewire.org), which also serves
   programs written for PulseAudio or ALSA (including those installed from
   Debian or Kali). The speaker button in the panel sets the volume (scroll
-  on it, or use the volume keys); `wpctl status` lists devices and
-  `wpctl set-default ID` picks the output.
+  on it, or use the volume keys); Settings > Sound picks the output and
+  input (`wpctl status` and `wpctl set-default ID` in a terminal).
 - Ctrl+Alt+F2 switches to a second console (for logging in as root);
   Ctrl+Alt+F1 returns to the desktop.
 - Administration is done as root: `su -` in a terminal, the menu's root
@@ -195,8 +250,11 @@ idles at well under 100 MB of memory.
   window" is on (the default), from the login screen on. In a terminal, `clip copy`
   copies its arguments or standard input and `clip paste` prints the
   clipboard (`ls | clip copy`).
-- Settings: `/etc/xdg/labwc` (copy files to `~/.config/labwc` to change
-  them; `environment` sets the keyboard layout) and `/etc/xdg/foot/foot.ini`.
+- Configuration files: `/etc/xdg/labwc` and `/etc/xdg/foot/foot.ini`.
+  The session merges every labwc `rc.xml`: the system's, the Settings
+  program's (`~/.config/wormos/xdg/labwc/rc.xml`) and your own
+  `~/.config/labwc/rc.xml`, which needs only what it changes and wins;
+  `~/.config/labwc/environment` holds the keyboard layout.
 - Windows: drag one to a screen edge for half the screen, into a corner
   for a quarter, to the top to maximize; hold Ctrl, Alt or Shift while
   dragging to drop it into a third. Screen edges and other windows' edges
@@ -206,7 +264,7 @@ idles at well under 100 MB of memory.
   Super+F to maximize, Super+C to centre. Super with the left mouse
   button moves a window from anywhere in it, with the right button
   resizes it; the size shows while resizing.
-- Display scale (power menu, *Display scale*): Automatic (200% from 2000
+- Display scale (Settings > Display, or the quick settings): Automatic (200% from 2000
   pixels high), 75% to 200%. Below 100% everything gets smaller and more
   fits on the screen. On a host that scales its own desktop (KDE or GNOME
   at 125%), virt-manager gives the VM its window size in scaled pixels and
@@ -216,9 +274,15 @@ idles at well under 100 MB of memory.
 - Programs for X11 (Java programs such as Ghidra and Burp Suite, older
   toolkits, and anything installed from Debian or Kali that does not
   speak Wayland) run in Xwayland, which starts with the first one.
-- Screen resolution: `wlr-randr` lists outputs and their modes, and
-  `wlr-randr --output NAME --custom-mode 1920x1080` changes one. To keep a
-  setting, add the command to `~/.config/labwc/autostart`.
+- Screen resolution: Settings > Display lists each screen's modes; in a
+  terminal, `wlr-randr` lists them and `wlr-randr --output NAME
+  --custom-mode 1920x1080` sets any size. To keep a setting, add the
+  command to `~/.config/labwc/autostart`.
+- The command line tools that come with WormOS have menu entries and
+  icons: Vim, nano, Midnight Commander, disk usage (ncdu), Python, tmux,
+  SQLite, GDB, system information (fastfetch), htop and btop, plus the
+  WormOS guide, its command list, the system status and the virtual
+  machine's details.
 
 ### The terminal
 

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Take a snapshot
+Comment=Snapshot of the system now
+Exec=/usr/lib/worm/quick-action snapshot
+Icon=document-open-recent-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=snapshot;backup;save;snap;

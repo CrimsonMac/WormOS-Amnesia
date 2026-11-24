@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=WormOS commands
+GenericName=Command list
+Comment=Every WormOS command in one place (worm help)
+Exec=foot --hold --title "WormOS commands" worm help
+Icon=wormos-guide
+Terminal=false
+TryExec=worm
+Categories=System;Documentation;
+Keywords=help;commands;worm;snap;wh;bh;

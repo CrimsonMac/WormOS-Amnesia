@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Virtual machine settings
+Comment=What WormOS found and set for the hypervisor
+Exec=wormos-settings --page vm
+Icon=computer-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=settings;vm;virtual;qemu;virtualbox;hypervisor;

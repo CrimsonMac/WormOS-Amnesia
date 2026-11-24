@@ -1,7 +1,7 @@
 name=worm
 version=0.1.0
-release=18
-description="WormOS system features (worm status, panic, fw, anon, kit, unlock, lock, the power button)"
+release=19
+description="WormOS system features (worm status, panic, fw, anon, kit, vm, unlock, lock, the power button, the guest agent)"
 depends=(glibc snap nftables libxcrypt curl tzdata)
 # Builds src/worm, which also uses sources from src/common.
 localsrc=src
@@ -16,4 +16,7 @@ package() {
 	install -Dm644 -t "$pkgdir/usr/share/worm/kits" "$recipedir"/files/kits/*
 	install -Dm644 "$recipedir/files/35-time" "$pkgdir/etc/worm/services/35-time"
 	install -Dm755 "$recipedir/files/timesync" "$pkgdir/usr/lib/worm/timesync"
+	install -Dm644 "$recipedir/files/13-vm" "$pkgdir/etc/worm/services/13-vm"
+	install -Dm644 "$recipedir/files/45-guest-agent" "$pkgdir/etc/worm/services/45-guest-agent"
+	install -Dm644 -t "$pkgdir/usr/share/worm/vm" "$recipedir"/files/vm/*
 }

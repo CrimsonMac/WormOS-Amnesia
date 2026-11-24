@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Reload the desktop settings
+Comment=labwc reads its configuration again
+Exec=labwc --reconfigure
+Icon=view-refresh-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=reload;reconfigure;labwc;

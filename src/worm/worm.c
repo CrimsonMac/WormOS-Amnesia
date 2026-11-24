@@ -289,6 +289,38 @@ static int cmd_lock(const char *comment)
 	return 0;
 }
 
+/* worm hostname [NAME]: show or set the machine's name (/etc/hostname). */
+static int cmd_hostname(const char *name)
+{
+	char current[256] = "";
+	int relock;
+	FILE *f;
+
+	if (!name) {
+		gethostname(current, sizeof(current) - 1);
+		puts(current);
+		return 0;
+	}
+	if (!*name || strlen(name) > 63 || name[0] == '-' ||
+	    strspn(name, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-")
+	    != strlen(name))
+		die("a host name is 1 to 63 letters, digits and dashes: '%s'", name);
+	relock = root_begin_change();
+	f = fopen("/etc/hostname.new", "we");
+	if (!f || fprintf(f, "%s\n", name) < 0 || fclose(f) != 0 ||
+	    rename("/etc/hostname.new", "/etc/hostname") < 0) {
+		int err = errno;
+
+		root_end_change(relock);
+		die("cannot write /etc/hostname: %s", strerror(err));
+	}
+	root_end_change(relock);
+	if (sethostname(name, strlen(name)) < 0)
+		die("cannot set the host name: %s", strerror(errno));
+	printf("Host name: %s\n", name);
+	return 0;
+}
+
 static void usage(FILE *out)
 {
 	fputs("usage: worm help [COMMAND] | status | panic [off] | anon on|off|status|bridges KIND | unlock |\n"
@@ -296,6 +328,8 @@ static void usage(FILE *out)
 	      "       worm kit [list] | show NAME | install NAME...|all | remove NAME...|all\n"
 	      "       worm time [zones [TEXT] | zone NAME | sync]\n"
 	      "       worm passwd           change your own password\n"
+	      "       worm vm [setup | set KEY VALUE | reset [KEY] | shares]\n"
+	      "       worm hostname [NAME]\n"
 	      "       worm fw status | allow PORT[/tcp|/udp] | deny PORT[/tcp|/udp] | load\n"
 	      "PORT is a number or a range such as 6000-6010; tcp is the default.\n", out);
 }
@@ -344,6 +378,11 @@ static void overview(void)
 	printf("%sTime%s\n"
 	       "  worm time                the time, the time zone, the last clock check\n"
 	       "  worm time zone NAME      set the time zone (root; worm time zones lists them)\n\n",
+	       m, r);
+	printf("%sVirtual machines%s\n"
+	       "  worm vm                  the hypervisor found, its settings and tips\n"
+	       "  worm vm set KEY VALUE    change one (root), e.g. worm vm set cursor software\n"
+	       "  worm vm shares           mount the host's shared folders under /media (root)\n\n",
 	       m, r);
 	printf("%sSandboxes%s\n"
 	       "  bh open [NAME]           a disposable sandbox (blackhole): no network,\n"
@@ -410,6 +449,11 @@ int main(int argc, char **argv)
 			usage(stderr);
 		return r;
 	}
+	/* And looking at the virtual machine and the host name. */
+	if (!strcmp(argv[1], "vm") && argc == 2)
+		return cmd_vm(0, argv + 2);
+	if (!strcmp(argv[1], "hostname") && argc == 2)
+		return cmd_hostname(NULL);
 	/* So does asking whether anonymous mode is on. */
 	if (!strcmp(argv[1], "anon") && argc == 3 && !strcmp(argv[2], "status"))
 		return cmd_anon(1, argv + 2);
@@ -438,6 +482,15 @@ int main(int argc, char **argv)
 			usage(stderr);
 		return r;
 	}
+	if (!strcmp(argv[1], "vm")) {
+		int r = cmd_vm(argc - 2, argv + 2);
+
+		if (r == 2)
+			usage(stderr);
+		return r;
+	}
+	if (!strcmp(argv[1], "hostname") && argc == 3)
+		return cmd_hostname(argv[2]);
 	if (!strcmp(argv[1], "passwd-apply") && argc == 3)
 		return cmd_passwd_apply(argv[2]);
 	if (!strcmp(argv[1], "unlock") && argc == 2)

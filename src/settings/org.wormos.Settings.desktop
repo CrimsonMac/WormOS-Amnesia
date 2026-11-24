@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+GenericName=System Settings
+Comment=Display, appearance, keyboard, mouse, sound, time, privacy and the virtual machine
+Exec=wormos-settings
+Icon=org.wormos.Settings
+Categories=Settings;System;
+Keywords=preferences;configuration;display;scale;wallpaper;keyboard;layout;mouse;touchpad;sound;volume;time;zone;clock;firewall;tor;vm;virtual;hostname;password;
+StartupNotify=true

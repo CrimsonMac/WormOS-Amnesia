@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Python
+GenericName=Python shell
+Comment=An interactive Python 3 prompt
+Exec=python3
+Icon=wormos-python
+Terminal=true
+TryExec=python3
+Categories=Development;
+Keywords=python;python3;repl;shell;code;

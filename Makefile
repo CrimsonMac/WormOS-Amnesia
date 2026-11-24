@@ -15,7 +15,7 @@ PACKAGES := base-files busybox worminit wormrd snap \
 	font-inter font-hack wlroots labwc tllist fcft foot grim swaybg wlr-randr xcompose clip \
 	libjpeg-turbo libtiff shared-mime-info gdk-pixbuf graphene gtk4 \
 	gtk4-layer-shell dconf hicolor-icon-theme adwaita-icon-theme wormos-gtk-theme \
-	alsa-lib libsndfile pipewire lua wireplumber worm-shell wormos-snapshots \
+	alsa-lib libsndfile pipewire lua wireplumber worm-shell wormos-snapshots wormos-settings \
 	atk gtk3 tor-browser-runtime tor-browser \
 	ncurses zsh-autosuggestions zsh-syntax-highlighting zsh \
 	xz bzip2 readline bash less nano vim htop tmux file tree ncdu jq lsof strace \
@@ -98,6 +98,10 @@ test-iso:
 test-upgrade:
 	tests/upgrade-test.py $(FROM)
 
+# Virtual machine support: worm vm, the guest agent, a shared folder.
+test-vm:
+	tests/vm-test.py
+
 # Deltas, unchanged files and the download cache, on out/wormos.img.
 test-delta:
 	tests/delta-test.py
@@ -127,4 +131,4 @@ clean:
 distclean:
 	rm -rf build out
 
-.PHONY: all toolchain kernel packages repo rootfs image iso iso-barebones iso-amnesia run run-gui test test-wormholes test-apps test-torbrowser test-upgrade test-delta test-iso test-qemu-windows release release-amnesia sources publish-repo clean distclean
+.PHONY: all toolchain kernel packages repo rootfs image iso iso-barebones iso-amnesia run run-gui test test-wormholes test-apps test-torbrowser test-upgrade test-delta test-vm test-iso test-qemu-windows release release-amnesia sources publish-repo clean distclean

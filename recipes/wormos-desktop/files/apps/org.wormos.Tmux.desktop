@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=tmux
+GenericName=Terminal multiplexer
+Comment=Split a terminal into panes and keep sessions
+Exec=tmux new-session -A -s main
+Icon=wormos-tmux
+Terminal=true
+TryExec=tmux
+Categories=System;Utility;
+Keywords=tmux;multiplexer;panes;split;session;

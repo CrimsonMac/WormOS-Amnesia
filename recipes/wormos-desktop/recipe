@@ -1,10 +1,10 @@
 name=wormos-desktop
 version=1.0
-release=32
+release=33
 description="The WormOS desktop session: labwc, foot and the WormOS look"
 depends=(labwc foot swaybg grim wlr-randr xcompose seatd dbus font-inter font-hack base-files
 	gtk4 gtk4-layer-shell wormos-gtk-theme adwaita-icon-theme dconf worm-shell wormos-snapshots
-	pipewire wireplumber clip libxcb zsh xz bzip2 less libarchive nano licenses)
+	pipewire wireplumber clip libxcb zsh xz bzip2 less libarchive nano licenses wormos-settings)
 # The last line replaces busybox applets that the busybox package left out.
 # Here rather than in busybox: wh plans an upgrade in name order, so an older
 # wh upgrades busybox (dropping its links) before it installs these.
@@ -19,6 +19,12 @@ package() {
 	install -Dm755 "$f/session" "$pkgdir/usr/lib/worm/session"
 	install -Dm644 "$f/session-env" "$pkgdir/usr/lib/worm/session-env"
 	install -Dm755 "$f/screenshot" "$pkgdir/usr/lib/worm/screenshot"
+	install -Dm755 "$f/quick-action" "$pkgdir/usr/lib/worm/quick-action"
+	install -Dm755 "$f/wallpaper" "$pkgdir/usr/lib/worm/wallpaper"
+	# Menu entries and icons for the command line tools, and the quick
+	# actions the launcher finds by searching.
+	install -Dm644 -t "$pkgdir/usr/share/applications" "$f"/apps/*.desktop "$f"/actions/*.desktop
+	install -Dm644 -t "$pkgdir/usr/share/icons/hicolor/scalable/apps" "$f"/icons/*.svg
 	install -Dm755 "$f/apps-menu" "$pkgdir/usr/lib/worm/apps-menu"
 	install -Dm644 "$f/desktop.sh" "$pkgdir/etc/profile.d/desktop.sh"
 	install -Dm644 -t "$pkgdir/etc/xdg/labwc" "$f/labwc/rc.xml" "$f/labwc/menu.xml" \

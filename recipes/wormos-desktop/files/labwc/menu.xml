@@ -24,6 +24,12 @@
         <action name="Execute" command="foot --hold --title 'System status' su -c 'worm status'" />
       </item>
     </menu>
+    <item label="Settings">
+      <action name="Execute" command="wormos-settings" />
+    </item>
+    <item label="Change wallpaper">
+      <action name="Execute" command="wormos-settings --page appearance" />
+    </item>
     <item label="Screenshot">
       <action name="Execute" command="/usr/lib/worm/screenshot" />
     </item>

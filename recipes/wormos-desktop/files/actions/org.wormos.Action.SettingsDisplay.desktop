@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Display settings
+Comment=Scale and screen mode
+Exec=wormos-settings --page display
+Icon=video-display-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=settings;display;screen;scale;resolution;monitor;

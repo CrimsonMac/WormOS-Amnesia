@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=About this computer
+Comment=Version, hardware, computer name, password
+Exec=wormos-settings --page about
+Icon=help-about-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=settings;about;version;hostname;password;memory;cpu;

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=SQLite
+GenericName=Database shell
+Comment=The SQLite database shell
+Exec=sqlite3
+Icon=wormos-sqlite
+Terminal=true
+TryExec=sqlite3
+Categories=Development;Database;
+Keywords=sqlite;sql;database;db;

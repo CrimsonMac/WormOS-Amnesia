@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Sound settings
+Comment=Outputs, inputs and volume
+Exec=wormos-settings --page sound
+Icon=audio-speakers-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=settings;sound;audio;volume;speaker;microphone;output;

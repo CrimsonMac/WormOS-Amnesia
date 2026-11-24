@@ -1,0 +1,29 @@
+#!/bin/sh
+# Quick actions of the launcher and the panel, with a notification saying
+# how they went.
+#
+#     quick-action snapshot          take a snapshot of the system
+#     quick-action screenshot [N]    the whole screen into ~/Pictures, after N s
+
+notify() {
+	gdbus call --session --dest org.freedesktop.Notifications \
+		--object-path /org/freedesktop/Notifications \
+		--method org.freedesktop.Notifications.Notify \
+		WormOS 0 "$1" "$2" "$3" '[]' '{}' 5000 > /dev/null 2>&1
+}
+
+case $1 in
+snapshot)
+	if out=$(/usr/lib/worm/snapshots now system "From the launcher" 2>&1); then
+		notify document-open-recent-symbolic "Snapshot taken" \
+			"$(printf '%s' "$out" | tail -n 1)"
+	else
+		notify dialog-warning-symbolic "No snapshot" \
+			"Only administrators can take one."
+	fi ;;
+screenshot)
+	exec /usr/lib/worm/screenshot ${2:+--delay "$2"} ;;
+*)
+	echo "usage: quick-action snapshot | screenshot [SECONDS]" >&2
+	exit 2 ;;
+esac

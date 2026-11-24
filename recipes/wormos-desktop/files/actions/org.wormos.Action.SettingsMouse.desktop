@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Mouse and touchpad
+Comment=Speed, scrolling, tap to click
+Exec=wormos-settings --page mouse
+Icon=input-mouse-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=settings;mouse;touchpad;pointer;scroll;tap;

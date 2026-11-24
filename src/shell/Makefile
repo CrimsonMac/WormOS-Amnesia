@@ -16,7 +16,7 @@ PROTOCOLS = wlr-foreign-toplevel-management-unstable-v1 wlr-output-management-un
 HEADERS   = $(PROTOCOLS:%=%-client-protocol.h)
 PROTO_SRC = $(PROTOCOLS:%=%-protocol.c)
 SRCS      = main.c wayland.c toplevels.c outputs.c status.c panel.c launcher.c notify.c \
-	    power.c apps.c volume.c
+	    power.c apps.c volume.c config.c
 OBJS      = $(SRCS:.c=.o) $(PROTO_SRC:.c=.o)
 
 all: worm-shell

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Do not disturb
+Comment=Turn notifications off or on
+Exec=worm-shell --do-not-disturb toggle
+Icon=notifications-disabled-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=notifications;quiet;dnd;silence;

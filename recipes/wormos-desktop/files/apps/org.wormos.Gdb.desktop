@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=GDB
+GenericName=Debugger
+Comment=The GNU debugger
+Exec=gdb
+Icon=wormos-gdb
+Terminal=true
+TryExec=gdb
+Categories=Development;Debugger;
+Keywords=gdb;debug;debugger;reverse;

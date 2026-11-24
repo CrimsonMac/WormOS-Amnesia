@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Virtual machine
+GenericName=Virtual machine information
+Comment=The hypervisor found, its settings and tips for the host (worm vm)
+Exec=foot --hold --title "Virtual machine" worm vm
+Icon=wormos-vm
+Terminal=false
+TryExec=worm
+Categories=System;
+Keywords=vm;virtual;qemu;kvm;virtualbox;spice;agent;hypervisor;

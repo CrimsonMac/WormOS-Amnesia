@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=System information
+GenericName=System information
+Comment=Hardware and system at a glance (fastfetch)
+Exec=foot --hold --title "System information" fastfetch
+Icon=wormos-fastfetch
+Terminal=false
+TryExec=fastfetch
+Categories=System;
+Keywords=fastfetch;neofetch;info;hardware;system;

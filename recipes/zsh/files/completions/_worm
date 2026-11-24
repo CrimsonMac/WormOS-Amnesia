@@ -6,7 +6,9 @@ if (( CURRENT == 2 )); then
 		'anon:send everything through Tor' 'unlock:make / writable'
 		'lock:make / read-only again and take a snapshot' 'fw:the firewall'
 		'kit:tool kits (forensics, network, reverse engineering...)'
-		'time:the clock and the time zone' 'passwd:change your password')
+		'time:the clock and the time zone' 'passwd:change your password'
+		'vm:the virtual machine: what was found, settings, shared folders'
+		'hostname:show or set the computer name')
 	_describe -t commands 'worm command' cmds
 	return
 fi
@@ -39,6 +41,22 @@ kit)
 		local -a kits=(/usr/share/worm/kits/*(N:t))
 		[[ $words[3] == (install|remove) ]] && (( CURRENT == 4 )) && kits+=(all)
 		compadd -a kits
+	fi
+	;;
+vm)
+	if (( CURRENT == 3 )); then
+		local -a cmds=('set:change a setting (root)' 'reset:back to the default (root)'
+			'shares:mount the host shared folders (root)')
+		_describe -t commands 'vm command' cmds
+	elif [[ $words[3] == (set|reset) ]] && (( CURRENT == 4 )); then
+		compadd renderer cursor scale clipboard agent shares tuning
+	elif [[ $words[3] == set ]] && (( CURRENT == 5 )); then
+		case $words[4] in
+		renderer) compadd auto gles software ;;
+		cursor) compadd auto software hardware ;;
+		scale) compadd auto 0.75 0.8 0.9 1 1.25 1.5 1.75 2 ;;
+		*) compadd on off ;;
+		esac
 	fi
 	;;
 fw)

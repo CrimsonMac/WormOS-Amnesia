@@ -1,0 +1,28 @@
+#!/bin/sh
+# Show the user's wallpaper, from ~/.config/wormos/wallpaper (Settings >
+# Appearance): "image = PATH" or "color = #RRGGBB"; nothing there means
+# the WormOS wallpaper. Starts swaybg, then stops the one before, so the
+# background never flashes.
+conf=${XDG_CONFIG_HOME:-$HOME/.config}/wormos/wallpaper
+pidfile=$XDG_RUNTIME_DIR/swaybg.pid
+image=/usr/share/backgrounds/wormos.png
+color=
+
+if [ -r "$conf" ]; then
+	value=$(sed -n 's/^image = //p' "$conf" | head -n 1)
+	[ -n "$value" ] && [ -r "$value" ] && image=$value
+	value=$(sed -n 's/^color = \(#[0-9a-fA-F]\{6\}\)$/\1/p' "$conf" | head -n 1)
+	[ -n "$value" ] && color=$value
+fi
+
+old=$(cat "$pidfile" 2> /dev/null)
+if [ -n "$color" ]; then
+	swaybg -c "$color" > /dev/null 2>&1 &
+else
+	swaybg -i "$image" -m fill > /dev/null 2>&1 &
+fi
+echo $! > "$pidfile"
+if [ -n "$old" ] && [ "$(cat "/proc/$old/comm" 2> /dev/null)" = swaybg ]; then
+	sleep 0.5
+	kill "$old" 2> /dev/null
+fi

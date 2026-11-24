@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Midnight Commander
+GenericName=File manager
+Comment=Browse, copy and move files in two panels
+Exec=mc
+Icon=wormos-mc
+Terminal=true
+TryExec=mc
+Categories=System;FileManager;Utility;
+Keywords=mc;files;file manager;copy;move;browse;

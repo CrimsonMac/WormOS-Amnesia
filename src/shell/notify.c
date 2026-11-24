@@ -240,6 +240,9 @@ static guint notify(const char *app_name, guint replaces, const char *icon,
 		icon = NULL;
 	id = replaces && g_hash_table_contains(notes, GUINT_TO_POINTER(replaces))
 		? replaces : next_id++;
+	/* Do not disturb: only critical notifications show. */
+	if (notify_quiet() && urgency != 2 && id != replaces)
+		return id;
 	if (id == replaces) {
 		struct note *old = g_hash_table_lookup(notes, GUINT_TO_POINTER(id));
 
@@ -264,6 +267,11 @@ static guint notify(const char *app_name, guint replaces, const char *icon,
 	g_hash_table_insert(notes, GUINT_TO_POINTER(id), n);
 	gtk_window_present(GTK_WINDOW(window));
 	return id;
+}
+
+gboolean notify_quiet(void)
+{
+	return config_bool("notifications", "do-not-disturb", FALSE);
 }
 
 static void method_call(GDBusConnection *conn, const char *sender, const char *path,

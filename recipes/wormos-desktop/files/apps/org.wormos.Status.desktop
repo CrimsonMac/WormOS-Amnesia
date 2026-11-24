@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=System status
+GenericName=Protection status
+Comment=Firewall, snapshots, anonymous mode and sandboxes at a glance (as root)
+Exec=foot --hold --title "System status" su -c "worm status"
+Icon=wormos-status
+Terminal=false
+TryExec=worm
+Categories=System;Security;
+Keywords=status;firewall;protection;worm;

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- WormOS: the rings of a wormhole. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b5cf6"/>
+      <stop offset="1" stop-color="#1e1035"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)"/>
+  <rect x="8.5" y="8.5" width="111" height="111" rx="25.5" fill="none" stroke="#ffffff" stroke-opacity="0.18"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="64" cy="64" r="38" stroke-opacity="0.2" stroke-width="2"/>
+    <circle cx="64" cy="64" r="28" stroke-opacity="0.35" stroke-width="2.5"/>
+    <circle cx="64" cy="64" r="18" stroke-opacity="0.6" stroke-width="3"/>
+  </g>
+  <circle cx="64" cy="64" r="9" fill="#ffffff"/>
+</svg>

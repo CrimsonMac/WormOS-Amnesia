@@ -359,3 +359,24 @@ window.notifications .close:hover {
 	background: @shell_hover;
 	color: @shell_fg;
 }
+
+/* ---- quick settings ---- */
+
+popover .quick-tile {
+	padding: 8px 12px;
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+popover .quick-tile:hover {
+	background: rgba(255, 255, 255, 0.11);
+}
+
+popover .quick-tile:checked {
+	background: rgba(139, 92, 246, 0.85);
+	color: #ffffff;
+}
+
+popover .quick-tile image {
+	-gtk-icon-size: 16px;
+}

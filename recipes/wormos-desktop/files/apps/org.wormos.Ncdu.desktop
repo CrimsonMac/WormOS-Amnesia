@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Disk usage
+GenericName=Disk usage analyser
+Comment=What fills the disk (ncdu, in your home folder)
+Exec=ncdu --color dark
+Icon=wormos-ncdu
+Terminal=true
+TryExec=ncdu
+Categories=System;Utility;
+Keywords=ncdu;disk;space;usage;size;storage;

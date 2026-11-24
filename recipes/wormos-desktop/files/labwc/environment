@@ -1,6 +1,7 @@
 # Keyboard layout for the desktop, e.g. XKB_DEFAULT_LAYOUT=de or
 # XKB_DEFAULT_LAYOUT=us,de with
 # XKB_DEFAULT_OPTIONS=grp:alt_shift_toggle,wormos:caps_unlock_on_press.
-# Override in ~/.config/labwc/environment (labwc then reads only that
-# file; the cursor theme and the default options come from the session).
+# Override in ~/.config/labwc/environment or in Settings > Keyboard (the
+# session merges both files; the cursor theme and the default options
+# come from the session).
 XKB_DEFAULT_LAYOUT=us

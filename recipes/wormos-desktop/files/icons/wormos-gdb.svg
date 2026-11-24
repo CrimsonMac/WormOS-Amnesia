@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- GDB: a bug. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ef4444"/>
+      <stop offset="1" stop-color="#7f1d1d"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)"/>
+  <rect x="8.5" y="8.5" width="111" height="111" rx="25.5" fill="none" stroke="#ffffff" stroke-opacity="0.18"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round" stroke-width="5">
+    <ellipse cx="64" cy="70" rx="17" ry="23"/><circle cx="64" cy="42" r="9"/>
+    <path d="M 47 62 L 33 56 M 47 74 L 32 74 M 49 86 L 36 94 M 81 62 L 95 56 M 81 74 L 96 74 M 79 86 L 92 94"/>
+    <path d="M 64 50 L 64 92"/>
+  </g>
+</svg>

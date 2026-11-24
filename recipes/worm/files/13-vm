@@ -1,0 +1,4 @@
+# Virtual machines: detect the hypervisor, apply its settings (worm vm),
+# mount the host's shared folders and write /run/worm/vm for the desktop.
+type = oneshot
+exec = /usr/bin/worm vm setup

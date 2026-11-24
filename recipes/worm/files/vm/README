@@ -1,0 +1,13 @@
+Base settings of WormOS for each hypervisor (worm vm). The file named
+after the hypervisor found (qemu, kvm, virtualbox, vmware, hyperv, xen,
+parallels, other, none) is read after the built-in defaults and before
+/etc/worm/vm.conf, which `worm vm set KEY VALUE` writes. `auto` means
+decided from what was found (the GPU, 3D acceleration). Keys:
+
+  renderer   auto | gles | software
+  cursor     auto | software | hardware
+  scale      auto | 0.75 | 0.8 | 0.9 | 1 | 1.25 | 1.5 | 1.75 | 2
+  clipboard  on | off      the SPICE agent (clip agent)
+  agent      on | off      the guest agent
+  shares     on | off      the host's shared folders under /media
+  tuning     on | off      settings for virtual disks and memory

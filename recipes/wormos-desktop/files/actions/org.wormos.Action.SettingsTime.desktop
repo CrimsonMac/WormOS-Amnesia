@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Date and time
+Comment=Time zone and clock
+Exec=wormos-settings --page time
+Icon=preferences-system-time-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=settings;time;date;zone;clock;timezone;

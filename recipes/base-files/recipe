@@ -1,5 +1,5 @@
 name=base-files
-version=1.13
+version=1.14
 release=1
 description="Base system configuration and directory layout"
 
@@ -12,6 +12,10 @@ package() {
 	ln -s ../proc/self/mounts "$pkgdir/etc/mtab"
 
 	mkdir -p "$pkgdir/etc/profile.d"
+	# Mount points: / is read-only, so they must exist in the image
+	# (worm vm mounts the host's shared folders under /media).
+	mkdir -p "$pkgdir/media" "$pkgdir/mnt"
+	chmod 755 "$pkgdir/media" "$pkgdir/mnt"
 
 	# The console greeting, with the version from os-release, so it never
 	# goes stale: a small wormhole, its core bright.

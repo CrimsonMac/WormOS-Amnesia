@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Take a screenshot
+Comment=The whole screen into Pictures
+Exec=/usr/lib/worm/quick-action screenshot
+Icon=camera-photo-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=screenshot;screen;capture;print;

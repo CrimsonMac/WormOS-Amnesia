@@ -19,6 +19,7 @@ struct panel {
 	GtkWidget *network, *network_info;
 	GtkWidget *volume, *volume_output, *volume_mute, *volume_scale, *volume_percent;
 	GtkWidget *confirm;             /* the power action waiting for a second click */
+	GtkWidget *quiet;               /* the do not disturb tile */
 };
 
 /*
@@ -29,8 +30,16 @@ struct panel {
 static int at_bottom(void)
 {
 	const char *edge = getenv("WORM_SHELL_PANEL");
+	char *setting;
+	int bottom;
 
-	return edge && !strcmp(edge, "bottom");
+	if (edge && *edge)
+		return !strcmp(edge, "bottom");
+	/* The user's choice (Settings > Appearance). */
+	setting = config_string("panel", "position");
+	bottom = setting && !strcmp(setting, "bottom");
+	g_free(setting);
+	return bottom;
 }
 
 static void menu_direction(GtkWidget *button)
@@ -42,6 +51,7 @@ static void menu_direction(GtkWidget *button)
 static GtkApplication *app;
 static GPtrArray *panels;               /* of struct panel */
 static gboolean volume_updating;        /* showing a new reading, not a change */
+static int built_at_bottom = -1;        /* the edge the panels were built for */
 
 static void keyboard_while_open(GtkWidget *popover);
 
@@ -117,10 +127,31 @@ static void tasks_changed(void)
 
 /* ---- clock and status ---- */
 
+/* The clock's format, from the user's settings (Settings > Date & time). */
+static char *clock_format(void)
+{
+	GString *f = g_string_new(NULL);
+
+	if (config_bool("panel", "clock-weekday", TRUE))
+		g_string_append(f, "%a ");
+	if (config_bool("panel", "clock-date", TRUE))
+		g_string_append(f, "%e %b");
+	if (f->len)
+		g_string_append(f, "   ");
+	if (config_bool("panel", "clock-12h", FALSE))
+		g_string_append(f, config_bool("panel", "clock-seconds", FALSE) ? "%l:%M:%S %p"
+						: "%l:%M %p");
+	else
+		g_string_append(f, config_bool("panel", "clock-seconds", FALSE) ? "%H:%M:%S"
+						: "%H:%M");
+	return g_string_free(f, FALSE);
+}
+
 static gboolean tick(gpointer data)
 {
 	GDateTime *now = g_date_time_new_now_local();
-	char *text = g_date_time_format(now, "%a %e %b   %H:%M");
+	char *format = clock_format();
+	char *text = g_date_time_format(now, format);
 
 	(void)data;
 	for (guint p = 0; p < panels->len; p++) {
@@ -130,6 +161,7 @@ static gboolean tick(gpointer data)
 			gtk_menu_button_set_label(GTK_MENU_BUTTON(panel->clock), text);
 	}
 	g_free(text);
+	g_free(format);
 	g_date_time_unref(now);
 	return G_SOURCE_CONTINUE;
 }
@@ -430,6 +462,111 @@ static void power_menu_closed(GtkPopover *popover, gpointer data)
 	panel->confirm = NULL;
 }
 
+/* ---- quick actions ---- */
+
+static gboolean have_program(const char *name)
+{
+	char *path = g_find_program_in_path(name);
+	gboolean found = path != NULL;
+
+	g_free(path);
+	return found;
+}
+
+static void spawn(const char *const *argv)
+{
+	GError *error = NULL;
+
+	if (!g_spawn_async(NULL, (char **)argv, NULL, G_SPAWN_SEARCH_PATH |
+			   G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
+			   NULL, NULL, NULL, &error)) {
+		g_warning("cannot start %s: %s", argv[0], error->message);
+		g_error_free(error);
+	}
+}
+
+static gboolean screenshot_later(gpointer data)
+{
+	(void)data;
+	spawn((const char *const[]){ "/usr/lib/worm/screenshot", NULL });
+	return G_SOURCE_REMOVE;
+}
+
+static void quick_clicked(GtkButton *button, gpointer data)
+{
+	const char *action = g_object_get_data(G_OBJECT(button), "action");
+	GtkWidget *popover = gtk_widget_get_ancestor(GTK_WIDGET(button), GTK_TYPE_POPOVER);
+
+	(void)data;
+	if (popover)
+		gtk_popover_popdown(GTK_POPOVER(popover));
+	if (!strcmp(action, "settings"))
+		spawn((const char *const[]){ "wormos-settings", NULL });
+	else if (!strcmp(action, "terminal"))
+		spawn((const char *const[]){ "foot", NULL });
+	else if (!strcmp(action, "snapshots"))
+		spawn((const char *const[]){ "wormos-snapshots", NULL });
+	else if (!strcmp(action, "monitor"))
+		spawn((const char *const[]){ "foot", "--title", "System monitor",
+					     have_program("btop") ? "btop" : "htop", NULL });
+	else if (!strcmp(action, "screenshot"))
+		/* After the menu has gone from the screen. */
+		g_timeout_add(400, screenshot_later, NULL);
+}
+
+static void quiet_toggled(GtkToggleButton *button, gpointer data)
+{
+	gboolean on = gtk_toggle_button_get_active(button);
+
+	(void)data;
+	if (on != notify_quiet())
+		config_set_bool("notifications", "do-not-disturb", on);
+}
+
+static GtkWidget *quick_tile(const char *icon, const char *label, const char *action,
+			     gboolean toggle)
+{
+	GtkWidget *button = toggle ? gtk_toggle_button_new() : gtk_button_new();
+	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8), *text;
+
+	gtk_box_append(GTK_BOX(box), gtk_image_new_from_icon_name(icon));
+	text = gtk_label_new(label);
+	gtk_label_set_xalign(GTK_LABEL(text), 0);
+	gtk_box_append(GTK_BOX(box), text);
+	gtk_button_set_child(GTK_BUTTON(button), box);
+	gtk_widget_add_css_class(button, "quick-tile");
+	gtk_widget_set_hexpand(button, TRUE);
+	if (action) {
+		g_object_set_data(G_OBJECT(button), "action", (gpointer)action);
+		g_signal_connect(button, "clicked", G_CALLBACK(quick_clicked), NULL);
+	}
+	return button;
+}
+
+static GtkWidget *quick_actions(struct panel *panel)
+{
+	GtkWidget *grid = gtk_grid_new();
+	const char *monitor = have_program("btop") || have_program("htop") ? "monitor" : NULL;
+	int n = 0;
+
+	gtk_grid_set_row_spacing(GTK_GRID(grid), 6);
+	gtk_grid_set_column_spacing(GTK_GRID(grid), 6);
+	gtk_grid_set_column_homogeneous(GTK_GRID(grid), TRUE);
+#define TILE(w) do { gtk_grid_attach(GTK_GRID(grid), (w), n % 2, n / 2, 1, 1); n++; } while (0)
+	TILE(quick_tile("emblem-system-symbolic", "Settings", "settings", FALSE));
+	TILE(quick_tile("utilities-terminal-symbolic", "Terminal", "terminal", FALSE));
+	TILE(quick_tile("camera-photo-symbolic", "Screenshot", "screenshot", FALSE));
+	TILE(quick_tile("document-open-recent-symbolic", "Snapshots", "snapshots", FALSE));
+	if (monitor)
+		TILE(quick_tile("utilities-system-monitor-symbolic", "System monitor", monitor, FALSE));
+	panel->quiet = quick_tile("notifications-disabled-symbolic", "Do not disturb", NULL, TRUE);
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(panel->quiet), notify_quiet());
+	g_signal_connect(panel->quiet, "toggled", G_CALLBACK(quiet_toggled), NULL);
+	TILE(panel->quiet);
+#undef TILE
+	return grid;
+}
+
 static GtkWidget *power_menu(struct panel *panel)
 {
 	static const char *const names[] = { "Automatic", "75%", "80%", "90%", "100%", "125%",
@@ -439,13 +576,15 @@ static GtkWidget *power_menu(struct panel *panel)
 	double current = outputs_scale_setting();
 
 	gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(button), "system-shutdown-symbolic");
-	gtk_widget_set_tooltip_text(button, "Display and power");
+	gtk_widget_set_tooltip_text(button, "Quick settings and power");
 
 	user = gtk_label_new(g_get_real_name() && strcmp(g_get_real_name(), "Unknown")
 			     ? g_get_real_name() : g_get_user_name());
 	gtk_widget_add_css_class(user, "heading");
 	gtk_widget_set_halign(user, GTK_ALIGN_START);
 	gtk_box_append(GTK_BOX(box), user);
+	gtk_box_append(GTK_BOX(box), quick_actions(panel));
+	gtk_box_append(GTK_BOX(box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
 
 	row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
 	gtk_box_append(GTK_BOX(row), gtk_image_new_from_icon_name("video-display-symbolic"));
@@ -695,6 +834,7 @@ static void monitors_changed(GListModel *monitors, guint pos, guint removed, gui
 	(void)added;
 	(void)data;
 	/* Few monitors, rare changes: rebuild all panels. */
+	built_at_bottom = at_bottom();
 	while (panels->len)
 		panel_free(g_ptr_array_steal_index(panels, panels->len - 1));
 	for (guint i = 0; i < g_list_model_get_n_items(monitors); i++) {
@@ -709,6 +849,26 @@ static void monitors_changed(GListModel *monitors, guint pos, guint removed, gui
 	tick(NULL);
 }
 
+/* The user's settings changed: the panel's edge, the clock, do not disturb. */
+
+static void config_changed(void)
+{
+	GListModel *monitors = gdk_display_get_monitors(gdk_display_get_default());
+
+	if (at_bottom() != built_at_bottom) {
+		monitors_changed(monitors, 0, 0, 0, NULL);
+		return;
+	}
+	for (guint p = 0; p < panels->len; p++) {
+		struct panel *panel = g_ptr_array_index(panels, p);
+
+		if (panel->quiet && gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(panel->quiet)) !=
+		    notify_quiet())
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(panel->quiet), notify_quiet());
+	}
+	tick(NULL);
+}
+
 void panels_init(GtkApplication *application)
 {
 	GListModel *monitors = gdk_display_get_monitors(gdk_display_get_default());
@@ -718,6 +878,7 @@ void panels_init(GtkApplication *application)
 	toplevels_watch(tasks_changed);
 	volume_watch(volume_changed);
 	g_signal_connect(monitors, "items-changed", G_CALLBACK(monitors_changed), NULL);
+	config_watch(config_changed);
 	monitors_changed(monitors, 0, 0, 0, NULL);
 	g_timeout_add_seconds(1, tick, NULL);
 	g_timeout_add_seconds(5, refresh_status, NULL);

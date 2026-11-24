@@ -1,0 +1,5 @@
+# The QEMU guest agent: virt-manager and virsh see the IP addresses and the
+# system, shut it down cleanly and set its clock. It waits quietly when the
+# machine has no agent channel or "worm vm set agent off".
+type = respawn
+exec = /usr/lib/worm/guest-agent

@@ -16,6 +16,10 @@ fi
 # Programs started from the desktop begin in the home folder.
 cd "$HOME" 2>/dev/null || cd /
 . /usr/lib/worm/session-env
+# The Settings program's labwc settings (keyboard repeat, pointer,
+# touchpad) sit between the system's and the user's own: labwc merges every
+# rc.xml it finds (-m below), the user's ~/.config/labwc last.
+export XDG_CONFIG_DIRS="${XDG_CONFIG_HOME:-$HOME/.config}/wormos/xdg:$XDG_CONFIG_DIRS"
 
 # Standard folders, recorded where GTK's file chooser and other programs
 # look for them.
@@ -62,7 +66,7 @@ if command -v pipewire > /dev/null && command -v wireplumber > /dev/null; then
 fi
 
 log=$XDG_RUNTIME_DIR/desktop.log
-run_labwc "$log"
+run_labwc "$log" -m
 status=$?
 [ -n "$sound" ] && kill $sound 2> /dev/null
 [ -n "$bus" ] && kill "$bus" 2> /dev/null

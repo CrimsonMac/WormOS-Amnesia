@@ -1,5 +1,20 @@
 #!/bin/sh
-# Save a screenshot of the whole screen in ~/Pictures.
+# Save a screenshot of the whole screen in ~/Pictures (--delay N waits N
+# seconds first), copy its path to the clipboard and say where it went.
+delay=0
+[ "${1:-}" = --delay ] && delay=${2:-0}
+case $delay in *[!0-9]*|'') delay=0 ;; esac
 dir=$HOME/Pictures
 mkdir -p "$dir"
-exec grim "$dir/screenshot-$(date +%Y%m%d-%H%M%S).png"
+[ "$delay" -gt 0 ] && sleep "$delay"
+file=$dir/screenshot-$(date +%Y%m%d-%H%M%S).png
+if grim "$file"; then
+	command -v clip > /dev/null && printf '%s' "$file" | clip copy > /dev/null 2>&1
+	gdbus call --session --dest org.freedesktop.Notifications \
+		--object-path /org/freedesktop/Notifications \
+		--method org.freedesktop.Notifications.Notify \
+		WormOS 0 camera-photo-symbolic "Screenshot saved" \
+		"Pictures/$(basename "$file") (path copied)" '[]' '{}' 4000 > /dev/null 2>&1
+else
+	exit 1
+fi

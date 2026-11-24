@@ -949,6 +949,73 @@ in [building.md](building.md); what each feature does for the user, in the
   `system_powerdown`, virt-manager's and VMware's "Shut Down" (without
   the tools) and a PC's power button send. The devices are not grabbed.
 
+## Virtual machines
+
+- `src/worm/vm.c` is `worm vm`. Detection: DMI (`/sys/class/dmi/id`
+  `sys_vendor` and `product_name`: QEMU, innotek/VirtualBox, VMware,
+  Microsoft "Virtual Machine", Xen, Parallels), then the CPU's hypervisor
+  leaf 0x40000000 (`KVMKVMKVM`, `TCGTCGTCGTCG`, `Microsoft Hv`, with
+  0x40000100 checked for KVM under Hyper-V enlightenments, `VBoxVBoxVBox`,
+  `VMwareVMware`...). QEMU's accelerator is KVM or TCG from that leaf. The
+  GPU is the first DRM card's driver (simpledrm only if nothing else);
+  virtio-gpu's 3D is bit 0 (VIRTIO_GPU_F_VIRGL) of the virtio device's
+  `features` below the PCI device, vmwgfx's a render node. Virtio ports by
+  name (`/sys/class/virtio-ports/*/name`: `com.redhat.spice.0`,
+  `org.qemu.guest_agent.0`), the balloon by its driver, shares from
+  `/sys/fs/virtiofs/*/tag` and 9p's `mount_tag` (tags are checked: plain
+  characters, they become folder names).
+- Settings: built-in defaults, then `/usr/share/worm/vm/HYPERVISOR.conf`
+  (from the worm package: the base settings each hypervisor gets in every
+  image), then `/etc/worm/vm.conf`. Keys: `renderer` (auto, gles,
+  software), `cursor` (auto, software, hardware), `scale`, `clipboard`,
+  `agent`, `shares`, `tuning` (on/off). `auto` is resolved from what was
+  found: OpenGL ES on i915/xe or a virtual GPU with 3D, software
+  otherwise; the cursor in software on virtio-gpu with virgl, vmwgfx and
+  vboxvideo. `worm vm set KEY VALUE` and `reset [KEY]` rewrite
+  `vm.conf` (other lines and comments kept) with `/` writable for the
+  moment, then run setup again.
+- `worm vm setup` (service `13-vm`, after the filesystems) applies and
+  writes `/run/worm/vm` (KEY=VALUE, mode 0644): the detection and every
+  setting resolved. Tuning in a VM: scheduler `none` and `add_random` 0
+  for vd/sd/nvme/xvd disks, `vm.dirty_background_ratio` 5 and
+  `vm.dirty_ratio` 10. Shares: a 1 MB tmpfs on `/media` (root is
+  read-only) holds the mount points; virtiofs, or 9p with
+  `trans=virtio,version=9p2000.L,msize=262144,access=any`, nosuid and
+  nodev. VMware and Hyper-V balloons and VirtualBox's vboxguest/vboxsf are
+  modules loaded there. `worm vm shares` mounts ones added later.
+- The session reads `/run/worm/vm` (`session-env`): `renderer` sets
+  `WLR_RENDERER` (gles2 or pixman) before its own detection, `cursor`
+  sets or unsets `WLR_NO_HARDWARE_CURSORS` after it, `scale` other than
+  auto becomes `WORM_DEFAULT_SCALE`, which worm-shell uses when the user
+  has no `~/.config/wormos/display`. labwc's `autostart` starts the clip
+  agent unless `clipboard=off`.
+- `src/worm/guest-agent.c` (`/usr/lib/worm/guest-agent`, service
+  `45-guest-agent`, respawn) speaks the QEMU guest agent protocol on the
+  port named `org.qemu.guest_agent.0` (`/dev/vportNpM`, found through
+  sysfs, opened non-blocking). The stream is split into top-level JSON
+  objects by a small scanner (strings and escapes tracked, 0xFF resets,
+  64 KiB at most); a tiny parser reads `execute`, a top-level `id` (echoed
+  back raw) and the arguments `id`, `time` and `mode`. Commands:
+  guest-sync, guest-sync-delimited (0xFF before the answer), guest-ping,
+  guest-info, guest-get-osinfo (`/etc/os-release`, uname),
+  guest-get-hostname, guest-get-timezone, guest-get-time, guest-set-time
+  (with a time, `clock_settime`; without, busybox `hwclock -s -u`; the
+  hardware clock is never written), guest-shutdown (SIGUSR2, SIGUSR1 or
+  SIGTERM to worminit as busybox poweroff/halt/reboot; no answer, like
+  QEMU's agent), guest-network-get-interfaces (getifaddrs, MAC from
+  sysfs), guest-get-users (users with a Wayland socket in `/run/user`),
+  guest-fsfreeze-status ("thawed") and guest-get-vcpus. Anything else is
+  CommandNotFound: no guest-exec, guest-file-* or SSH key commands, so
+  the host cannot run programs or touch files through it. Without the
+  port or with `agent=off` it sleeps and looks again every 10 seconds
+  (5 while connected); POLLHUP means nobody is on the host's end. Its PID
+  is in `/run/worm/guest-agent.pid` for `worm vm`.
+- The kernel has VirtualBox's guest drivers as modules (`vboxguest`,
+  `vboxsf`, `vboxvideo`; VMSVGA is vmwgfx), besides Hyper-V's and the
+  virtio ones; virtio_balloon selects free page reporting.
+- `worm hostname [NAME]` writes `/etc/hostname` (with `/` writable for
+  the moment) and calls sethostname.
+
 ## Time and passwords
 
 - `worm time` (`src/worm/time.c`). The time zone is the symlink
@@ -1201,6 +1268,73 @@ in [building.md](building.md); what each feature does for the user, in the
   Default timeout six seconds, none for critical ones; body markup is used
   when Pango accepts it.
 - The look is `/usr/share/wormos/shell/shell.css`, on top of the GTK theme.
+- User settings (`config.c`): `~/.config/wormos/shell` (a GKeyFile:
+  `[panel] position, clock-12h, clock-seconds, clock-weekday, clock-date`,
+  `[notifications] do-not-disturb`). The folder is watched
+  (GFileMonitor): a changed `shell` file is reloaded and the panel
+  rebuilt when its edge changed (`WORM_SHELL_PANEL`, set by editions,
+  still wins), otherwise the clock and the do not disturb tile follow; a
+  changed `display` file is read again and the scale applied.
+- Quick settings: the power menu starts with a grid of tiles (Settings,
+  Terminal, Screenshot 0.4 s after the menu closed, Snapshots, a system
+  monitor in foot when btop or htop exists, and the *Do not disturb*
+  toggle). With do not disturb, Notify still returns an ID but only
+  critical notifications get a card. `worm-shell --do-not-disturb
+  on|off|toggle` sets it from keys and the launcher.
+- Quick actions: desktop entries with `X-WormOS-Action=true` (and
+  `NoDisplay=true`, so other menus skip them) are loaded by the launcher
+  into no section; search finds them as "Quick action". wormos-desktop
+  ships them (`org.wormos.Action.*`: snapshot, screenshots, do not
+  disturb, reload, every Settings page) and `/usr/lib/worm/quick-action`
+  (snapshot through the snapshots helper and screenshots, with a
+  notification through `gdbus`).
+- Icons: an entry's icon that the theme lacks (a themed name) or whose
+  file is missing is replaced by one for its section (applications-*,
+  utilities-terminal for command line tools); GTK falls back to the
+  symbolic Adwaita variants. wormos-desktop ships menu entries with
+  `TryExec` (hidden where the program is missing, as in Barebones) and
+  icons in the WormOS tile style for the preinstalled command line tools
+  and WormOS's own commands (`files/apps`, `files/icons`).
+
+## Settings program
+
+- `src/settings/` is `wormos-settings` (GTK, `org.wormos.Settings`,
+  single instance: `--page NAME` in a second call switches the running
+  one). A sidebar of pages in a GtkStack; rows in rounded list boxes
+  (`settings.css`). Pages that show live state (Display, Sound,
+  Network & privacy, Virtual machine) refill on map.
+- The user's settings are files the desktop reads: `~/.config/wormos/
+  display` (scale), `shell` (panel edge, clock, do not disturb),
+  `wallpaper` (`image = PATH` or `color = #RRGGBB`, shown by
+  `/usr/lib/worm/wallpaper`, which starts a new swaybg and then stops the
+  one in `$XDG_RUNTIME_DIR/swaybg.pid`; autostart uses it too),
+  `~/.config/labwc/environment` (`XKB_DEFAULT_LAYOUT`, other lines kept)
+  and `~/.config/wormos/xdg/labwc/rc.xml`: keyboard repeat and the libinput
+  `default` and `touchpad` categories, each with every field (labwc uses
+  the last category defined for a device type, unset fields fall back to
+  libinput's defaults, not to earlier files). The session puts
+  `~/.config/wormos/xdg` first in `XDG_CONFIG_DIRS` and runs labwc with
+  `-m`, which merges rc.xml, menu, environment and themerc from every
+  directory, lowest priority first: the system's, the Settings
+  program's, then `~/.config/labwc`, so the user's own file wins and
+  needs only what it changes. Changes run `labwc --reconfigure` (labwc's
+  PID from `LABWC_PID`, which its children inherit); sliders write 0.4 s
+  after they rest.
+- Display: the scale list of the panel; each screen's modes from
+  `wlr-randr`, a choice runs `wlr-randr --output NAME --mode WxH@RHz`.
+  Sound: `wpctl status` (Audio's Sinks and Sources, `*` the default),
+  `wpctl set-default ID` and `set-volume ID V`. Date & time: zones from
+  `zone1970.tab` plus UTC in a filtered list.
+- System changes go through `/usr/lib/worm/settings` (`src/worm/
+  settings.c`, setuid root, wheel only, like the snapshots helper):
+  `firewall` and `anon-status` without a password; `zone NAME`,
+  `anon on|off`, `hostname NAME`, `vm KEY VALUE` and `vm-reset KEY` with
+  root's password on standard input (exit 3 when wrong; the dialog stays
+  open). Arguments are letters, digits and a few separators; the helper
+  clears its environment, becomes root and runs `worm` with its own
+  argument list. Automatic snapshots go through the snapshots helper
+  (`auto on|off`), the user's own password through `/usr/lib/worm/passwd`.
+  With `/etc/worm/no-root` the dialog says root is locked instead.
 
 ## Desktop session
 
@@ -1210,7 +1344,8 @@ in [building.md](building.md); what each feature does for the user, in the
   is set); logging out of the desktop ends the login. The environment it
   shares with the login screen (renderer choice, VMware cursor, GTK
   settings, `run_labwc` with the pixman fallback) is in
-  `/usr/lib/worm/session-env`. At the first login it creates the
+  `/usr/lib/worm/session-env`, which also reads `/run/worm/vm` (Virtual
+  machines, above). At the first login it creates the
   standard folders (Desktop, Documents, Downloads, Music, Pictures, Videos,
   Public, Templates) and records them in `~/.config/user-dirs.dirs`. The
   session script checks

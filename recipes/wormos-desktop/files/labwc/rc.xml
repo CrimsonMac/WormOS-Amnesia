@@ -1,7 +1,9 @@
 <?xml version="1.0"?>
 <!--
-  WormOS defaults for labwc. Copy this file to ~/.config/labwc/rc.xml to
-  change it; see labwc-config(5).
+  WormOS defaults for labwc. The session merges every rc.xml: this one,
+  the Settings program's (~/.config/wormos/xdg/labwc/rc.xml) and your own
+  ~/.config/labwc/rc.xml, which needs only what it changes; see
+  labwc-config(5).
 -->
 <labwc_config>
   <core>
@@ -77,6 +79,13 @@
     <keybind key="W-f"><action name="ToggleMaximize" /></keybind>
     <keybind key="W-c"><action name="AutoPlace" policy="center" /></keybind>
     <keybind key="Print"><action name="Execute" command="/usr/lib/worm/screenshot" /></keybind>
+    <keybind key="S-Print"><action name="Execute" command="/usr/lib/worm/screenshot --delay 5" /></keybind>
+    <!-- Super+I settings, Super+E files (Midnight Commander), Super+N do
+         not disturb, Super+S a snapshot. -->
+    <keybind key="W-i"><action name="Execute" command="wormos-settings" /></keybind>
+    <keybind key="W-e"><action name="Execute" command="foot --title Files mc" /></keybind>
+    <keybind key="W-n"><action name="Execute" command="worm-shell --do-not-disturb toggle" /></keybind>
+    <keybind key="W-s"><action name="Execute" command="/usr/lib/worm/quick-action snapshot" /></keybind>
     <keybind key="XF86AudioRaiseVolume"><action name="Execute" command="worm-shell --volume up" /></keybind>
     <keybind key="XF86AudioLowerVolume"><action name="Execute" command="worm-shell --volume down" /></keybind>
     <keybind key="XF86AudioMute"><action name="Execute" command="worm-shell --volume mute" /></keybind>

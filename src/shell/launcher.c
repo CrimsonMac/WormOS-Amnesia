@@ -32,6 +32,7 @@ struct entry {
 	char *section;          /* sidebar section */
 	gboolean terminal;
 	gboolean tool;          /* a security section */
+	gboolean action;        /* a quick action: found by searching only */
 };
 
 struct section {
@@ -197,16 +198,27 @@ static void load(void)
 		struct entry *e;
 		char *tool_section;
 
-		if (!g_app_info_should_show(info) || !d)
+		gboolean action;
+
+		if (!d)
+			continue;
+		/* Quick actions (X-WormOS-Action, NoDisplay so other menus leave
+		 * them out): take a snapshot, a settings page... */
+		action = g_desktop_app_info_get_boolean(d, "X-WormOS-Action");
+		if (!action && !g_app_info_should_show(info))
 			continue;
 		e = g_new0(struct entry, 1);
+		e->action = action;
 		e->info = g_object_ref(info);
 		e->id = g_strdup(g_app_info_get_id(info));
 		e->name = g_strdup(g_app_info_get_display_name(info));
 		e->comment = g_strdup(g_app_info_get_description(info));
 		e->terminal = g_desktop_app_info_get_boolean(d, "Terminal");
 		tool_section = g_desktop_app_info_get_string(d, "X-WormOS-Section");
-		if (tool_section && *tool_section) {
+		if (action) {
+			g_free(tool_section);
+			e->section = g_strdup("Quick action");
+		} else if (tool_section && *tool_section) {
 			e->section = tool_section;
 			e->tool = TRUE;
 		} else {
@@ -220,8 +232,11 @@ static void load(void)
 
 	for (guint i = 0; i < entries->len; i++) {
 		struct entry *e = g_ptr_array_index(entries, i);
-		struct section *s = section_get(e->section, TRUE);
+		struct section *s;
 
+		if (e->action)
+			continue;
+		s = section_get(e->section, TRUE);
 		s->tool = e->tool;
 		g_ptr_array_add(s->entries, e);
 	}
@@ -343,12 +358,44 @@ static void row_activated(GtkListBox *box, GtkListBoxRow *row, gpointer data)
 
 /* ---- the content ---- */
 
+/* An icon for entries without one, or whose icon the theme lacks: by
+ * what the program is. */
+static const char *fallback_icon(struct entry *e)
+{
+	static const char *const by_section[][2] = {
+		{ "Internet", "applications-internet" }, { "Multimedia", "applications-multimedia" },
+		{ "Graphics", "applications-graphics" }, { "Office", "applications-office" },
+		{ "Development", "applications-engineering" }, { "Games", "applications-games" },
+		{ "Education", "applications-science" }, { "Science", "applications-science" },
+		{ "System", "applications-system" }, { "Settings", "preferences-system" },
+		{ "Accessories", "applications-utilities" }, { "Quick action", "system-run" },
+	};
+
+	if (e->terminal)
+		return "utilities-terminal";
+	for (size_t i = 0; i < G_N_ELEMENTS(by_section); i++)
+		if (e->section && !strcmp(e->section, by_section[i][0]))
+			return by_section[i][1];
+	return "application-x-executable";
+}
+
 static GtkWidget *icon_for(struct entry *e, int size)
 {
 	GIcon *icon = g_app_info_get_icon(e->info);
-	GtkWidget *image = icon ? gtk_image_new_from_gicon(icon)
-				: gtk_image_new_from_icon_name(e->terminal ? "utilities-terminal"
-									   : "application-x-executable");
+	GtkIconTheme *theme = gtk_icon_theme_get_for_display(gdk_display_get_default());
+	GtkWidget *image;
+
+	/* A file icon that exists, or a themed one the theme has. */
+	if (icon && G_IS_THEMED_ICON(icon) && !gtk_icon_theme_has_gicon(theme, icon))
+		icon = NULL;
+	if (icon && G_IS_FILE_ICON(icon)) {
+		char *path = g_file_get_path(g_file_icon_get_file(G_FILE_ICON(icon)));
+
+		if (!path || !g_file_test(path, G_FILE_TEST_EXISTS))
+			icon = NULL;
+		g_free(path);
+	}
+	image = icon ? gtk_image_new_from_gicon(icon) : gtk_image_new_from_icon_name(fallback_icon(e));
 
 	gtk_image_set_pixel_size(GTK_IMAGE(image), size);
 	return image;

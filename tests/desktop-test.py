@@ -604,7 +604,7 @@ def main():
     total = (len(DEVICE_CHECKS) + 1 + len(AFTER_SETUP_CHECKS) + 3 + len(SESSION_CHECKS) +
              len(TYPING_CHECKS) + len(SHORTCUT_CHECKS) + len(BUDGET_CHECKS) +
              len(RESIZES) + len(WELCOME_CHECKS) + len(GTK_CHECKS) + len(SOUND_CHECKS) +
-             len(SHELL_CHECKS) + len(CLIPBOARD_CHECKS) + 37)
+             len(SHELL_CHECKS) + len(CLIPBOARD_CHECKS) + 43)
     if gtk_check is None:
         total -= len(GTK_CHECKS) + 3
 
@@ -1023,6 +1023,43 @@ def main():
                   con.run(f"grep -i -e critical -e warning /tmp/snapshots.log{noise} | grep -c .")
                   == "0",
                   con.run("cat /tmp/snapshots.log"))
+
+            # The wallpaper from Settings > Appearance: a plain colour.
+            con.run(f"su {USER} -c 'mkdir -p ~/.config/wormos && "
+                    "echo \"color = #20c040\" > ~/.config/wormos/wallpaper'")
+            session("/usr/lib/worm/wallpaper")
+            time.sleep(3)
+            width, height, pixels = screen("wallpaper")
+            check("wallpaper set to a plain colour", near(pixels, width, 4, height - 4,
+                                                          (0x20, 0xc0, 0x40), 6),
+                  pixels[3 * ((height - 4) * width + 4):3 * ((height - 4) * width + 4) + 3])
+            con.run(f"su {USER} -c 'rm ~/.config/wormos/wallpaper'")
+            session("/usr/lib/worm/wallpaper")
+
+            # The Settings program, its pages and single instance.
+            put_file(con, b"wormos-settings\necho exited with status $?\n", "/tmp/run-settings")
+            con.run(f"su {USER} -c '/tmp/in-session sh /tmp/run-settings > /tmp/settings.log 2>&1 &'")
+            out = wait_for(con, "pidof wormos-settings", r"^\d+$", 60)
+            check("Settings program started", re.search(r"^\d+$", out, re.M) is not None,
+                  con.run("cat /tmp/settings.log"))
+            for page in ("appearance", "keyboard", "sound", "time", "privacy", "vm", "about"):
+                session(f"wormos-settings --page {page}")
+                time.sleep(1)
+            screen("settings")
+            check("Settings runs once", con.run("pidof wormos-settings | wc -w") == "1",
+                  con.run("pidof wormos-settings"))
+            check("no warnings from Settings",
+                  con.run(f"grep -i -e critical -e warning /tmp/settings.log{noise} | grep -c .")
+                  == "0", con.run("cat /tmp/settings.log"))
+            con.run("kill $(pidof wormos-settings)")
+            session("worm-shell --do-not-disturb on")
+            check("do not disturb saved for the shell",
+                  "do-not-disturb=true" in con.run(f"cat /home/{USER}/.config/wormos/shell"),
+                  con.run(f"cat /home/{USER}/.config/wormos/shell"))
+            session("worm-shell --do-not-disturb off")
+            check("quick actions for the launcher",
+                  int(con.run("ls /usr/share/applications/org.wormos.Action.*.desktop | wc -l")
+                      or 0) >= 10)
 
             # Log out: the login screen comes back. A wrong password is
             # refused, the right one starts the desktop again.

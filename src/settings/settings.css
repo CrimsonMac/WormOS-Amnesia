@@ -1,0 +1,101 @@
+/* The look of WormOS Settings, on top of the WormOS GTK theme. */
+
+.sidebar-pane {
+	background: alpha(@window_fg_color, 0.04);
+	border-right: 1px solid alpha(@window_fg_color, 0.08);
+}
+
+.navigation-sidebar {
+	background: none;
+	padding: 8px 6px;
+}
+
+.navigation-sidebar row {
+	border-radius: 8px;
+	padding: 8px 10px;
+	margin: 1px 0;
+}
+
+.navigation-sidebar row:selected {
+	background: alpha(#8b5cf6, 0.25);
+	color: @window_fg_color;
+}
+
+.page {
+	margin: 24px 12px 36px 12px;
+}
+
+.page-title {
+	font-size: 22px;
+	font-weight: 700;
+}
+
+.title-2 {
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.heading {
+	font-weight: 700;
+}
+
+.caption {
+	font-size: 0.9em;
+}
+
+list.settings-group {
+	background: alpha(@window_fg_color, 0.05);
+	border: 1px solid alpha(@window_fg_color, 0.08);
+	border-radius: 12px;
+}
+
+list.settings-group > row {
+	border-bottom: 1px solid alpha(@window_fg_color, 0.06);
+}
+
+list.settings-group > row:last-child {
+	border-bottom: none;
+}
+
+list.settings-group > row:first-child {
+	border-top-left-radius: 12px;
+	border-top-right-radius: 12px;
+}
+
+list.settings-group > row:last-child {
+	border-bottom-left-radius: 12px;
+	border-bottom-right-radius: 12px;
+}
+
+.settings-row {
+	padding: 10px 14px;
+	min-height: 32px;
+}
+
+.settings-text {
+	padding: 12px 14px;
+}
+
+.zone {
+	padding: 7px 14px;
+}
+
+.tips {
+	padding: 12px 14px;
+	border-radius: 12px;
+	background: alpha(#8b5cf6, 0.12);
+	border: 1px solid alpha(#8b5cf6, 0.3);
+}
+
+.dialog-box {
+	margin: 18px;
+	min-width: 320px;
+}
+
+.error {
+	color: #f87171;
+}
+
+.monospace {
+	font-family: monospace;
+}

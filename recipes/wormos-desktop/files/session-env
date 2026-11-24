@@ -30,6 +30,19 @@ if [ -r /etc/worm/variant ]; then
 	[ -n "$VARIANT_PANEL" ] && export WORM_SHELL_PANEL=$VARIANT_PANEL
 fi
 
+# Settings of the virtual machine, if this is one (worm vm, written at
+# boot to /run/worm/vm): renderer, cursor and the default display scale.
+vm_setting() {
+	sed -n "s/^$1=//p" /run/worm/vm 2> /dev/null
+}
+case $(vm_setting renderer) in
+gles) WLR_RENDERER=${WLR_RENDERER:-gles2} ;;
+software) WLR_RENDERER=${WLR_RENDERER:-pixman} ;;
+esac
+[ -n "${WLR_RENDERER:-}" ] && export WLR_RENDERER
+vm_scale=$(vm_setting scale)
+[ -n "$vm_scale" ] && [ "$vm_scale" != auto ] && export WORM_DEFAULT_SCALE=$vm_scale
+
 # Intel GPUs, VMware's (vmwgfx, Mesa svga, with 3D acceleration on) and
 # QEMU's virtio GPU with 3D (virgl: virt-manager's OpenGL option; bit 0 of
 # the virtio device's features) render with OpenGL ES; everything else uses
@@ -63,6 +76,12 @@ export GTK_A11Y=none
 # with OpenGL ES and virglrenderer flips it again on readback), with the
 # hotspot flipped too: draw the cursor into the frame instead.
 [ -n "${virgl:-}" ] && export WLR_NO_HARDWARE_CURSORS=1
+# worm vm's cursor setting decides when set (VirtualBox's and Hyper-V's
+# base settings draw it in software too).
+case $(vm_setting cursor) in
+software) export WLR_NO_HARDWARE_CURSORS=1 ;;
+hardware) unset WLR_NO_HARDWARE_CURSORS ;;
+esac
 # VMware's cursor plane stays invisible with wlroots: draw the cursor into
 # the frame instead.
 for driver in /sys/class/drm/card*/device/driver; do

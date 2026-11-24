@@ -85,6 +85,15 @@ void volume_toggle_mute(void);
 void power_logout(void);
 gboolean power_request(const char *what);   /* "off" or "reboot" */
 
+/* config.c: ~/.config/wormos/shell, watched */
+typedef void (*config_changed_fn)(void);
+gboolean config_bool(const char *group, const char *key, gboolean fallback);
+char *config_string(const char *group, const char *key);   /* g_free; NULL if unset */
+void config_set_bool(const char *group, const char *key, gboolean value);
+void config_watch(config_changed_fn fn);
+void outputs_reload(void);                   /* the display file changed */
+gboolean notify_quiet(void);                 /* do not disturb */
+
 /* util */
 char *relative_time(gint64 unix_time);       /* "5 minutes ago"; g_free */
 GIcon *app_icon(const char *app_id);         /* for a window's app_id */

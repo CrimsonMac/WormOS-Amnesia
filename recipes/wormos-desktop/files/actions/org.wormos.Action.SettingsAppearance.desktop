@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Wallpaper and panel
+Comment=Background and the panel's edge
+Exec=wormos-settings --page appearance
+Icon=preferences-desktop-wallpaper-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=settings;wallpaper;background;panel;appearance;theme;
