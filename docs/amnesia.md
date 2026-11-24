@@ -73,7 +73,13 @@ does, and what comes next. It ships as
   package names, and changes go straight into the running system, with no
   restart. Packages come only from the signed repositories (core, Debian,
   Kali), through Tor like everything else, and live in memory until the
-  computer stops. Blackholes need no root either.
+  computer stops. Blackholes need no root either. `worm kit install` takes
+  several kits or `all`. Programs from wormholes work as on WormOS (Qt,
+  GTK, Java, X11; launcher entries; the session's wormhole bridge, started
+  from Amnesia's own autostart, opens links in Tor Browser and terminals
+  on the desktop). `/etc/worm/no-root` makes `sudo`, the root terminal and
+  wormhole programs asking for root (`pkexec`) say that root is locked
+  instead of asking for a password.
 - **Updates without a new ISO.** `amnesia-update` (also "Update Amnesia"
   in the launcher) brings the USB stick Amnesia started from up to the
   latest release. Each release on the Amnesia repository's release page

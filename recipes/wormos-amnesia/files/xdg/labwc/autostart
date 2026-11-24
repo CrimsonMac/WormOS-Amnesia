@@ -1,6 +1,9 @@
 # WormOS Amnesia: programs started with the desktop (labwc runs this with sh).
 dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP > /dev/null 2>&1
 swaybg -i /usr/share/backgrounds/wormos-amnesia.png -m fill > /dev/null 2>&1 &
+# The bridge of wormhole programs to the desktop: links open in Tor
+# Browser, terminals open on the desktop (it exits with the compositor).
+[ -x /usr/lib/wh/bridge ] && /usr/lib/wh/bridge 2>> "$XDG_RUNTIME_DIR/bridge.log" &
 worm-shell > "$XDG_RUNTIME_DIR/shell.log" 2>&1 &
 clip agent > "$XDG_RUNTIME_DIR/clip.log" 2>&1 &
 # Every start is a first start: say what this system does and does not do.
