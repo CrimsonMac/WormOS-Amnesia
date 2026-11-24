@@ -421,7 +421,9 @@ char **repo_fetch_all(const char *url, struct package **pkgs, int n)
 	for (int i = 0; i < n; i++) {
 		if (!jobs[i].path[0])
 			die("cannot download %s, or it does not match the package index "
-			    "(corrupted or tampered); it was not used", jobs[i].url);
+			    "(corrupted or tampered); it was not used. If the index is old "
+			    "(an image's, or from before the repository changed), 'wh update' "
+			    "fetches the current one", jobs[i].url);
 		if (!(files[i] = strdup(jobs[i].path)))
 			die("out of memory");
 	}

@@ -26,6 +26,37 @@ if ! gh release view "$TAG" -R "$PACKAGES_REPO" > /dev/null 2>&1; then
 		--notes "The WormOS core package repository, used by wh. Source archives (*.src.tar) hold each package's recipe and upstream sources."
 fi
 
+# A package already published under the same name (version and release)
+# stays as published: released images hold an index with its SHA-256, and
+# different bytes for it would make wh refuse it there ("does not match
+# the package index") until their index is updated. A rebuild of an
+# unchanged package, or a change without a new release, keeps the
+# published file; the index is then written again over what is kept.
+declare -A published
+while read -r name sum; do
+	published[$name]=${sum#sha256:}
+done < <(gh api "repos/$PACKAGES_REPO/releases/tags/$TAG" --paginate \
+	--jq '.assets[] | .name + " " + (.digest // "")')
+kept=0
+for f in "$REPO"/*.wpkg; do
+	name=$(basename "$f")
+	sum=${published[$name]:-}
+	[ -n "$sum" ] && [ "$sum" != "$(sha256sum "$f" | cut -c1-64)" ] || continue
+	for try in 1 2 3; do
+		gh release download "$TAG" -R "$PACKAGES_REPO" -p "$name" -O "$f.published" \
+			--clobber && break
+		[ "$try" = 3 ] && die "cannot download the published $name"
+		sleep 10
+	done
+	[ "$(sha256sum "$f.published" | cut -c1-64)" = "$sum" ] || die "the published $name does not match its digest"
+	mv "$f.published" "$f"
+	kept=$((kept + 1))
+done
+if [ "$kept" -gt 0 ]; then
+	msg "Kept $kept published packages whose version did not change; writing the index again"
+	"$WORMOS_ROOT/tools/wrepo" --index-only
+fi
+
 # Deltas against the packages published now (only the files that changed).
 "$WORMOS_ROOT/scripts/make-deltas.sh"
 

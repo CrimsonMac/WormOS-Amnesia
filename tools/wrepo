@@ -2,9 +2,12 @@
 # wrepo - build the signed package repository in out/repo.
 #
 # Usage: tools/wrepo [NAME...]
+#        tools/wrepo --index-only
 #
 # Packs the named packages (default: every staged package) with wpack, then
-# writes out/repo/index and signs it as out/repo/index.sig.
+# writes out/repo/index and signs it as out/repo/index.sig. --index-only
+# writes and signs the index of the packages in out/repo as they are
+# (publish-repo.sh, after keeping published packages).
 #
 # The index lists every package with its version, file, size, SHA-256,
 # dependencies and description. Only the index is signed: each package is
@@ -53,10 +56,14 @@ if [ ! -f "$SECRET" ]; then
 	"$WSIGN" keygen "$SECRET" "$PUBLIC"
 fi
 
-if [ $# -eq 0 ]; then
-	set -- $(cd "$BUILD/pkginfo" && ls *.info | sed 's/\.info$//')
+if [ "${1:-}" = --index-only ]; then
+	shift
+else
+	if [ $# -eq 0 ]; then
+		set -- $(cd "$BUILD/pkginfo" && ls *.info | sed 's/\.info$//')
+	fi
+	"$WORMOS_ROOT/tools/wpack" "$@"
 fi
-"$WORMOS_ROOT/tools/wpack" "$@"
 
 msg "Writing package index"
 index=$REPO/index

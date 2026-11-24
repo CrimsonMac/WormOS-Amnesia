@@ -43,7 +43,7 @@ pack_one() {
 	if [ -d "$stage/root/usr" ]; then
 		find "$stage/root/usr" -type f \( -perm -u+x -o -name '*.so*' \) \
 			! -name '*.ko*' ! -name '*.a' -print0 |
-			xargs -0 -r "$TARGET-strip" --strip-unneeded 2>/dev/null || true
+			xargs -0 -r "$TARGET-strip" --strip-unneeded -p 2>/dev/null || true
 	fi
 
 	# Nothing shipped may name the build machine: paths under the build
@@ -63,11 +63,19 @@ pack_one() {
 			xargs -0 -r sha256sum | sed 's/^\([0-9a-f]*\)  /file = \1 /')
 	} > "$stage/meta/.PKGINFO"
 
+	# The same package bytes from the same files on every repack: folders
+	# and .PKGINFO get a fixed time (the packing time made every package
+	# new, so a republished repository no longer matched the index inside
+	# released images). Files keep their own times (Python checks them
+	# against its bytecode).
+	find "$stage/root" "$stage/meta" -type d -exec touch -h -d @1 {} +
+	touch -h -d @1 "$stage/meta/.PKGINFO"
+
 	out=$REPO/$name-$version-$release.wpkg
 	rm -f "$REPO/$name"-[0-9]*.wpkg
 	local -a top=()
 	mapfile -t top < <(cd "$stage/root" && find . -mindepth 1 -maxdepth 1 -printf '%P\n' | sort)
-	tar --format=pax --pax-option=delete=atime,delete=ctime \
+	tar --format=pax --pax-option=delete=atime,delete=ctime,exthdr.name=%d/PaxHeaders/%f \
 		--owner=0 --group=0 --numeric-owner --sort=name --mode=go-w \
 		-C "$stage/meta" -cf - .PKGINFO -C "$stage/root" "${top[@]}" |
 		zstd -q -19 -T0 > "$out.part"

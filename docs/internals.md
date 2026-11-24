@@ -997,7 +997,8 @@ in [building.md](building.md); what each feature does for the user, in the
   (tools WormOS already has, shown only), one `tool = PACKAGE` per Debian
   or Kali package and one `core = PACKAGE` per core package. `list` and
   `show` work for everyone (`show` marks core packages already installed);
-  `install` and `remove` need root and take several kits, or `all`
+  `install` runs `wh update` first (the system's index may be as old as
+  its image). `install` and `remove` need root and take several kits, or `all`
   (since 1.13): the wormhole tools of each kit are installed in turn (a
   tool an earlier kit of the same run installed is not installed again),
   then the missing core packages of every kit go into one change, with
@@ -1466,7 +1467,16 @@ in [building.md](building.md); what each feature does for the user, in the
   recipe), plus `wormos-build-tools.tar` (wbuild, wpack, wrepo, env.sh, the
   toolchain and kernel scripts). Packages from local code get none.
   `scripts/publish-repo.sh` uploads packages and sources, then the index
-  and its signature, and removes assets that are no longer current.
+  and its signature, and removes assets that are no longer current. A
+  package already published under the same file name (version and
+  release) is kept as published: the script downloads it over the local
+  build and writes the index again (`tools/wrepo --index-only`). Released
+  images carry the index of their build; 1.13's first republish replaced
+  206 same-version packages with repacked bytes, and core installs on 1.13
+  images failed ("does not match the package index") until `wh update`.
+  `wpack` also packs the same files to the same bytes now: folders and
+  `.PKGINFO` get a fixed time and `strip -p` keeps files' times (before,
+  every repack made every package new).
 - `mkimage.sh` copies only the data extents of the partition images into
   the disk image (`scripts/sparse-copy.py`, SEEK_DATA/SEEK_HOLE), so a
   20 GiB disk takes seconds.

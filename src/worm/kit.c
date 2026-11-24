@@ -289,6 +289,12 @@ static int cmd_install(char **args, int nargs)
 		die("the network is cut; 'worm panic off' restores it first%s", "");
 	mkdir("/var/lib/worm", 0755);
 	mkdir(KIT_STATE, 0755);
+	/* The current package index and package lists: the system's may be as
+	 * old as its image, and no longer match the repository. */
+	printf("Updating the package lists\n");
+	fflush(stdout);
+	if (run((char *[]){ "wh", "update", NULL }, NULL, 0, 0) != 0)
+		warn("the package lists could not be updated; %s", "trying with the ones the system has");
 	if (nkits > 1) {
 		printf("Installing %d kits:", nkits);
 		for (int k = 0; k < nkits; k++)
