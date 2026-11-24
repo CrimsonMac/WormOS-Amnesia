@@ -139,7 +139,7 @@ on top of this one.
 - **VirtualBox:** create a 64-bit "Other Linux" machine with EFI or BIOS,
   2 GB of memory or more, graphics controller VMSVGA (3D acceleration on
   for OpenGL ES drawing) and boot the ISO. WormOS draws the pointer itself
-  there and mounts shared folders under `/media` (`worm vm`). VirtualBox's
+  there; `worm vm shares NAME` mounts a shared folder at `/media/NAME`. VirtualBox's
   shared clipboard and window resizing need its Guest Additions, which
   WormOS does not ship: set the screen size in Settings > Display.
 - **VMware is not supported for now.** It cannot be tested at the moment,
@@ -167,10 +167,11 @@ WormOS finds the hypervisor at every start and sets itself up for it
   agent, and `virsh domtime --sync` sets the clock after the host slept.
   WormOS's agent only reports and shuts down: it has no commands to run
   programs or read and write files in the guest.
-- **Shared folders:** folders the host shares (virt-manager:
-  *Add Hardware* → *Filesystem*, driver virtiofs or 9p, or VirtualBox's
-  shared folders) appear under `/media/TAG` at start; `worm vm shares`
-  mounts ones added later.
+- **Shared folders:** folders the host shares over virtiofs or 9p
+  (virt-manager: *Add Hardware* → *Filesystem*) appear under `/media/TAG`
+  at start; `worm vm shares` mounts ones added later. VirtualBox names
+  its shared folders only to its Guest Additions, so mount them by name:
+  `worm vm shares NAME` (as root) gives `/media/NAME`.
 - **Tuning:** virtual disks get no I/O scheduler (the host has one) and
   writeback starts earlier, so small VMs do not stall on large writes;
   the memory balloon gives unused memory back to the host when its

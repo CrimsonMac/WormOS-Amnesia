@@ -328,7 +328,7 @@ static void usage(FILE *out)
 	      "       worm kit [list] | show NAME | install NAME...|all | remove NAME...|all\n"
 	      "       worm time [zones [TEXT] | zone NAME | sync]\n"
 	      "       worm passwd           change your own password\n"
-	      "       worm vm [setup | set KEY VALUE | reset [KEY] | shares]\n"
+	      "       worm vm [setup | set KEY VALUE | reset [KEY] | shares [NAME...]]\n"
 	      "       worm hostname [NAME]\n"
 	      "       worm fw status | allow PORT[/tcp|/udp] | deny PORT[/tcp|/udp] | load\n"
 	      "PORT is a number or a range such as 6000-6010; tcp is the default.\n", out);

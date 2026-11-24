@@ -5,7 +5,8 @@
  *     worm vm setup              (boot, root) detect, apply, write /run/worm/vm
  *     worm vm set KEY VALUE      (root) change a setting in /etc/worm/vm.conf
  *     worm vm reset [KEY]        (root) back to the default
- *     worm vm shares             mount the host's shared folders again (root)
+ *     worm vm shares [NAME...]   mount the host's shared folders again, or
+ *                                VirtualBox's shared folders NAME (root)
  *
  * Detection reads the firmware tables (DMI: the vendor and product a
  * hypervisor reports), the CPU's hypervisor leaf (KVM or QEMU's emulator
@@ -442,6 +443,8 @@ static int mount_shares(const struct vm *vm, int loud)
 		mkdir(dir, 0755);
 		if (!strcmp(type, "virtiofs"))
 			r = mount(tag, dir, "virtiofs", MS_NOSUID | MS_NODEV, NULL);
+		else if (!strcmp(type, "vboxsf"))
+			r = mount(tag, dir, "vboxsf", MS_NOSUID | MS_NODEV, NULL);
 		else
 			r = mount(tag, dir, "9p", MS_NOSUID | MS_NODEV,
 				  "trans=virtio,version=9p2000.L,msize=262144,access=any");
@@ -617,6 +620,8 @@ static int cmd_show(void)
 			tip(&tips, "Add a guest agent channel so the host shows the IP address and "
 			    "shuts down cleanly (Add Hardware > Channel > org.qemu.guest_agent.0).");
 	} else if (!strcmp(vm.hypervisor, "virtualbox")) {
+		tip(&tips, "Shared folders: worm vm shares NAME mounts one at /media/NAME "
+		    "(VirtualBox names them only to its Guest Additions).");
 		tip(&tips, "Graphics controller VMSVGA with 3D acceleration on works best; "
 		    "VirtualBox's own clipboard and window resizing need its Guest Additions, "
 		    "which WormOS does not ship (set the size with the display scale).");
@@ -723,6 +728,22 @@ int cmd_vm(int argc, char **argv)
 		return cmd_set(argv[1], NULL);
 	if (!strcmp(argv[0], "reset") && argc == 1)
 		return cmd_reset_all();
+	if (!strcmp(argv[0], "shares") && argc > 1) {
+		/* VirtualBox lists its shared folders only to its Guest
+		 * Additions: they are mounted by name. */
+		int n;
+
+		detect(&vm);
+		vm.shares[0] = vm.share_types[0] = '\0';
+		for (int i = 1; i < argc; i++)
+			add_share(&vm, argv[i], "vboxsf");
+		if (!vm.shares[0])
+			die("not a shared folder name: %s", argv[1]);
+		run((char *[]){ "modprobe", "-q", "vboxsf", NULL }, NULL, 0, 1);
+		n = mount_shares(&vm, 1);
+		printf("%d shared folder%s under " MEDIA ".\n", n, n == 1 ? "" : "s");
+		return n ? 0 : 1;
+	}
 	if (!strcmp(argv[0], "shares") && argc == 1) {
 		int n;
 

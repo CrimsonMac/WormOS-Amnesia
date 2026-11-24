@@ -982,7 +982,11 @@ in [building.md](building.md); what each feature does for the user, in the
   read-only) holds the mount points; virtiofs, or 9p with
   `trans=virtio,version=9p2000.L,msize=262144,access=any`, nosuid and
   nodev. VMware and Hyper-V balloons and VirtualBox's vboxguest/vboxsf are
-  modules loaded there. `worm vm shares` mounts ones added later.
+  modules loaded there. `worm vm shares` mounts ones added later;
+  `worm vm shares NAME...` mounts VirtualBox shared folders by name
+  (vboxsf), which cannot be listed without its Guest Additions. The
+  kernel's VirtualBox drivers need `CONFIG_VIRT_DRIVERS` (1.14's images
+  lacked vboxguest and vboxsf; linux 6.18.64-8 has them).
 - The session reads `/run/worm/vm` (`session-env`): `renderer` sets
   `WLR_RENDERER` (gles2 or pixman) before its own detection, `cursor`
   sets or unsets `WLR_NO_HARDWARE_CURSORS` after it, `scale` other than

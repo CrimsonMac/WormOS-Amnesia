@@ -46,7 +46,7 @@ kit)
 vm)
 	if (( CURRENT == 3 )); then
 		local -a cmds=('set:change a setting (root)' 'reset:back to the default (root)'
-			'shares:mount the host shared folders (root)')
+			'shares:mount the host shared folders, or VirtualBox ones by name (root)')
 		_describe -t commands 'vm command' cmds
 	elif [[ $words[3] == (set|reset) ]] && (( CURRENT == 4 )); then
 		compadd renderer cursor scale clipboard agent shares tuning
