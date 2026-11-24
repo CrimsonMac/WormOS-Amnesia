@@ -1,0 +1,29 @@
+#!/bin/sh
+# sudo on WormOS: runs a command as root after asking for the root
+# password (the root account is the administrator; there is no sudoers
+# file). Graphical programs keep the desktop, as in the root terminal, and
+# the command runs in the current folder.
+# Usage: sudo [-E] [-H] [-k] [-S] [--] COMMAND [ARGS...]
+while [ $# -gt 0 ]; do
+	case $1 in
+	--) shift; break ;;
+	-u|--user|-g|--group)
+		[ "${2:-}" = root ] && { shift 2; continue; }
+		echo "sudo: only root is supported (su USER runs commands as others)" >&2
+		exit 1 ;;
+	-i|-s) shift; [ $# -eq 0 ] && exec /usr/lib/worm/root-terminal --cd "$PWD" ;;
+	-v|-k|-K) exit 0 ;;
+	-h|--help)
+		echo "usage: sudo COMMAND [ARGS...]: run COMMAND as root (asks for the root password)"
+		exit 0 ;;
+	-*) shift ;;
+	*) break ;;
+	esac
+done
+[ $# -gt 0 ] || { echo "usage: sudo COMMAND [ARGS...]" >&2; exit 1; }
+[ "$(id -u)" = 0 ] && exec "$@"
+cmd=
+for arg; do
+	cmd="$cmd '$(printf '%s' "$arg" | sed "s/'/'\\\\''/g")'"
+done
+exec /usr/lib/worm/root-terminal --once --cd "$PWD" "exec$cmd"

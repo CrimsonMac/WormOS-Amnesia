@@ -5,7 +5,7 @@
  *
  *     wh-user [--from SOURCE] install|reinstall|remove PACKAGE...
  *     wh-user update | upgrade
- *     wh-user kit install|remove NAME
+ *     wh-user kit install|remove NAME...
  *
  * wh and worm hand these over by themselves when a user runs them there.
  * The helper takes nothing else from its caller: the arguments must be
@@ -56,14 +56,18 @@ int main(int argc, char **argv)
 		snprintf(saved_term, sizeof(saved_term), "%s", term);
 
 	if (argc > 3 && !strcmp(argv[1], "kit")) {
-		if ((strcmp(argv[2], "install") && strcmp(argv[2], "remove")) || argc != 4 ||
-		    !valid_name(argv[3]))
-			fail("usage: worm kit install|remove NAME");
+		if ((strcmp(argv[2], "install") && strcmp(argv[2], "remove")) || argc < 4 ||
+		    argc > 4 + 32)
+			fail("usage: worm kit install|remove NAME...");
 		command = argv[2];
 		args[n++] = "/usr/bin/worm";
 		args[n++] = "kit";
 		args[n++] = argv[2];
-		args[n++] = argv[3];
+		for (i = 3; i < argc; i++) {
+			if (!valid_name(argv[i]))
+				fail("invalid kit name");
+			args[n++] = argv[i];
+		}
 	} else {
 		args[n++] = "/usr/bin/wh";
 		args[n++] = "--yes";

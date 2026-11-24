@@ -1,5 +1,5 @@
 name=wormos-standard
-version=1.9
+version=1.10
 description="The standard WormOS edition: the programs it comes with, beyond the base system"
 # Recommended rather than required: each program can still be removed on
 # its own (wh remembers it and does not bring it back). A new release adds
@@ -20,7 +20,9 @@ recommends=(wormos-installer
 	# Tor for single programs.
 	torsocks proxychains-ng
 	# Devices and disks.
-	pciutils usbutils dosfstools mtools e2fsprogs exfatprogs smartmontools hdparm dmidecode)
+	pciutils usbutils dosfstools mtools e2fsprogs exfatprogs smartmontools hdparm dmidecode
+	# Menu entries and sections for security tools from wormholes.
+	tool-menus)
 
 package() {
 	# The list, for people who want to know what the edition brings.

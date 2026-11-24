@@ -1,16 +1,17 @@
 name=wormos-desktop
 version=1.0
-release=26
+release=31
 description="The WormOS desktop session: labwc, foot and the WormOS look"
 depends=(labwc foot swaybg grim wlr-randr xcompose seatd dbus font-inter font-hack base-files
 	gtk4 gtk4-layer-shell wormos-gtk-theme adwaita-icon-theme dconf worm-shell wormos-snapshots
-	pipewire wireplumber clip zsh xz bzip2 less libarchive nano licenses)
+	pipewire wireplumber clip libxcb zsh xz bzip2 less libarchive nano licenses)
 # The last line replaces busybox applets that the busybox package left out.
 # Here rather than in busybox: wh plans an upgrade in name order, so an older
 # wh upgrades busybox (dropping its links) before it installs these.
 
 build() {
 	python3 "$recipedir/files/wallpaper.py" wormos.png 2560 1440
+	$CC $CFLAGS -o x11-allow-root "$recipedir/files/x11-allow-root.c" $LDFLAGS -lxcb
 }
 
 package() {
@@ -29,6 +30,11 @@ package() {
 	install -Dm644 "$f/gtk-settings.ini" "$pkgdir/etc/gtk-4.0/settings.ini"
 	install -Dm644 "$f/root-terminal.desktop" \
 		"$pkgdir/usr/share/applications/org.wormos.RootTerminal.desktop"
+	install -Dm755 "$f/root-terminal" "$pkgdir/usr/lib/worm/root-terminal"
+	install -Dm755 "$f/root-shell" "$pkgdir/usr/lib/worm/root-shell"
+	install -Dm755 "$f/exec-in-shell" "$pkgdir/usr/lib/worm/exec-in-shell"
+	install -Dm755 "$f/sudo" "$pkgdir/usr/bin/sudo"
+	install -Dm755 x11-allow-root "$pkgdir/usr/lib/worm/x11-allow-root"
 	install -Dm755 "$f/welcome" "$pkgdir/usr/bin/welcome"
 	install -Dm755 "$f/xdg-terminal-exec" "$pkgdir/usr/bin/xdg-terminal-exec"
 	install -Dm644 "$f/motd.sh" "$pkgdir/etc/profile.d/motd.sh"

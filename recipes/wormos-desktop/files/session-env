@@ -7,8 +7,12 @@ export XDG_CURRENT_DESKTOP=labwc:wlroots
 export XDG_CONFIG_DIRS=/etc/xdg
 export XDG_DATA_DIRS=/usr/local/share:/usr/share
 export LIBSEAT_BACKEND=seatd
-export MOZ_ENABLE_WAYLAND=1 QT_QPA_PLATFORM=wayland GDK_BACKEND=wayland
-export SDL_VIDEODRIVER=wayland ELECTRON_OZONE_PLATFORM_HINT=wayland
+# Wayland first, X11 (Xwayland) for programs that cannot use Wayland: a
+# Qt program without its Wayland plugin, an SDL game built without it.
+export MOZ_ENABLE_WAYLAND=1 QT_QPA_PLATFORM='wayland;xcb' GDK_BACKEND=wayland,x11
+export SDL_VIDEODRIVER=wayland,x11 ELECTRON_OZONE_PLATFORM_HINT=wayland
+# Java's windows stay blank under compositors that do not reparent them.
+export _JAVA_AWT_WM_NONREPARENTING=1
 # Cursor and keyboard defaults (Caps Lock turns off as the key goes down,
 # /etc/xkb/symbols/wormos). They are not in labwc's environment file:
 # labwc reads only the first one it finds, so the user's, which holds the
@@ -42,7 +46,7 @@ if [ -z "${WLR_RENDERER:-}" ]; then
 			for virtio in "${driver%/driver}"/virtio*; do
 				[ "$(basename "$(readlink "$virtio/driver")")" = virtio_gpu ] || continue
 				features=$(cat "$virtio/features" 2>/dev/null)
-				[ "${features%"${features#?}"}" = 1 ] && renderer=
+				[ "${features%"${features#?}"}" = 1 ] && renderer= virgl=1
 			done ;;
 		esac
 	done
@@ -55,6 +59,10 @@ export GTK_A11Y=none
 # Without a hardware OpenGL driver, GTK draws with cairo too.
 [ "${WLR_RENDERER:-}" = pixman ] && export GSK_RENDERER=cairo
 
+# With virgl, QEMU shows the cursor image upside down (wlroots draws it
+# with OpenGL ES and virglrenderer flips it again on readback), with the
+# hotspot flipped too: draw the cursor into the frame instead.
+[ -n "${virgl:-}" ] && export WLR_NO_HARDWARE_CURSORS=1
 # VMware's cursor plane stays invisible with wlroots: draw the cursor into
 # the frame instead.
 for driver in /sys/class/drm/card*/device/driver; do

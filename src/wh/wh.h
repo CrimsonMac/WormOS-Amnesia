@@ -86,6 +86,12 @@ int foreign_install(const char *source, const char *pkg);
 int foreign_remove(const char *pkg);
 int foreign_refresh(int upgrade);
 void foreign_list(void);
+int in_wormhole(const char *name, char *const cmd[], char *out, size_t len);
+
+/* runtime.c */
+extern const char wormhole_dpkg_cfg[];
+void wormhole_runtime(const char *source);
+void runtime_complete(const char *source);
 int foreign_search(const char *term, const char *only);
 int wormhole_exists(const char *name);
 

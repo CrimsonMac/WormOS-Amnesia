@@ -1,0 +1,23 @@
+# Companions wh adds to wormholes (/usr/share/wh/runtime).
+#
+# Wormholes leave out the packages a package only recommends, and a few of
+# those decide whether programs work. Each line is
+#
+#     PATTERN = PACKAGE...
+#
+# When a package whose name matches the shell pattern PATTERN is installed
+# in a wormhole, wh installs each PACKAGE that is missing there (and that
+# the wormhole's distribution has). wh applies the rules after every
+# install and upgrade, in every wormhole.
+
+# GTK programs: icons are SVG files (GTK cannot read them without the
+# loader) and come from the icon theme, which also has the cursors.
+libgtk-3-0* = librsvg2-common adwaita-icon-theme
+libgtk-4-1* = librsvg2-common adwaita-icon-theme
+libgdk-pixbuf-2.0-0* = librsvg2-common
+libgdk-pixbuf2.0-0* = librsvg2-common
+
+# Qt programs: Wayland (without it they fall back to Xwayland) and SVG
+# icons.
+libqt5gui5* = qtwayland5 libqt5svg5
+libqt6gui6* = qt6-wayland qt6-svg-plugins

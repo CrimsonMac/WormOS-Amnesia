@@ -57,6 +57,53 @@ static void bind(const char *src, const char *dst, unsigned long flags, int opti
 		die("cannot mount %s in the wormhole: %s", dst, strerror(errno));
 }
 
+/* Folders that are the same inside a wormhole as outside. */
+static int shared(const char *path)
+{
+	static const char *const dirs[] = { "/home", "/tmp", "/run", "/mnt", "/media", "/dev",
+					    "/proc", "/sys", NULL };
+
+	if (strcmp(path, "/") == 0)
+		return 1;
+	if (geteuid() == 0 && (!strcmp(path, "/root") || !strncmp(path, "/root/", 6)))
+		return 1;
+	for (int i = 0; dirs[i]; i++) {
+		size_t n = strlen(dirs[i]);
+
+		if (!strncmp(path, dirs[i], n) && (path[n] == '\0' || path[n] == '/'))
+			return 1;
+	}
+	return 0;
+}
+
+/* var=only becomes var=list: a toolkit told to use only Wayland fails. */
+static void fallback(const char *var, const char *only, const char *list)
+{
+	const char *v = getenv(var);
+
+	if (v && strcmp(v, only) == 0)
+		setenv(var, list, 1);
+}
+
+/*
+ * The same environment for every program in a wormhole, whatever its
+ * toolkit, so that none needs a fix of its own:
+ *   - Qt, GTK and SDL try Wayland, then X11 (Xwayland). The session asks
+ *     for Wayland, and a distribution's program without its Wayland
+ *     plugin (Qt programs from Debian without qt6-wayland) would quit;
+ *   - Java's windows stay blank under a compositor that does not reparent
+ *     them (labwc's Xwayland);
+ *   - there is no accessibility bus: GTK 3 would wait for one and warn.
+ */
+static void app_environment(void)
+{
+	fallback("QT_QPA_PLATFORM", "wayland", "wayland;xcb");
+	fallback("GDK_BACKEND", "wayland", "wayland,x11");
+	fallback("SDL_VIDEODRIVER", "wayland", "wayland,x11");
+	setenv("_JAVA_AWT_WM_NONREPARENTING", "1", 0);
+	setenv("NO_AT_BRIDGE", "1", 0);
+}
+
 int main(int argc, char **argv)
 {
 	const char *binds[MAX_BINDS], *dir = NULL, *name;
@@ -129,6 +176,13 @@ int main(int argc, char **argv)
 		bind("/tmp", "/tmp", 0, 0);
 		bind("/home", "/home", 0, 1);
 		bind("/run", "/run", 0, 1);
+		/* Disks the user mounted, and root's own home for programs
+		 * started from the root terminal (they would otherwise see the
+		 * container's /root and miss the files next to them). */
+		bind("/mnt", "/mnt", 0, 1);
+		bind("/media", "/media", 0, 1);
+		if (geteuid() == 0)
+			bind("/root", "/root", 0, 1);
 		bind("/etc/passwd", "/etc/passwd", MS_RDONLY, 1);
 		bind("/etc/group", "/etc/group", MS_RDONLY, 1);
 		/* The system's fonts, so programs look like the desktop (the
@@ -148,8 +202,14 @@ int main(int argc, char **argv)
 	if (ns_pivot(root_dir) < 0)
 		die("cannot enter the wormhole: %s", strerror(errno));
 
-	/* Stay in the same folder when it exists inside (home, /tmp). */
+	/* Stay in the same folder: shared folders (home, /tmp, /root, disks)
+	 * are the same inside. Elsewhere the program would see the
+	 * container's folder of that name, or none: say so. */
 	snprintf(target, sizeof(target), "%s", cwd);
+	if (!as_root && !dir && !shared(cwd))
+		fprintf(stderr, "whc: %s is not shared with the %s wormhole; "
+			"programs there see its own files (home, /tmp, /mnt and /media are shared)\n",
+			cwd, name);
 	if (chdir(target) < 0 && chdir("/") < 0)
 		die("cannot change directory: %s", strerror(errno));
 
@@ -166,6 +226,8 @@ int main(int argc, char **argv)
 		if (shell && (shell[0] != '/' || access(shell, X_OK) < 0))
 			setenv("SHELL", "/bin/sh", 1);
 	}
+	if (!as_root)
+		app_environment();
 	if (as_root) {
 		setenv("DEBIAN_FRONTEND", "noninteractive", 1);
 		setenv("HOME", "/root", 1);

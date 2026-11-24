@@ -343,8 +343,8 @@ class Qmp:
             if "return" in reply or "error" in reply:
                 return reply
 
-    def click(self, x, y, width, height, button):
-        """Move the tablet to (x, y) on a width x height screen and click."""
+    def move(self, x, y, width, height):
+        """Move the tablet to (x, y) on a width x height screen."""
         def abs_(axis, v, size):
             return {"type": "abs", "data": {"axis": axis, "value": v * 0x7fff // size}}
         # The display named: without one QEMU's vdagent scales the
@@ -352,6 +352,10 @@ class Qmp:
         self.execute("input-send-event", device="video0", head=0,
                      events=[abs_("x", x, width), abs_("y", y, height)])
         time.sleep(0.5)
+
+    def click(self, x, y, width, height, button):
+        """Move the tablet to (x, y) on a width x height screen and click."""
+        self.move(x, y, width, height)
         for down in (True, False):
             self.execute("input-send-event", device="video0", head=0, events=[
                 {"type": "btn", "data": {"down": down, "button": button}}])
@@ -573,8 +577,9 @@ def main():
                     checks[i] = ("GLES renderer on the 3D virtual GPU",
                                  "p=$(pidof labwc | cut -d' ' -f1); "
                                  "tr '\\0' '\\n' < /proc/$p/environ | grep -c WLR_RENDERER=pixman; "
-                                 "grep -c -e virtio_gpu -e libgallium /proc/$p/maps",
-                                 r"^0\n[1-9]")
+                                 "grep -c -e virtio_gpu -e libgallium /proc/$p/maps; "
+                                 "tr '\\0' '\\n' < /proc/$p/environ | grep -c WLR_NO_HARDWARE_CURSORS=1",
+                                 r"^0\n[1-9]\d*\n1$")
                 elif name == "GTK draws with cairo on a virtual GPU":
                     # GTK 4.24 keeps drawing with cairo here; the compositor
                     # uses the GPU either way.
@@ -837,6 +842,10 @@ def main():
             check("Caps Lock turns off on press", out == "xAb", out)
             px, py = width - 60, height - 80
             box = (width - width // 8, 0, width, height)
+            # The pointer goes there first: with virgl it is drawn into
+            # the frame, and its move is no menu.
+            qmp.move(px, py, width, height)
+            time.sleep(1)
             before = screen("before-click")[2]
             qmp.click(px, py, width, height, "left")
             time.sleep(2)

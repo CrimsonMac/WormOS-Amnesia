@@ -42,22 +42,58 @@ on top of this one.
   passwords, as in the disk image below. The live system's snapshots and
   files are not carried over.
 
-- **The disk image for QEMU / virt-manager** (`wormos-1.10-x86_64.qcow2`): an
+- **The disk image for QEMU / virt-manager** (`wormos-1.13-x86_64.qcow2`): an
   installed system, ready to start. In virt-manager,
   import an existing disk image and choose a generic recent Linux.
 
-  For smooth drawing in virt-manager, turn on OpenGL before the first
-  start: in the machine's details, *Display Spice*, set *Listen type* to
-  *None* and tick *OpenGL*; in *Video Virtio*, tick *3D acceleration*.
-  WormOS then draws with the virtual GPU (virgl), and the viewer shows
-  finished frames. Without it, everything still works, but SPICE sends
-  each change as image pieces that the viewer paints as they arrive, so
-  large changes (a scrolling terminal) visibly roll down the screen.
-  QEMU and virt-manager's window must use the same GPU: choose, under
-  *OpenGL*, the GPU your desktop runs on. If that is an NVIDIA card with
-  its own driver, libvirt hides the card's device files from QEMU
-  (`eglInitialize failed`); allow them once, as root, then choose the
-  NVIDIA card:
+  **Smooth drawing.** virt-manager's plain SPICE and VNC displays show
+  half-sent frames when the screen changes quickly (a scrolling
+  terminal): QEMU sends SPICE changes as strips 32 pixels wide, and when
+  output outruns encoding its VNC server sends part of a frame and the
+  rest later. A line then rolls across the window. WormOS's own frames
+  are complete; the fix is a display that hands whole frames over on the
+  GPU:
+
+  - *SPICE with OpenGL* in virt-manager (hosts with Intel or AMD
+    graphics): in the machine's details, *Display Spice*, set *Listen
+    type* to *None* and tick *OpenGL*, choosing the GPU your desktop runs
+    on; in *Video Virtio*, tick *3D acceleration*.
+  - *QEMU's own window* (any host, including NVIDIA's driver, where
+    SPICE with OpenGL fails: QEMU 11.1 hands the viewer frame handles
+    that are not DMA-BUFs, so the window stays black or virt-manager
+    stops responding with `failed to create EGL image from DMA-BUF`).
+    Shut the machine down in virt-manager, then start the same disk
+    with:
+    ```
+    qemu-system-x86_64 -machine q35,accel=kvm,vmport=off -cpu host -smp 4 -m 4G \
+        -drive file=wormos-x86_64.qcow2,if=virtio,format=qcow2 \
+        -device virtio-vga-gl -display gtk,gl=on,zoom-to-fit=off \
+        -device virtio-tablet-pci -device virtio-keyboard-pci \
+        -nic user,model=virtio-net-pci \
+        -audiodev pipewire,id=snd0 -device ich9-intel-hda \
+        -device hda-duplex,audiodev=snd0 \
+        -device virtio-serial-pci \
+        -chardev socket,id=vdagent0,path=/tmp/wormos-clipboard.sock,server=on,wait=off \
+        -device virtserialport,chardev=vdagent0,name=com.redhat.spice.0 &
+    tools/qemu-clipboard /tmp/wormos-clipboard.sock
+    ```
+    The screen follows the window size and sound goes through PipeWire.
+    `vmport=off` matters: otherwise QEMU uses VMware's mouse emulation,
+    which WormOS reads as a relative mouse, and the window keeps moving
+    the host pointer to the guest's. QEMU's window cannot share the
+    clipboard on a Wayland desktop (it may set and read it only in narrow
+    cases), so the guest's agent port goes to a socket and
+    `tools/qemu-clipboard` (from this repository; Python with GObject)
+    moves text between it and the desktop's clipboard, through KDE's
+    Klipper or `wl-copy`/`wl-paste`; it ends with QEMU. Ctrl+Alt+G releases
+    the pointer, Ctrl+Alt+F switches to full screen.
+
+  In virt-manager, *View* → *Scale Display* → *Auto resize VM with
+  window* makes WormOS use the window's size instead of being stretched
+  to it (it is off by default).
+
+  With an NVIDIA card, libvirt also hides the card's device files from
+  QEMU (`eglInitialize failed`); allow them once, as root:
   ```
   cat >> /etc/libvirt/qemu.conf <<'EOF'
   cgroup_device_acl = [
@@ -69,8 +105,6 @@ on top of this one.
   EOF
   systemctl restart libvirtd
   ```
-  (With another GPU chosen, the window stays black: the NVIDIA driver
-  cannot show frames rendered on a different GPU.)
 
   From the command line:
   ```
@@ -82,8 +116,9 @@ on top of this one.
       -chardev qemu-vdagent,id=vdagent,name=vdagent,clipboard=on,mouse=off \
       -device virtserialport,chardev=vdagent,name=com.redhat.spice.0
   ```
-  The last three lines share the clipboard with QEMU's window (when QEMU
-  is built with clipboard support) and with VNC viewers. virt-manager's
+  The last three lines share the clipboard with VNC viewers (and with
+  QEMU's window on an X11 desktop; on Wayland, see `tools/qemu-clipboard`
+  above). virt-manager's
   SPICE display shares it without them. For UEFI firmware, add
   `-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd`.
 - **QEMU on Windows:** install QEMU from https://qemu.weilnetz.de/w64/
@@ -117,6 +152,14 @@ The desktop is [labwc](https://labwc.github.io), a light stacking Wayland
 compositor, with the [foot](https://codeberg.org/dnkl/foot) terminal. It
 idles at well under 100 MB of memory.
 
+- The Super key (or the button at the left of the panel) opens the
+  launcher: start typing to search every program and tool by name,
+  command, keywords or description, the best match first; the arrow keys
+  choose and Enter starts. Its sidebar has Recent, All programs, the usual
+  categories and, once tools are installed, Kali's sections
+  (Reconnaissance, Credential Access, Discovery, Forensics and so on).
+  Programs with a window show as tiles; command line tools as rows that
+  open a terminal running the tool's help, ready to use it.
 - Right click on the background (or Super+Space) opens the menu: terminals,
   applications installed from wormholes, snapshots, screenshots, log out.
 - Super+Enter opens a terminal, Super+Q closes a window, Alt+Tab switches,
@@ -129,8 +172,12 @@ idles at well under 100 MB of memory.
   `wpctl set-default ID` picks the output.
 - Ctrl+Alt+F2 switches to a second console (for logging in as root);
   Ctrl+Alt+F1 returns to the desktop.
-- Administration is done as root: `su -` in a terminal, or the menu's root
-  terminal.
+- Administration is done as root: `su -` in a terminal, the menu's root
+  terminal, or `sudo COMMAND` (it asks for the root password, as there is
+  no sudoers file: the root account is the administrator). Graphical
+  programs open from the root terminal and from `sudo` (they keep the
+  desktop's display), not from a plain `su -`; programs from wormholes run
+  as well from your own terminal or the launcher.
 - `passwd` (or `worm passwd`) changes your own password, although `/etc`
   is read-only: it asks for the current one first.
 - Time: the first-boot setup asks for your time zone; `worm time` shows the
@@ -322,7 +369,13 @@ The core repository holds the base system and the tools that need direct
 access to the machine. Everything else comes from existing distributions:
 when a package is not in core, `wh install` looks in Debian stable, then in
 Kali, and installs it into a container for that distribution, a
-*wormhole*. Its commands appear on your `PATH` as if installed natively.
+*wormhole*. Its commands appear on your `PATH` as if installed natively,
+and it gets an entry in the launcher, as in Kali's menu, from the
+`tool-menus` package (built from Kali's `kali-menu`, which has the menu
+entries of the tools Kali and Debian carry): programs with a window start
+directly, command line tools open a terminal that runs the tool and stays
+open, and tools that need root ask for the root password first. Each
+lands in its section of the launcher.
 
 ```
 wh install fastfetch          # not in core: found in Debian, installed there
@@ -340,6 +393,31 @@ A wormhole is set up the first time it is needed, from the distribution's
 own signed archive (checked with `gpgv` against its archive keyring, which
 WormOS ships), and from then on it is managed by its own apt. These
 installs take effect immediately, without a restart.
+
+Programs from wormholes work like the system's own, whatever they are
+built with (GTK, Qt, Java, Electron, plain X11):
+
+- they open on the desktop: Qt, GTK and SDL programs use Wayland when the
+  wormhole has their Wayland support and Xwayland otherwise;
+- wh adds what such programs need but Debian only recommends (the SVG
+  icon loader and icon theme for GTK programs, the Wayland and SVG
+  plugins for Qt programs; `/usr/share/wh/runtime` lists these rules);
+- a program that opens a link, a file or a terminal, or that asks for root
+  with `sudo` or `pkexec` (GParted, `msfdb init`), reaches the desktop:
+  links and files open with the desktop's programs, terminals open on the
+  desktop, and root requests open the root terminal, which asks for the
+  root password and runs the program there;
+- they see your home folder, `/tmp`, disks under `/mnt` and `/media`, and,
+  run as root, root's home; elsewhere they see their distribution's own
+  files (they say so when started from another folder);
+- every package with commands gets a launcher entry: its own, Kali's (with
+  Kali's helper scripts, such as John the Ripper's list of `*2john`
+  helpers, run inside the wormhole), or else one that lists its commands;
+- a package split in parts (`vlc`, `keepassxc`) or with commands behind
+  Debian's alternatives (`nc`) exports them all, and a full program
+  replaces BusyBox's small version of the same name (`ipcalc`, `nc`) on
+  your `PATH`. Library packages (`python3-pefile`) are for programs in the
+  wormhole: `whc debian python3` runs Debian's Python with them.
 
 Wormholes share your home folder and the network: they make software
 available, they are not a security boundary. They live on a separate
@@ -586,7 +664,9 @@ them instead of shipped with the system:
 worm kit list                 # the kits
 worm kit show forensics       # what one contains
 worm kit install forensics    # install it (as root)
-worm kit remove forensics     # remove it again
+worm kit install web passwords   # several at once
+worm kit install all          # every kit
+worm kit remove forensics     # remove it again (several, or all, too)
 ```
 
 | Kit | For |
@@ -595,7 +675,7 @@ worm kit remove forensics     # remove it again
 | `forensics` | disk images, deleted files, metadata, hashes (sleuthkit, testdisk, foremost, binwalk, exiftool, yara...) |
 | `network` | lookups, routes, throughput, captures (whois, traceroute, mtr, iperf3, socat from WormOS; dig, tshark, ngrep...) |
 | `blueteam` | malware scanning and audits (clamav, lynis, chkrootkit, rkhunter, yara...) |
-| `reverse` | disassemblers and debuggers (radare2, gdb, ltrace, upx, pwntools...) |
+| `reverse` | disassemblers and debuggers (rizin and its window Cutter, gdb, ltrace, upx, pwntools...; radare2 is in neither Debian 13 nor Kali) |
 | `web` | web application scanners and fuzzers (sqlmap, gobuster, ffuf, feroxbuster...) |
 | `passwords` | crackers and hash tools (john, hashcat, hydra, medusa...) |
 | `pentest` | from Kali: Metasploit, exploit-db, NetExec, Impacket, Responder... |
@@ -606,7 +686,8 @@ runs in that distribution's wormhole, which shares your home folder: your
 files are the kits' workspace, and the base system stays untouched. A tool
 no source has is reported and skipped. Tools that are WormOS packages
 (most of `basic`, a few of `network`) are installed last, all in one
-change with one quick restart, and removing the kit keeps those that were
+change with one quick restart (also when several kits are installed at
+once), and removing the kit keeps those that were
 there before it. Open samples you do not trust in a
 blackhole, not with a kit's tools on your files.
 

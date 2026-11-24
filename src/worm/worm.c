@@ -293,7 +293,7 @@ static void usage(FILE *out)
 {
 	fputs("usage: worm help [COMMAND] | status | panic [off] | anon on|off|status|bridges KIND | unlock |\n"
 	      "       worm lock [-c COMMENT]\n"
-	      "       worm kit [list] | show NAME | install NAME | remove NAME\n"
+	      "       worm kit [list] | show NAME | install NAME...|all | remove NAME...|all\n"
 	      "       worm time [zones [TEXT] | zone NAME | sync]\n"
 	      "       worm passwd           change your own password\n"
 	      "       worm fw status | allow PORT[/tcp|/udp] | deny PORT[/tcp|/udp] | load\n"
@@ -339,7 +339,8 @@ static void overview(void)
 	printf("%sTool kits%s\n"
 	       "  worm kit list            forensics, network, reverse engineering, web...\n"
 	       "  worm kit show NAME       what a kit contains\n"
-	       "  worm kit install NAME    install its tools (root); basic: everyday tools\n\n", m, r);
+	       "  worm kit install NAME... install their tools (root); all: every kit;\n"
+	       "                           basic: everyday tools\n\n", m, r);
 	printf("%sTime%s\n"
 	       "  worm time                the time, the time zone, the last clock check\n"
 	       "  worm time zone NAME      set the time zone (root; worm time zones lists them)\n\n",

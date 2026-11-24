@@ -6,7 +6,7 @@
       <action name="Execute" command="foot" />
     </item>
     <item label="Root terminal">
-      <action name="Execute" command="foot --title 'Root terminal' su -" />
+      <action name="Execute" command="foot --title 'Root terminal' /usr/lib/worm/root-terminal" />
     </item>
     <menu id="apps" label="Applications" execute="/usr/lib/worm/apps-menu" />
     <separator />

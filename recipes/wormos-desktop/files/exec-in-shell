@@ -1,0 +1,50 @@
+#!/bin/sh
+# Menu entries of command line tools, as in Kali's menu: show the command,
+# run it (usually the tool's help) and stay in a shell to use the tool.
+#   exec-in-shell COMMAND              run COMMAND, then the user's shell
+#   exec-in-shell --in WORMHOLE --script NAME
+#                                      run one of Kali's helper scripts
+#                                      (tool-menus) inside the wormhole
+#   exec-in-shell --about PACKAGE      show a wormhole package and its
+#                                      commands (wh's generated entries)
+# --root first runs it as root, after the root terminal's password prompt.
+# --run (used by --root) leaves out the shell afterwards.
+root= run= wormhole= script= about=
+while [ $# -gt 0 ]; do
+	case $1 in
+	--root) root=1; shift ;;
+	--run) run=1; shift ;;
+	--in) wormhole=$2; shift 2 ;;
+	--script) script=$2; shift 2 ;;
+	--about) about=$2; shift 2 ;;
+	*) break ;;
+	esac
+done
+if [ -n "$root" ]; then
+	if [ -n "$script" ]; then
+		exec /usr/lib/worm/root-terminal "/usr/lib/worm/exec-in-shell --run --in $wormhole --script $script"
+	fi
+	exec /usr/lib/worm/root-terminal "${1:-}"
+fi
+if [ -n "$about" ]; then
+	record=/var/lib/wh/foreign/$about
+	src=$(sed -n 's/^source = //p' "$record" 2>/dev/null)
+	desc=$(sed -n 's/^description = //p' "$record" 2>/dev/null)
+	printf '\033[1m%s\033[0m (from the %s wormhole)%s\n\n' "$about" "${src:-?}" "${desc:+: $desc}"
+	echo "Commands:"
+	sed -n 's|^export = /usr/local/bin/|  |p' "$record" 2>/dev/null
+	first=$(sed -n 's|^export = /usr/local/bin/||p' "$record" 2>/dev/null | head -1)
+	[ -n "$first" ] && printf '\nEach one explains itself with --help, for example: %s --help\n' "$first"
+elif [ -n "$script" ]; then
+	file=/usr/share/wormos/tool-menu/helper-scripts/$script
+	case $script in */*|"") echo "exec-in-shell: bad script name" >&2; exit 1 ;; esac
+	printf '\033[1m$ %s\033[0m\n' "${script%.sh}"
+	# With the interpreter its first line names (john's uses bash).
+	interp=$(sed -n '1s|^#! *\([^ ]*\).*|\1|p' "$file")
+	whc "$wormhole" "${interp:-/bin/sh}" -c "$(cat "$file")"
+else
+	printf '\033[1m$ %s\033[0m\n' "${1:-}"
+	sh -c "${1:-}"
+fi
+[ -n "$run" ] && exit
+exec "${SHELL:-/bin/sh}" -i

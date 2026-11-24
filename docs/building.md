@@ -46,6 +46,22 @@ archives; it needs internet access and takes several minutes.
 toolkits (Ghidra and Burp Suite from Kali, a GTK, a Qt and a Tk program
 from Debian; several GB of downloads) and checks that each opens a window.
 
+`make test-apps` (`tests/apps-test.py`) checks programs the way a user
+meets them: it answers the first-boot setup, so the desktop runs with the
+session's real environment (the old checks set `GDK_BACKEND=x11` and
+`QT_QPA_PLATFORM=xcb` themselves, which hid that every Qt program from
+Debian quit on the desktop), installs every tool kit and 21 graphical
+programs (GTK 3 and 4, Qt 5 and 6, Java, Firefox and Chromium, X11) on a
+60 GiB copy of the image, then starts every menu entry with `gio launch`
+from the shell's environment and waits for its window (listed by
+`tests/toplevels.c` over wlr-foreign-toplevel, built with the WormOS
+toolchain), runs every terminal entry's command and every exported command
+with `--help`, looking for signs of a broken program (missing libraries,
+modules, scripts or toolkit plugins), and checks the runtime: rules,
+stand-ins and the bridge, generated entries, Kali's helper scripts.
+`KITS=web,passwords` limits the kits; it takes over an hour with all of
+them. Every program's result is in `build/apps-report.txt`.
+
 `make test-upgrade FROM=wormos-1.8-x86_64.qcow2` sets up an older release
 image and upgrades it to the packages just built.
 

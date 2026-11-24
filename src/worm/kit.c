@@ -4,9 +4,11 @@
  *
  *     worm kit list              the kits, and which are installed
  *     worm kit show NAME         what a kit contains
- *     worm kit install NAME      install its tools (root)
- *     worm kit remove NAME       remove its tools, except those another
- *                                installed kit also has (root)
+ *     worm kit install NAME...   install the tools of one or more kits
+ *                                (all: every kit; root)
+ *     worm kit remove NAME...    remove their tools, except those another
+ *                                installed kit also has (all: every
+ *                                installed kit; root)
  *
  * A kit is a list of packages. wh installs each one from the first source
  * that has it (core, Debian, then Kali): tools from Debian and Kali land
@@ -30,7 +32,8 @@
  *
  * Core packages change the system itself: wh installs them into a copy and
  * restarts the system quickly to apply it. They are therefore installed
- * last, all in one change, with the kit recorded beforehand.
+ * last, all in one change (for every kit named), with the kits recorded
+ * beforehand.
  */
 
 #define _GNU_SOURCE
@@ -231,125 +234,235 @@ static void write_record(const char *name, char list[][64], int count)
 		die("cannot write %s", final);
 }
 
-static int cmd_install(const char *name)
-{
-	char failed[1024] = "", record[MAX_TOOLS][64];
-	char *argv[MAX_TOOLS + 4] = { "wh", "--yes", "install" };
-	int ok = 0, nfailed = 0, nrecord = 0, nforeign = 0, ncore = 0, argc = 3;
-	struct kit k;
+#define MAX_KITS 32
 
-	if (load_kit(name, &k) < 0)
-		die("there is no kit '%s'; worm kit list shows them", name);
+/*
+ * The kits named on the command line ("all": every kit), loaded. Each
+ * name once; an unknown one stops before anything is installed.
+ */
+static int load_kits(char **args, int nargs, struct kit *kits)
+{
+	char list[MAX_KITS][64];
+	int n = 0;
+
+	if (nargs == 1 && !strcmp(args[0], "all")) {
+		int count = names(list, MAX_KITS);
+
+		for (int i = 0; i < count; i++)
+			if (load_kit(list[i], &kits[n]) == 0)
+				n++;
+		return n;
+	}
+	for (int i = 0; i < nargs && n < MAX_KITS; i++) {
+		int dup = 0;
+
+		if (!strcmp(args[i], "all"))
+			die("'all' stands alone: worm kit install all%s", "");
+		for (int j = 0; j < n; j++)
+			dup |= !strcmp(kits[j].name, args[i]);
+		if (dup)
+			continue;
+		if (load_kit(args[i], &kits[n]) < 0)
+			die("there is no kit '%s'; worm kit list shows them", args[i]);
+		n++;
+	}
+	return n;
+}
+
+/*
+ * Install one or more kits. The tools from Debian and Kali go first, kit
+ * by kit; then the core packages of every kit go into one change (which
+ * restarts the system), with the kits recorded beforehand.
+ */
+static int cmd_install(char **args, int nargs)
+{
+	static struct kit kits[MAX_KITS];
+	static char record[MAX_KITS][MAX_TOOLS][64], done[MAX_KITS * MAX_TOOLS][64];
+	char failed[4096] = "";
+	char *argv[MAX_KITS * MAX_TOOLS + 4] = { "wh", "--yes", "install" };
+	int nrecord[MAX_KITS] = { 0 }, ok[MAX_KITS] = { 0 }, ncore_added[MAX_KITS] = { 0 };
+	int nkits = load_kits(args, nargs, kits), ndone = 0, nfailed = 0, argc = 3, total = 0;
+
+	if (nkits == 0)
+		die("there are no kits%s", "");
 	if (fw_network_cut())
 		die("the network is cut; 'worm panic off' restores it first%s", "");
 	mkdir("/var/lib/worm", 0755);
 	mkdir(KIT_STATE, 0755);
-	for (int i = 0; i < k.ntools; i++)
-		k.core[i] ? ncore++ : nforeign++;
-	printf("Installing the %s kit: %d tools.", k.title, k.ntools);
-	if (nforeign)
-		printf(" Tools from Debian and Kali run in\nwormholes, which share your "
-		       "home folder: your files are their workspace.");
-	printf("\n\n");
+	if (nkits > 1) {
+		printf("Installing %d kits:", nkits);
+		for (int k = 0; k < nkits; k++)
+			printf(" %s", kits[k].name);
+		printf(".\n");
+	}
 
-	for (int i = 0, n = 0; i < k.ntools; i++) {
-		if (k.core[i])
-			continue;
-		printf("[%d/%d] %s\n", ++n, nforeign, k.tools[i]);
-		fflush(stdout);
-		if (run((char *[]){ "wh", "--yes", "install", k.tools[i], NULL }, NULL, 0, 0) == 0) {
-			snprintf(record[nrecord++], 64, "%s", k.tools[i]);
-			ok++;
-		} else {
-			size_t len = strlen(failed);
+	for (int k = 0; k < nkits; k++) {
+		struct kit *kit = &kits[k];
+		int nforeign = 0;
 
-			snprintf(failed + len, sizeof(failed) - len, " %s", k.tools[i]);
-			nfailed++;
+		for (int i = 0; i < kit->ntools; i++)
+			nforeign += !kit->core[i];
+		printf("%sInstalling the %s kit: %d tools.", k ? "\n" : "", kit->title, kit->ntools);
+		if (nforeign)
+			printf(" Tools from Debian and Kali run in\nwormholes, which share your "
+			       "home folder: your files are their workspace.");
+		printf("\n\n");
+		for (int i = 0, n = 0; i < kit->ntools; i++) {
+			int seen = 0;
+
+			if (kit->core[i])
+				continue;
+			printf("[%d/%d] %s\n", ++n, nforeign, kit->tools[i]);
+			fflush(stdout);
+			/* Installed by an earlier kit of this run. */
+			for (int d = 0; d < ndone && !seen; d++)
+				seen = !strcmp(done[d], kit->tools[i]);
+			if (seen || run((char *[]){ "wh", "--yes", "install", kit->tools[i], NULL },
+					NULL, 0, 0) == 0) {
+				snprintf(record[k][nrecord[k]++], 64, "%s", kit->tools[i]);
+				ok[k]++;
+				if (!seen && ndone < MAX_KITS * MAX_TOOLS)
+					snprintf(done[ndone++], 64, "%s", kit->tools[i]);
+			} else {
+				size_t len = strlen(failed);
+
+				snprintf(failed + len, sizeof(failed) - len, " %s", kit->tools[i]);
+				nfailed++;
+			}
 		}
 	}
 
-	/* The core packages, in one change, recorded beforehand: applying it
-	 * restarts the system. */
-	for (int i = 0; i < k.ntools; i++) {
-		if (!k.core[i])
-			continue;
-		if (core_installed(k.tools[i])) {
-			ok++;
-			continue;
+	/* The core packages of every kit, in one change, recorded beforehand:
+	 * applying it restarts the system. */
+	for (int k = 0; k < nkits; k++) {
+		for (int i = 0; i < kits[k].ntools; i++) {
+			int dup = 0;
+
+			if (!kits[k].core[i])
+				continue;
+			if (core_installed(kits[k].tools[i])) {
+				ok[k]++;
+				continue;
+			}
+			snprintf(record[k][nrecord[k]++], 64, "%s", kits[k].tools[i]);
+			ncore_added[k]++;
+			for (int a = 3; a < argc && !dup; a++)
+				dup = !strcmp(argv[a], kits[k].tools[i]);
+			if (!dup)
+				argv[argc++] = kits[k].tools[i];
 		}
-		argv[argc++] = k.tools[i];
 	}
+	for (int k = 0; k < nkits; k++)
+		if (ok[k] + ncore_added[k] > 0)
+			write_record(kits[k].name, record[k], nrecord[k]);
 	if (argc > 3) {
-		write_record(name, record, nrecord);
-		for (int i = 3; i < argc; i++)
-			snprintf(record[nrecord++], 64, "%s", argv[i]);
-		write_record(name, record, nrecord);
 		printf("\n%d core packages (the others are already installed), in one change:\n",
 		       argc - 3);
 		fflush(stdout);
 		argv[argc] = NULL;
 		if (run(argv, NULL, 0, 0) == 0) {
-			ok += argc - 3;
+			for (int k = 0; k < nkits; k++)
+				ok[k] += ncore_added[k];
 		} else {
-			nrecord -= argc - 3;
-			for (int i = 3; i < argc; i++) {
+			for (int a = 3; a < argc; a++) {
 				size_t len = strlen(failed);
 
-				snprintf(failed + len, sizeof(failed) - len, " %s", argv[i]);
+				snprintf(failed + len, sizeof(failed) - len, " %s", argv[a]);
 				nfailed++;
+			}
+			for (int k = 0; k < nkits; k++) {
+				nrecord[k] -= ncore_added[k];
+				if (ok[k] > 0)
+					write_record(kits[k].name, record[k], nrecord[k]);
 			}
 		}
 	}
-	if (ok > 0) {
-		write_record(name, record, nrecord);
-	} else {
-		char path[PATH_MAX];
+	printf("\n");
+	for (int k = 0; k < nkits; k++) {
+		if (ok[k] == 0) {
+			char path[PATH_MAX];
 
-		snprintf(path, sizeof(path), "%s/%s", KIT_STATE, name);
-		unlink(path);
+			snprintf(path, sizeof(path), "%s/%s", KIT_STATE, kits[k].name);
+			unlink(path);
+		}
+		total += ok[k];
+		printf("The %s kit: %d of %d tools installed.\n", kits[k].title, ok[k],
+		       kits[k].ntools);
 	}
-	printf("\nThe %s kit: %d of %d tools installed.\n", k.title, ok, k.ntools);
 	if (nfailed)
 		printf("Not installed (no source has them, or the install failed):%s\n", failed);
-	return ok > 0 ? 0 : 1;
+	return total > 0 ? 0 : 1;
 }
 
-static int cmd_remove(const char *name)
+/*
+ * Remove one or more kits: their tools, except those another installed
+ * kit (not being removed) also has; their core packages in one change.
+ */
+static int cmd_remove(char **args, int nargs)
 {
-	char tools[MAX_TOOLS][64], other[MAX_TOOLS][64], list[64][64], path[PATH_MAX];
-	char *argv[MAX_TOOLS + 4] = { "wh", "--yes", "remove" };
-	int n = installed_tools(name, tools, MAX_TOOLS), nkits = names(list, 64), removed = 0;
-	int argc = 3;
+	static char tools[MAX_TOOLS][64], other[MAX_TOOLS][64], list[64][64];
+	static char cores[MAX_KITS * MAX_TOOLS][64];
+	char path[PATH_MAX], *argv[MAX_KITS * MAX_TOOLS + 4] = { "wh", "--yes", "remove" };
+	char *names_given[MAX_KITS];
+	int nkits = names(list, 64), argc = 3, ngiven = 0;
 
-	if (!valid_name(name) || n < 0)
-		die("the kit '%s' is not installed", name);
-	for (int i = 0; i < n; i++) {
-		int shared = 0;
-
-		/* Keep what another installed kit brought too. */
-		for (int j = 0; j < nkits && !shared; j++) {
-			int m;
-
-			if (!strcmp(list[j], name))
-				continue;
-			m = installed_tools(list[j], other, MAX_TOOLS);
-			for (int t = 0; t < m && !shared; t++)
-				shared = !strcmp(other[t], tools[i]);
+	if (nargs == 1 && !strcmp(args[0], "all")) {
+		for (int j = 0; j < nkits && ngiven < MAX_KITS; j++)
+			if (kit_installed(list[j]))
+				names_given[ngiven++] = list[j];
+		if (!ngiven) {
+			printf("No kit is installed.\n");
+			return 0;
 		}
-		if (shared) {
-			printf("Keeping %s (another kit has it).\n", tools[i]);
-			continue;
+	} else {
+		for (int i = 0; i < nargs && ngiven < MAX_KITS; i++) {
+			if (!valid_name(args[i]) || installed_tools(args[i], tools, MAX_TOOLS) < 0)
+				die("the kit '%s' is not installed", args[i]);
+			names_given[ngiven++] = args[i];
 		}
-		if (core_installed(tools[i])) {
-			argv[argc++] = tools[i];
-			continue;
-		}
-		if (run((char *[]){ "wh", "--yes", "remove", tools[i], NULL }, NULL, 0, 0) == 0)
-			removed++;
 	}
-	snprintf(path, sizeof(path), "%s/%s", KIT_STATE, name);
-	unlink(path);
-	printf("Removed the kit '%s' (%d tools).\n", name, removed);
+	for (int g = 0; g < ngiven; g++) {
+		const char *name = names_given[g];
+		int n = installed_tools(name, tools, MAX_TOOLS), removed = 0;
+
+		for (int i = 0; i < n; i++) {
+			int shared = 0;
+
+			/* Keep what another installed kit brought too. */
+			for (int j = 0; j < nkits && !shared; j++) {
+				int m, leaving = 0;
+
+				for (int h = 0; h < ngiven; h++)
+					leaving |= !strcmp(list[j], names_given[h]);
+				if (leaving)
+					continue;
+				m = installed_tools(list[j], other, MAX_TOOLS);
+				for (int t = 0; t < m && !shared; t++)
+					shared = !strcmp(other[t], tools[i]);
+			}
+			if (shared) {
+				printf("Keeping %s (another kit has it).\n", tools[i]);
+				continue;
+			}
+			if (core_installed(tools[i])) {
+				int dup = 0;
+
+				for (int a = 3; a < argc && !dup; a++)
+					dup = !strcmp(argv[a], tools[i]);
+				if (!dup && argc - 3 < MAX_KITS * MAX_TOOLS) {
+					snprintf(cores[argc - 3], 64, "%s", tools[i]);
+					argv[argc] = cores[argc - 3];
+					argc++;
+				}
+				continue;
+			}
+			if (run((char *[]){ "wh", "--yes", "remove", tools[i], NULL }, NULL, 0, 0) == 0)
+				removed++;
+		}
+		snprintf(path, sizeof(path), "%s/%s", KIT_STATE, name);
+		unlink(path);
+		printf("Removed the kit '%s' (%d tools).\n", name, removed);
+	}
 	if (argc > 3) {
 		/* Core packages: one change, which restarts the system. */
 		printf("Removing %d core packages in one change:\n", argc - 3);
@@ -368,15 +481,24 @@ int cmd_kit(int argc, char **argv)
 		return cmd_list();
 	if (argc == 2 && !strcmp(argv[0], "show"))
 		return cmd_show(argv[1]);
-	if (argc == 2 && (!strcmp(argv[0], "install") || !strcmp(argv[0], "remove"))) {
+	if (argc >= 2 && (!strcmp(argv[0], "install") || !strcmp(argv[0], "remove"))) {
+		if (argc - 1 > MAX_KITS)
+			die("too many kits at once (at most 32)%s", "");
 		if (geteuid() != 0) {
 			/* Editions without root (WormOS Amnesia) let users install. */
-			if (access("/etc/wh/users-may-install", F_OK) == 0)
-				execv("/usr/lib/wh/user", (char *[]){ "wh-user", "kit", argv[0],
-								      argv[1], NULL });
+			if (access("/etc/wh/users-may-install", F_OK) == 0) {
+				char *user[MAX_KITS + 4] = { "wh-user", "kit" };
+				int n = 2;
+
+				for (int i = 0; i < argc; i++)
+					user[n++] = argv[i];
+				user[n] = NULL;
+				execv("/usr/lib/wh/user", user);
+			}
 			die("this needs root, try again with su%s", "");
 		}
-		return !strcmp(argv[0], "install") ? cmd_install(argv[1]) : cmd_remove(argv[1]);
+		return !strcmp(argv[0], "install") ? cmd_install(argv + 1, argc - 1)
+						   : cmd_remove(argv + 1, argc - 1);
 	}
 	return 2;
 }

@@ -1,0 +1,33 @@
+#!/bin/sh
+# The root terminal: root's login shell, asking for the root password.
+# su - clears the environment, so programs started as root could not find
+# the desktop (Ghidra and other graphical wormhole programs quit at once):
+# the display goes along (the Wayland socket by its full path and
+# Xwayland's display number) to root-shell, which sets it up as root, with
+# the user's wormhole bridge (wormhole programs run as root still open
+# links and terminals on the desktop).
+# With a command (menu entries of tools that need root, wormhole programs
+# asking for root), root runs it first, in FOLDER with --cd. --once runs
+# only the command and returns its status (sudo).
+# Usage: root-terminal [--once] [--cd FOLDER] [COMMAND]
+once= folder=
+while [ $# -gt 0 ]; do
+	case $1 in
+	--once) once=1; shift ;;
+	--cd) folder=$2; shift 2 ;;
+	*) break ;;
+	esac
+done
+wayland=
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+	case $WAYLAND_DISPLAY in
+	/*) wayland=$WAYLAND_DISPLAY ;;
+	*) wayland=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$WAYLAND_DISPLAY ;;
+	esac
+fi
+bridge=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/wormhole-bridge
+[ -p "$bridge" ] || bridge=
+# Xwayland admits only its own user: add root (it starts Xwayland if needed).
+[ -n "${DISPLAY:-}" ] && /usr/lib/worm/x11-allow-root 2>/dev/null
+exec su - root -c 'exec /usr/lib/worm/root-shell "$@"' root-shell \
+	"$wayland" "${DISPLAY:-}" "${1:-}" "$folder" "$bridge" "$once"

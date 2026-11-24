@@ -33,10 +33,11 @@ time)
 kit)
 	if (( CURRENT == 3 )); then
 		local -a cmds=('list:the tool kits' 'show:what a kit contains'
-			'install:install a kit (root)' 'remove:remove a kit (root)')
+			'install:install kits, or all (root)' 'remove:remove kits, or all (root)')
 		_describe -t commands 'kit command' cmds
-	elif (( CURRENT == 4 )); then
+	elif (( CURRENT == 4 )) || [[ $words[3] == (install|remove) ]]; then
 		local -a kits=(/usr/share/worm/kits/*(N:t))
+		[[ $words[3] == (install|remove) ]] && (( CURRENT == 4 )) && kits+=(all)
 		compadd -a kits
 	fi
 	;;

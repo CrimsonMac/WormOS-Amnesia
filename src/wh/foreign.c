@@ -50,6 +50,9 @@
 #define EXPORT_DIR     "/usr/local/bin"
 #define EXPORT_SHARE   "/usr/local/share"
 #define MAX_EXPORT_FILE (8 << 20)
+/* Written once an upgrade has given every wormhole the runtime of this wh
+ * (the welcome text asks for one until then). */
+#define RUNTIME_STAMP  "/var/lib/wh/runtime-1"
 #define ARCH           "amd64"
 #define MAX_SOURCES    8
 #define MAX_APT        8
@@ -144,7 +147,7 @@ int wormhole_exists(const char *name)
 }
 
 /* Run a command inside a wormhole as root; out captures stdout if given. */
-static int in_wormhole(const char *name, char *const cmd[], char *out, size_t len)
+int in_wormhole(const char *name, char *const cmd[], char *out, size_t len)
 {
 	char *argv[32];
 	int n = 0;
@@ -797,17 +800,7 @@ int wormhole_setup(const char *name)
 	write_text(dir, "usr/sbin/policy-rc.d",
 		   "#!/bin/sh\n# Services are not started in a wormhole.\nexit 101\n", 0755);
 	write_text(dir, "etc/hostname", "wormhole\n", 0644);
-	write_text(dir, "etc/dpkg/dpkg.cfg.d/90wormhole",
-		   "# Kept small: no documentation or translations.\n"
-		   "path-exclude=/usr/share/doc/*\n"
-		   "path-include=/usr/share/doc/*/copyright\n"
-		   "path-exclude=/usr/share/man/*\n"
-		   "path-exclude=/usr/share/info/*\n"
-		   "path-exclude=/usr/share/locale/*\n"
-		   "path-include=/usr/share/locale/locale.alias\n"
-		   "# A container that is rebuilt rather than repaired: dpkg need not\n"
-		   "# sync every file it writes.\n"
-		   "force-unsafe-io\n", 0644);
+	write_text(dir, "etc/dpkg/dpkg.cfg.d/90wormhole", wormhole_dpkg_cfg, 0644);
 	write_text(dir, "etc/apt/apt.conf.d/90wormhole",
 		   "APT::Install-Recommends \"false\";\n"
 		   "APT::Install-Suggests \"false\";\n"
@@ -849,14 +842,13 @@ int wormhole_setup(const char *name)
 		die("apt-get update failed in the new wormhole");
 	run((char *[]){ "whc", "--root", "--dir", dir, "--", "apt-get", "clean", NULL }, NULL, 0);
 	{
-		/* Remove documentation unpacked before the exclusions applied. */
+		/* Remove manual pages unpacked before the exclusions applied. */
 		char cmd[PATH_MAX * 2];
 
 		snprintf(cmd, sizeof(cmd),
 			 "cd '%s/usr/share' && rm -rf man info && "
 			 "mkdir -p man/man1 man/man2 man/man3 man/man4 man/man5 man/man6 "
 			 "man/man7 man/man8 man/man9 info && "
-			 "find doc -type f ! -name copyright -delete 2>/dev/null; "
 			 "find locale -mindepth 1 -maxdepth 1 ! -name locale.alias "
 			 "-exec rm -rf {} + 2>/dev/null; true", dir);
 		run((char *[]){ "sh", "-c", cmd, NULL }, NULL, 0);
@@ -938,6 +930,64 @@ static char *read_inside(const char *source, const char *path, size_t *len)
 	return buf;
 }
 
+/*
+ * stat() a path of the wormhole, following links inside it (Debian's
+ * alternatives: /usr/bin/nc -> /etc/alternatives/nc -> nc.openbsd).
+ */
+static int stat_inside(const char *source, const char *path, struct stat *st)
+{
+	struct open_how how = {
+		.flags = O_PATH | O_CLOEXEC,
+		.resolve = RESOLVE_IN_ROOT | RESOLVE_NO_MAGICLINKS,
+	};
+	char dir[PATH_MAX];
+	int dfd, fd, r;
+
+	wormhole_dir(dir, sizeof(dir), source);
+	if ((dfd = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC)) < 0)
+		return -1;
+	while (*path == '/')
+		path++;
+	fd = syscall(SYS_openat2, dfd, path, &how, sizeof(how));
+	close(dfd);
+	if (fd < 0)
+		return -1;
+	r = fstat(fd, st);
+	close(fd);
+	return r;
+}
+
+/*
+ * May a wormhole's command go in front of the system's command of that
+ * name? Only BusyBox's small versions (links to busybox) give way: a user
+ * who installs Debian's ipcalc or netcat wants the full program. Services
+ * do not look in /usr/local/bin, so the system itself keeps BusyBox's.
+ */
+static int system_command(const char *cmd)
+{
+	static const char *const dirs[] = { "/usr/bin/", "/usr/sbin/", NULL };
+
+	for (int i = 0; dirs[i]; i++) {
+		char path[PATH_MAX], target[PATH_MAX];
+		ssize_t n;
+
+		snprintf(path, sizeof(path), "%s%s", dirs[i], cmd);
+		if (access(path, F_OK) < 0 && errno == ENOENT)
+			continue;
+		n = readlink(path, target, sizeof(target) - 1);
+		if (n > 0) {
+			const char *base;
+
+			target[n] = '\0';
+			base = strrchr(target, '/');
+			if (!strcmp(base ? base + 1 : target, "busybox"))
+				continue;
+		}
+		return 1;
+	}
+	return 0;
+}
+
 static int write_export(const char *dest, const char *data, size_t len)
 {
 	char dir[PATH_MAX], tmp[PATH_MAX + 16];
@@ -992,8 +1042,16 @@ static char *host_entry(const char *text, char *const *cmds, int ncmds, size_t *
 		    !strncmp(line, "TryExec=", 8) || !strncmp(line, "DBusActivatable=", 16))
 			continue;
 		if (!strncmp(line, "Exec=", 5)) {
-			char *prog = line + 5, *end, *base, quote = 0;
+			char *prog = line + 5, *end, *base, *start, quote = 0;
 
+			/* "env GDK_BACKEND=x11 audacity %F": the program comes
+			 * after env and its settings, which stay. */
+			if (!strncmp(prog, "env ", 4))
+				prog += 4;
+			while (*prog && *prog != '"' && *prog != '/' &&
+			       memchr(prog, '=', strcspn(prog, " ")) && strchr(prog, ' '))
+				prog = strchr(prog, ' ') + 1;
+			start = prog;
 			if (*prog == '"')
 				quote = *prog++;
 			end = prog + strcspn(prog, quote ? "\"" : " ");
@@ -1005,8 +1063,8 @@ static char *host_entry(const char *text, char *const *cmds, int ncmds, size_t *
 				snprintf(name, sizeof(name), "%.*s", (int)(end - base), base);
 				if (!word_is_exported(name, cmds, ncmds))
 					break;
-				n += sprintf(out + n, "Exec=%s%s\n", name,
-					     *end && quote ? end + 1 : end);
+				n += sprintf(out + n, "Exec=%.*s%s%s\n", (int)(start - (line + 5)), line + 5,
+					     name, *end && quote ? end + 1 : end);
 			}
 			has_exec = 1;
 			continue;
@@ -1027,10 +1085,11 @@ static char *host_entry(const char *text, char *const *cmds, int ncmds, size_t *
  * Export the desktop entries and icons in the package's file list (list,
  * one path per line), for the commands just exported. Records each file.
  */
-static void export_desktop(const char *source, const char *list, char *const *cmds,
-			   int ncmds, FILE *record)
+static int export_desktop(const char *source, const char *list, char *const *cmds,
+			  int ncmds, FILE *record)
 {
 	char *copy = strdup(list), *line, *save;
+	int entries = 0;
 
 	if (!copy)
 		die("out of memory");
@@ -1049,8 +1108,10 @@ static void export_desktop(const char *source, const char *list, char *const *cm
 			if (!entry)
 				continue;
 			snprintf(dest, sizeof(dest), EXPORT_SHARE "/applications/%s", line + 24);
-			if (write_export(dest, entry, elen) == 0)
+			if (write_export(dest, entry, elen) == 0) {
 				fprintf(record, "export = %s\n", dest);
+				entries++;
+			}
 			free(entry);
 			continue;
 		}
@@ -1067,32 +1128,396 @@ static void export_desktop(const char *source, const char *list, char *const *cm
 		free(data);
 	}
 	free(copy);
+	return entries;
+}
+
+/*
+ * Menu entries for security tools. Kali keeps them (for its tools and for
+ * Debian's tools it carries) in kali-menu, not in the tools' packages, so
+ * Ghidra or crunch would install without one. The tool-menus package has
+ * them in TOOL_MENU, with Kali's sections; a package installed from any
+ * wormhole gets the entries naming it in X-Kali-Package, for programs it
+ * exported:
+ *   - a program with a window starts directly;
+ *   - a command line tool (Kali: exec-in-shell "CMD") opens a terminal
+ *     that runs CMD and stays open (/usr/lib/worm/exec-in-shell);
+ *   - CMD given with sudo, and pkexec programs, run as root through the
+ *     root terminal's password prompt (exec-in-shell --root).
+ * Each entry names its section (X-WormOS-Section) for the launcher. When
+ * the package brings its own entries, Kali's for its windowed programs
+ * are left out (two entries for one program).
+ */
+#define TOOL_MENU "/usr/share/wormos/tool-menu"
+#define HELPER_PREFIX "/usr/share/kali-menu/helper-scripts/"
+#define EXEC_IN_SHELL "/usr/lib/worm/exec-in-shell"
+
+/* The section of the first category with one ("NAME"), or NULL. */
+static char *tool_section(const char *categories)
+{
+	char line[512], *found = NULL, *cats = strdup(categories), *c, *save;
+	FILE *f;
+
+	if (!cats || !(f = fopen(TOOL_MENU "/sections", "re"))) {
+		free(cats);
+		return NULL;
+	}
+	for (c = strtok_r(cats, ";", &save); c && !found; c = strtok_r(NULL, ";", &save)) {
+		size_t n = strlen(c);
+
+		rewind(f);
+		while (fgets(line, sizeof(line), f)) {
+			char *bar1, *bar2;
+
+			if (strncmp(line, c, n) || strncmp(line + n, " = ", 3))
+				continue;
+			if ((bar1 = strchr(line + n + 3, '|')) && (bar2 = strchr(bar1 + 1, '|'))) {
+				*bar2 = '\0';
+				found = strdup(bar1 + 1);
+			}
+			break;
+		}
+	}
+	fclose(f);
+	free(cats);
+	return found;
+}
+
+/* Quote s as one argument of a desktop entry's Exec line. */
+static void exec_quote(char *out, size_t size, const char *s)
+{
+	size_t n = 0;
+
+	if (size < 3)
+		return;
+	out[n++] = '"';
+	for (; *s && n + 4 < size; s++) {
+		if (strchr("\"`$\\", *s))
+			out[n++] = '\\';
+		out[n++] = *s;
+	}
+	out[n++] = '"';
+	out[n] = '\0';
+}
+
+/*
+ * The Exec line for a tool-menu entry's command, or "" when its program is
+ * not one of cmds. terminal is set for entries that open a terminal.
+ */
+static void tool_exec(const char *exec, char *const *cmds, int ncmds, const char *source,
+		      char *out, size_t size, int *terminal)
+{
+	char cmd[1024], word[256], quoted[2200];
+	const char *run = NULL;
+	int root = 0;
+	size_t n;
+
+	out[0] = '\0';
+	*terminal = 0;
+	if (!strncmp(exec, "/usr/share/kali-menu/exec-in-shell ", 35)) {
+		const char *q = exec + 35;
+
+		if (*q != '"' || !(n = strlen(q)) || q[n - 1] != '"' || n - 2 >= sizeof(cmd))
+			return;
+		snprintf(cmd, sizeof(cmd), "%.*s", (int)(n - 2), q + 1);
+		*terminal = 1;
+		/* Kali's helper scripts (john's lists its *2john helpers,
+		 * metasploit's prepares the database): tool-menus ships them,
+		 * and they run inside the tool's wormhole, where the files they
+		 * name are. One with sudo or pkexec runs as root. */
+		if (!strncmp(cmd, HELPER_PREFIX, strlen(HELPER_PREFIX))) {
+			const char *name = cmd + strlen(HELPER_PREFIX);
+			char path[PATH_MAX], *text;
+			FILE *f;
+
+			if (!*name || strspn(name, "abcdefghijklmnopqrstuvwxyz0123456789._-") != strlen(name))
+				return;
+			snprintf(path, sizeof(path), TOOL_MENU "/helper-scripts/%s", name);
+			if (!(f = fopen(path, "re")))
+				return;
+			text = calloc(1, 65536);
+			if (text && fread(text, 1, 65535, f) > 0 &&
+			    (strstr(text, "sudo ") || strstr(text, "pkexec ")))
+				root = 1;
+			free(text);
+			fclose(f);
+			snprintf(out, size, EXEC_IN_SHELL " %s--in %s --script %s",
+				 root ? "--root " : "", source, name);
+			return;
+		}
+	} else if (!strncmp(exec, "pkexec ", 7)) {
+		snprintf(cmd, sizeof(cmd), "%s", exec + 7);
+		root = *terminal = 1;
+	} else {
+		snprintf(cmd, sizeof(cmd), "%s", exec);
+	}
+	/* Field codes (%F, %u...) mean nothing to a terminal command. */
+	if (*terminal && strchr(cmd, '%')) {
+		char kept[1024] = "", *w, *wsave;
+		size_t k = 0;
+
+		for (w = strtok_r(cmd, " ", &wsave); w; w = strtok_r(NULL, " ", &wsave))
+			if (w[0] != '%' && k + strlen(w) + 2 < sizeof(kept))
+				k += sprintf(kept + k, "%s%s", k ? " " : "", w);
+		snprintf(cmd, sizeof(cmd), "%s", kept);
+	}
+	run = cmd;
+	if (!strncmp(run, "sudo ", 5)) {
+		run += 5;
+		root = 1;
+	}
+	n = strcspn(run, " ");
+	if (n == 0 || n >= sizeof(word))
+		return;
+	snprintf(word, sizeof(word), "%.*s", (int)n, run);
+	if (!word_is_exported(word, cmds, ncmds))
+		return;
+	if (!*terminal) {
+		snprintf(out, size, "%s", run);
+		return;
+	}
+	exec_quote(quoted, sizeof(quoted), run);
+	snprintf(out, size, EXEC_IN_SHELL " %s%s", root ? "--root " : "", quoted);
+}
+
+static int export_tool_menu(const char *source, const char *pkgs, char *const *cmds, int ncmds,
+			    int own_entries, FILE *record)
+{
+	struct dirent *e;
+	int exported = 0;
+	DIR *d;
+
+	if (ncmds == 0 || !(d = opendir(TOOL_MENU "/applications")))
+		return 0;
+	while ((e = readdir(d))) {
+		char path[PATH_MAX], dest[PATH_MAX + 32], host[PATH_MAX + 32];
+		char exec[2400] = "", categories[512] = "", *section;
+		char *text, *out, *line, *save;
+		size_t len, n = 0;
+		int terminal = 0, main_group = 0, match = 0;
+		FILE *f;
+
+		if (!strstr(e->d_name, ".desktop") || strchr(e->d_name, '/'))
+			continue;
+		snprintf(path, sizeof(path), TOOL_MENU "/applications/%s", e->d_name);
+		if (!(f = fopen(path, "re")))
+			continue;
+		text = malloc(65536);
+		len = text ? fread(text, 1, 65535, f) : 0;
+		fclose(f);
+		if (!text)
+			die("out of memory");
+		text[len] = '\0';
+		if (!strstr(text, "X-Kali-Package=")) {
+			free(text);
+			continue;
+		}
+		for (line = strtok_r(text, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+			if (line[0] == '[')
+				main_group = !strcmp(line, "[Desktop Entry]");
+			else if (main_group && !strncmp(line, "X-Kali-Package=", 15) &&
+				 word_in(pkgs, line + 15))
+				match = 1;
+			else if (main_group && !strncmp(line, "Exec=", 5))
+				tool_exec(line + 5, cmds, ncmds, source, exec, sizeof(exec), &terminal);
+			else if (main_group && !strncmp(line, "Categories=", 11))
+				snprintf(categories, sizeof(categories), "%s", line + 11);
+		}
+		free(text);
+		if (!match || !exec[0] || (own_entries && !terminal))
+			continue;
+		snprintf(host, sizeof(host), "/usr/share/applications/%s", e->d_name);
+		if (access(host, F_OK) == 0)
+			continue;
+		/* The entry again, rewritten: [Desktop Entry] only, our Exec. */
+		if (!(f = fopen(path, "re")))
+			continue;
+		text = malloc(65536);
+		out = malloc(65536 + 4096);
+		if (!text || !out)
+			die("out of memory");
+		len = fread(text, 1, 65535, f);
+		fclose(f);
+		text[len] = '\0';
+		main_group = 0;
+		for (line = strtok_r(text, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+			if (line[0] == '[') {
+				main_group = !strcmp(line, "[Desktop Entry]");
+				if (main_group)
+					n += sprintf(out + n, "%s\n", line);
+				continue;
+			}
+			if (!main_group || !strncmp(line, "Exec=", 5) || !strncmp(line, "TryExec=", 8) ||
+			    !strncmp(line, "Actions=", 8) || !strncmp(line, "Terminal=", 9) ||
+			    !strncmp(line, "DBusActivatable=", 16) || n + strlen(line) + 8 > 65536)
+				continue;
+			n += sprintf(out + n, "%s\n", line);
+		}
+		section = tool_section(categories);
+		n += sprintf(out + n, "Exec=%s\nTerminal=%s\nX-WormOS-Wormhole=true\n", exec,
+			     terminal ? "true" : "false");
+		if (section)
+			n += snprintf(out + n, 512, "X-WormOS-Section=%s\n", section);
+		free(section);
+		free(text);
+		snprintf(dest, sizeof(dest), EXPORT_SHARE "/applications/%s", e->d_name);
+		if (write_export(dest, out, n) == 0) {
+			fprintf(record, "export = %s\n", dest);
+			exported++;
+		}
+		free(out);
+	}
+	closedir(d);
+	return exported;
+}
+
+/*
+ * The packages whose commands a request exports: the package and the
+ * packages it depends on that come from the same source package. A
+ * program is often split (vlc: vlc-bin and the plugins; keepassxc:
+ * keepassxc-full; pev: readpe; metapackages and transitional packages
+ * have no files at all), while dependencies from other sources (perl,
+ * python3, libraries) are not the user's program.
+ */
+static const char same_source[] =
+	"src=$(dpkg-query -W -f '${source:Package}' \"$1\" 2>/dev/null) || exit 0\n"
+	"todo=$1; seen=\" $1 \"\n"
+	"while [ -n \"$todo\" ]; do\n"
+	"  set -- $todo; todo=\n"
+	"  for p; do\n"
+	"    for d in $(dpkg-query -W -f '${Pre-Depends},${Depends}' \"$p\" 2>/dev/null |\n"
+	"               tr ',|' '\\n\\n' | sed 's/(.*//; s/ //g; s/:any$//'); do\n"
+	"      case $seen in *\" $d \"*) continue ;; esac\n"
+	"      [ \"$(dpkg-query -W -f '${source:Package} ${db:Status-Abbrev}' \"$d\" 2>/dev/null)\" = \"$src ii \" ] || continue\n"
+	"      seen=\"$seen$d \"; todo=\"$todo $d\"\n"
+	"    done\n"
+	"  done\n"
+	"done\n"
+	"echo $seen\n";
+
+/*
+ * Commands that exist only as Debian alternatives made when the package
+ * was configured (metasploit's msfconsole, netcat's nc: /usr/bin/NAME ->
+ * /etc/alternatives/NAME -> a file of the package), which dpkg -L does not
+ * list. Prints the /usr/bin/NAME paths whose alternative is a program of
+ * the packages given.
+ */
+static const char alternatives[] =
+	"dpkg-query -L \"$@\" 2>/dev/null | while IFS= read -r f; do\n"
+	"  [ -f \"$f\" ] && [ -x \"$f\" ] && readlink -f \"$f\"; done | sort -u > /tmp/wh-programs\n"
+	"for a in /etc/alternatives/*; do\n"
+	"  n=${a##*/}; t=$(readlink -f \"$a\") || continue\n"
+	"  grep -qxF \"$t\" /tmp/wh-programs || continue\n"
+	"  for b in /usr/bin /usr/sbin /usr/games; do\n"
+	"    [ \"$(readlink \"$b/$n\")\" = \"$a\" ] && echo \"$b/$n\"\n"
+	"  done\n"
+	"done\n"
+	"rm -f /tmp/wh-programs\n";
+
+/*
+ * A menu entry for a package with commands but no entry of its own or
+ * from Kali's menu (hexyl, tshark, nasm, dig...): it opens a terminal
+ * showing the package, its description and its commands
+ * (exec-in-shell --about), then a shell to use them.
+ */
+static int export_generic_entry(const char *source, const char *pkg, const char *summary,
+				char *const *cmds, int ncmds, FILE *record)
+{
+	char dest[PATH_MAX + 32], text[8192], list[2048] = "";
+	size_t n = 0, l = 0;
+
+	if (ncmds == 0 || strspn(pkg, "abcdefghijklmnopqrstuvwxyz0123456789+.-:") != strlen(pkg))
+		return 0;
+	for (int i = 0; i < ncmds && l + strlen(cmds[i]) + 3 < sizeof(list); i++)
+		l += snprintf(list + l, sizeof(list) - l, "%s%s", i ? ", " : "", cmds[i]);
+	n += snprintf(text + n, sizeof(text) - n,
+		      "[Desktop Entry]\nType=Application\nName=%s\n", pkg);
+	if (summary[0])
+		n += snprintf(text + n, sizeof(text) - n, "Comment=%s\n", summary);
+	n += snprintf(text + n, sizeof(text) - n,
+		      "Keywords=%s;\n"
+		      "Exec=" EXEC_IN_SHELL " --about %s\n"
+		      "Terminal=true\nIcon=utilities-terminal\nCategories=Utility;ConsoleOnly;\n"
+		      "X-WormOS-Wormhole=true\nX-WormOS-Source=%s\n", list, pkg, source);
+	snprintf(dest, sizeof(dest), EXPORT_SHARE "/applications/wormhole-%s.desktop", pkg);
+	if (write_export(dest, text, n) < 0)
+		return 0;
+	fprintf(record, "export = %s\n", dest);
+	return 1;
 }
 
 /* Export the commands of pkg as wrappers. Writes the record. */
 static void export_commands(const char *source, const char *pkg)
 {
-	static char out[1 << 20];
-	char record[PATH_MAX], *line, *save, *list, *cmds[256];
-	int ncmds = 0;
+	/* Big packages list many files (metasploit-framework: about 50000). */
+	static char out[16 << 20];
+	char record[PATH_MAX], set[4096] = "", summary[512] = "";
+	char *line, *save, *list, *cmds[256], *argv[96];
+	int ncmds = 0, own, menu, argc = 0;
 	FILE *f;
 
-	if (in_wormhole(source, (char *[]){ "dpkg-query", "-L", (char *)pkg, NULL },
-			out, sizeof(out)) != 0)
-		out[0] = '\0';
+	if (in_wormhole(source, (char *[]){ "sh", "-c", (char *)same_source, "sh", (char *)pkg,
+					    NULL }, set, sizeof(set)) != 0 || !trim(set)[0])
+		snprintf(set, sizeof(set), "%s", pkg);
+	memmove(set, trim(set), strlen(trim(set)) + 1);
+	in_wormhole(source, (char *[]){ "dpkg-query", "-W", "-f", "${binary:Summary}",
+					(char *)pkg, NULL }, summary, sizeof(summary));
+	for (char *c = summary; *c; c++)
+		if (*c == '\n' || *c == '\r')
+			*c = ' ';
+	trim(summary);
+
+	/* dpkg-query -L for the whole set. */
+	{
+		char *copy = strdup(set), *p, *psave;
+
+		if (!copy)
+			die("out of memory");
+		argv[argc++] = "dpkg-query";
+		argv[argc++] = "-L";
+		for (p = strtok_r(copy, " ", &psave); p && argc < 28; p = strtok_r(NULL, " ", &psave))
+			argv[argc++] = strdup(p);
+		argv[argc] = NULL;
+		if (in_wormhole(source, argv, out, sizeof(out)) != 0 && !out[0])
+			out[0] = '\0';
+		/* The same packages for the alternatives script, after it. */
+		{
+			char *alt[40];
+			int a = 0;
+			size_t used = strlen(out);
+
+			alt[a++] = "sh";
+			alt[a++] = "-c";
+			alt[a++] = (char *)alternatives;
+			alt[a++] = "sh";
+			for (int i = 2; i < argc && a < 39; i++)
+				alt[a++] = argv[i];
+			alt[a] = NULL;
+			if (used + 2 < sizeof(out)) {
+				out[used++] = '\n';
+				in_wormhole(source, alt, out + used, sizeof(out) - used);
+			}
+		}
+		for (int i = 2; i < argc; i++)
+			free(argv[i]);
+		free(copy);
+	}
 	mkdirs_at(AT_FDCWD, FOREIGN_DB, 0755);
 	mkdirs_at(AT_FDCWD, EXPORT_DIR, 0755);
 	snprintf(record, sizeof(record), "%s/%s", FOREIGN_DB, pkg);
 	if (!(f = fopen(record, "we")))
 		die("cannot record %s: %s", pkg, strerror(errno));
 	fprintf(f, "source = %s\n", source);
+	if (summary[0])
+		fprintf(f, "description = %s\n", summary);
+	if (strcmp(set, pkg))
+		fprintf(f, "packages = %s\n", set);
 
 	if (!(list = strdup(out)))
 		die("out of memory");
 	for (line = strtok_r(out, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
 		static const char *const bindirs[] = { "/usr/bin/", "/usr/sbin/", "/bin/",
 						      "/sbin/", "/usr/games/", NULL };
-		char inside[PATH_MAX + 64], host[PATH_MAX], wrapper[PATH_MAX + 64];
+		char wrapper[PATH_MAX + 64];
 		const char *cmd = NULL;
 		struct stat st;
 		FILE *w;
@@ -1101,15 +1526,13 @@ static void export_commands(const char *source, const char *pkg)
 			if (!strncmp(line, bindirs[i], strlen(bindirs[i])) &&
 			    !strchr(line + strlen(bindirs[i]), '/'))
 				cmd = line + strlen(bindirs[i]);
-		if (!cmd || !*cmd)
+		if (!cmd || !*cmd || word_is_exported(cmd, cmds, ncmds))
 			continue;
-		snprintf(inside, sizeof(inside), "%s/%s%s", WORMHOLES, source, line);
-		if (stat(inside, &st) < 0 || !S_ISREG(st.st_mode) || !(st.st_mode & 0111))
+		/* A program, also behind links inside the wormhole. */
+		if (stat_inside(source, line, &st) < 0 || !S_ISREG(st.st_mode) || !(st.st_mode & 0111))
 			continue;
 		/* Never shadow a command of the system itself. */
-		snprintf(host, sizeof(host), "/usr/bin/%s", cmd);
-		if (access(host, F_OK) == 0 ||
-		    (snprintf(host, sizeof(host), "/usr/sbin/%s", cmd), access(host, F_OK) == 0)) {
+		if (system_command(cmd)) {
 			warn("not exporting %s: the system has its own", cmd);
 			continue;
 		}
@@ -1139,11 +1562,26 @@ static void export_commands(const char *source, const char *pkg)
 		if (ncmds < (int)(sizeof(cmds) / sizeof(cmds[0])) && !(cmds[ncmds++] = strdup(cmd)))
 			die("out of memory");
 	}
-	export_desktop(source, list, cmds, ncmds, f);
+	own = export_desktop(source, list, cmds, ncmds, f);
+	menu = export_tool_menu(source, set, cmds, ncmds, own, f);
+	if (!own && !menu)
+		export_generic_entry(source, pkg, summary, cmds, ncmds, f);
+	if (ncmds == 0 && (!strncmp(pkg, "python3-", 8) || strstr(pkg, "-perl") ||
+			   !strncmp(pkg, "ruby-", 5)))
+		info("  %s has no commands: it is a library for programs in the wormhole "
+		     "(use it with whc %s python3, perl or ruby)", pkg, source);
+	else if (ncmds == 0)
+		info("  %s has no commands", pkg);
 	for (int i = 0; i < ncmds; i++)
 		free(cmds[i]);
 	free(list);
 	fclose(f);
+}
+
+/* GLib finds the programs for each type of file only in mimeinfo.cache. */
+static void mime_cache(void)
+{
+	run((char *[]){ "/usr/lib/wh/mime-cache", EXPORT_SHARE "/applications", NULL }, NULL, 0);
 }
 
 static void unexport(const char *pkg)
@@ -1162,8 +1600,9 @@ static void unexport(const char *pkg)
 }
 
 /*
- * Put a wormhole back in order before apt runs: documentation is left out
- * (90wormhole), but maintainer scripts expect the man page folders to
+ * Put a wormhole back in order before apt runs: its runtime (runtime.c),
+ * then the man page folders: manual pages are left out (90wormhole), but
+ * maintainer scripts expect the folders to
  * exist (update-alternatives links java.1.gz into man1, and fails without
  * it: openjdk, and with it Ghidra, would not install), and a change that
  * failed halfway leaves packages unpacked but not configured. Cheap when
@@ -1171,6 +1610,7 @@ static void unexport(const char *pkg)
  */
 static void wormhole_repair(const char *source)
 {
+	wormhole_runtime(source);
 	in_wormhole(source, (char *[]){ "sh", "-c",
 		"mkdir -p /usr/share/man/man1 /usr/share/man/man2 /usr/share/man/man3 "
 		"/usr/share/man/man4 /usr/share/man/man5 /usr/share/man/man6 "
@@ -1214,7 +1654,9 @@ int foreign_install(const char *source, const char *pkg)
 						    NULL }, NULL, 0) != 0)
 			die("apt could not install %s", pkg);
 	}
+	runtime_complete(source);
 	export_commands(source, pkg);
+	mime_cache();
 	return 0;
 }
 
@@ -1230,6 +1672,7 @@ int foreign_remove(const char *pkg)
 					    (char *)pkg, NULL }, NULL, 0) != 0)
 		die("apt could not remove %s", pkg);
 	unexport(pkg);
+	mime_cache();
 	return 0;
 }
 
@@ -1262,6 +1705,8 @@ int foreign_refresh(int upgrade)
 		if (upgrade &&
 		    in_wormhole(name, (char *[]){ "apt-get", "-q", "-y", "upgrade", NULL }, NULL, 0) != 0)
 			warn("apt-get upgrade failed in the %s wormhole", name);
+		if (upgrade)
+			runtime_complete(name);
 		/* New versions can add or drop commands: export again. */
 		if (upgrade && (d = opendir(FOREIGN_DB))) {
 			while ((e = readdir(d))) {
@@ -1276,6 +1721,14 @@ int foreign_refresh(int upgrade)
 			}
 			closedir(d);
 		}
+	}
+	if (upgrade) {
+		FILE *stamp = fopen(RUNTIME_STAMP, "we");
+
+		mime_cache();
+
+		if (stamp)
+			fclose(stamp);
 	}
 	return 0;
 }

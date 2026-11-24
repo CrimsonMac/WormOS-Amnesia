@@ -336,8 +336,16 @@ in [building.md](building.md); what each feature does for the user, in the
   so the same hook works for a staged system and for an image assembled on
   the build machine (without `LD_PRELOAD`, which the root's loader cannot
   satisfy; build-rootfs gives the files their owner afterwards). Hooks:
-  `gsettings-schemas` (glib), `mime-database` (shared-mime-info) and
-  `keep-accounts` (wh itself, below).
+  `gsettings-schemas` (glib), `mime-database` (shared-mime-info),
+  `desktop-mime` and `keep-accounts` (wh itself, below).
+- `desktop-mime` (since 1.13) runs `/usr/lib/wh/mime-cache
+  /usr/share/applications` (`src/wh/mime-cache.c`), which writes
+  `mimeinfo.cache` from the entries' `MimeType` lines as
+  update-desktop-database does: GLib finds the programs that open a type
+  of file or link only through that cache, so before it `gio open`, "open
+  with" and links clicked in programs found nothing (not even Tor Browser
+  for https). wh runs it for `/usr/local/share/applications` after each
+  wormhole install, removal and upgrade.
 - base-files ships `/etc/passwd`, `/etc/group` and `/etc/shadow` with the
   system accounts only, so upgrading it used to replace a running system's
   accounts (users, root's password, accounts added by packages and the
@@ -396,10 +404,47 @@ in [building.md](building.md); what each feature does for the user, in the
      names (mirror without scheme, `/` as `_`), so `apt-get update` does
      not download them a third time, then run it.
 - apt inside is pinned to our keyring copy (`signed-by`), recommends and
-  translations (`Acquire::Languages "none"`) are off, docs and locales are
-  excluded, dpkg runs with `force-unsafe-io` (no fsync per file; a broken
-  wormhole is set up again rather than repaired) and `policy-rc.d` exits
-  101.
+  translations (`Acquire::Languages "none"`) are off, manual pages and
+  locales are excluded, dpkg runs with `force-unsafe-io` (no fsync per
+  file; a broken wormhole is set up again rather than repaired) and
+  `policy-rc.d` exits 101. Documentation folders are kept since 1.13:
+  Kali's impacket-scripts run the scripts in
+  `/usr/share/doc/python3-impacket/examples`, so all 60 impacket commands
+  failed.
+- The app runtime (`src/wh/runtime.c`, since 1.13), so that programs work
+  without fixes of their own. `wormhole_runtime` runs with every repair
+  (before each install, removal and upgrade), inside the wormhole:
+  it writes the dpkg settings, the stand-ins below and, once for wormholes
+  from before 1.13 (their settings still exclude `/usr/share/doc`), installs
+  again the packages missing a file under `/usr/share/doc` that is a script
+  or an example. `runtime_complete` runs after each install and upgrade:
+  the rules in `/usr/share/wh/runtime` (`PATTERN = PACKAGE...`, from
+  `src/wh/runtime`) add companions of installed packages that apt would
+  only recommend: `librsvg2-common` and `adwaita-icon-theme` for GTK
+  (icons are SVG; without the loader GTK programs draw none),
+  `qt6-wayland`/`qtwayland5` and the SVG plugins for Qt. A companion the
+  distribution lacks is skipped. A new kind of breakage is fixed with a
+  line there, not in wh.
+- Stand-ins (`/usr/local/lib/wormhole/bridge` inside each wormhole, linked
+  as `sudo`, `pkexec`, `xdg-open`, `sensible-browser`, `x-www-browser`,
+  `www-browser`, `gnome-www-browser` and `x-terminal-emulator` in its
+  `/usr/local/bin`, which comes first on whc's `PATH`): a program that
+  reaches out of its wormhole writes a request into the session's bridge,
+  `$XDG_RUNTIME_DIR/wormhole-bridge` (or `$WORMHOLE_BRIDGE`, which the
+  root terminal sets to the user's), a FIFO read by `/usr/lib/wh/bridge`
+  (`src/wh/bridge.c`), which the session script starts as the user.
+  Requests are NUL-separated fields ending with an empty one (dash's
+  `printf '%s\0'`), written under `timeout 5` (nobody reading would block
+  the program): `open WORMHOLE FOLDER TARGET` runs `gio open` (relative
+  names are taken from FOLDER), `terminal WORMHOLE FOLDER [CMD]` runs
+  `foot -- whc WORMHOLE CMD`, `root WORMHOLE FOLDER [CMD]` opens the root
+  terminal (`root-terminal --cd FOLDER "whc WORMHOLE CMD"`, which asks for
+  the root password). The bridge logs each request to
+  `$XDG_RUNTIME_DIR/bridge.log`. Run as root (from the root terminal),
+  `sudo` and `pkexec` just run the command (`runuser` for `-u USER`);
+  without a session the stand-ins fall back to the distribution's own
+  program or say why they cannot. The FIFO is 0600, so only the user and
+  root can ask, and nothing runs with more rights than the user has.
 - Repair (since 1.11.1): before every install, removal and upgrade,
   `wormhole_repair` recreates the empty man page folders (`man1`..`man9`,
   `info`; documentation stays excluded, but maintainer scripts link into
@@ -424,6 +469,21 @@ in [building.md](building.md); what each feature does for the user, in the
   the beginning: closing the pipe early killed `apt-cache show` with
   SIGPIPE, so a package in an existing Debian wormhole looked missing and
   wh set up the Kali wormhole for it.
+- Exported commands (since 1.13): those of the package and of the
+  packages it depends on that come from the same source package
+  (`same_source`: vlc's commands are in vlc-bin, keepassxc's in
+  keepassxc-full, pev's in readpe; transitional packages and metapackages
+  have no files). The record lists them (`packages =`). A file in a
+  command folder counts when it is an executable regular file after links
+  are followed inside the wormhole (`stat_inside`, `openat2` with
+  `RESOLVE_IN_ROOT`): Debian's alternatives (`/usr/bin/nc ->
+  /etc/alternatives/nc -> nc.openbsd`) used to resolve on the host and
+  were skipped. A system command still wins, except a link to busybox
+  (`system_command`): Debian's `ipcalc` or `nc` go in front of BusyBox's
+  on users' `PATH` (`/usr/local/bin` first); services, whose `PATH` lacks
+  `/usr/local/bin`, keep BusyBox's. The record also holds the package's
+  summary (`description =`). A library package (`python3-*`, `*-perl`,
+  `ruby-*`) without commands gets a hint to use it through `whc`.
 - Besides commands, wh exports a package's desktop entries (to
   `/usr/local/share/applications`, unless the system has an entry of that
   name) and icons (`usr/share/icons` and `usr/share/pixmaps`, to the same
@@ -433,7 +493,46 @@ in [building.md](building.md); what each feature does for the user, in the
   `TryExec` and `DBusActivatable` are dropped. Files are read inside the
   wormhole with `openat2` (`RESOLVE_IN_ROOT`), regular files of at most
   8 MiB only, and recorded with the commands, so removing the package
-  removes them.
+  removes them. `Exec=env VAR=VALUE PROGRAM` (Audacity's) is matched on
+  PROGRAM and keeps the settings.
+- A package with commands but no entry of its own and none from Kali's
+  menu (hexyl, tshark, nasm, dig) gets `wormhole-PACKAGE.desktop`: its
+  summary as the comment, its commands as keywords, and
+  `exec-in-shell --about PACKAGE`, which shows the package, its summary and
+  commands (from the record) in a terminal, then the user's shell.
+- Kali keeps the menu entries of its tools, and of Debian's tools it
+  carries, in `kali-menu`, not in the tools' packages. The `tool-menus`
+  package (built from kali-menu's source archive) has them in
+  `/usr/share/wormos/tool-menu/applications`, their icons in hicolor, and
+  `sections` (generated from `kali-applications.menu`: every category to its
+  top-level section, `CATEGORY = ORDER|NAME|ICON`). A package from any
+  wormhole gets the entries whose `X-Kali-Package` names it, when their
+  program is one it exported: `exec-in-shell "CMD"` entries become
+  `/usr/lib/worm/exec-in-shell "CMD"` (prints the command, runs it, stays in
+  the user's shell), `sudo CMD` and `pkexec PROG` become
+  `exec-in-shell --root` (the root terminal's password prompt, then CMD as
+  root), others keep their command. Field codes are dropped from terminal
+  commands. Each gets `X-WormOS-Section`. When the package exported its own
+  entries, Kali's for windowed programs are skipped. Entries running one of
+  Kali's helper scripts (`/usr/share/kali-menu/helper-scripts/john.sh`,
+  `metasploit-framework.sh`...; tool-menus ships them in
+  `helper-scripts/`) become `exec-in-shell [--root] --in WORMHOLE --script
+  NAME`, which runs the script's text inside the wormhole (`whc WORMHOLE
+  sh -c`), where the files it lists are; a script using `sudo` or
+  `pkexec` runs as root (the stand-ins then just run the command).
+- `sudo` (`/usr/bin/sudo`, wormos-desktop, since 1.13) is the root
+  terminal's path for one command: `root-terminal --once --cd $PWD
+  "exec 'CMD' 'ARGS'..."` (arguments quoted for sh), so it asks for the
+  root password, keeps the display and returns the command's status. Run
+  by root it just runs the command.
+- The root terminal runs `/usr/lib/worm/root-terminal [--once] [--cd FOLDER] [COMMAND]`: `su - root -c` running `root-shell` with
+  the Wayland socket's full path and `DISPLAY` handed over, and
+  `XDG_RUNTIME_DIR=/run/user/0`, so graphical programs open from it
+  without root writing into the user's runtime folder. Xwayland admits
+  only the user running it (no cookie file), so the script first runs
+  `/usr/lib/worm/x11-allow-root` as the user, which adds
+  `si:localuser:root` to the server's access list (ChangeHosts, as `xhost`
+  would); Java programs such as Ghidra failed with "Authorization required".
 - Containers live in subvolumes under `/var/lib/wormholes` (`@wormholes`,
   mounted `nosuid,nodev`, mode 0755). Exported commands are wrappers in
   `/usr/local/bin` (a link to `/var/usrlocal`) and never shadow `/usr/bin` or
@@ -445,7 +544,16 @@ in [building.md](building.md); what each feature does for the user, in the
   `/run`, resolv.conf, hosts, passwd and group (user mode) and the host
   network. `$SHELL` becomes `/bin/sh` when it names a shell the container
   lacks (WormOS's zsh), or `script`, `make` and editors could not run
-  commands.
+  commands. Since 1.13 it also shares `/mnt` and `/media`, and `/root`
+  when run by root (programs from the root terminal saw the container's
+  `/root` and missed root's files); started from a folder that is not
+  shared, it says so on stderr. Programs get the same environment whatever
+  their toolkit (`app_environment`): `QT_QPA_PLATFORM=wayland` becomes
+  `wayland;xcb`, `GDK_BACKEND` and `SDL_VIDEODRIVER` `wayland,x11` (every
+  Qt program from Debian quit: qt6-wayland is only recommended),
+  `_JAVA_AWT_WM_NONREPARENTING=1` (blank Java windows under labwc's
+  Xwayland) and `NO_AT_BRIDGE=1` (no accessibility bus). The session sets
+  the same fallbacks for the system's programs.
 
 ## Hardening and privacy
 
@@ -885,7 +993,14 @@ in [building.md](building.md); what each feature does for the user, in the
   (tools WormOS already has, shown only), one `tool = PACKAGE` per Debian
   or Kali package and one `core = PACKAGE` per core package. `list` and
   `show` work for everyone (`show` marks core packages already installed);
-  `install` and `remove` need root. `install` runs `wh --yes install
+  `install` and `remove` need root and take several kits, or `all`
+  (since 1.13): the wormhole tools of each kit are installed in turn (a
+  tool an earlier kit of the same run installed is not installed again),
+  then the missing core packages of every kit go into one change, with
+  every kit's record written first (a core change soft-reboots, which
+  would end a loop over kits); `remove all` removes the installed kits,
+  and a tool is kept only when a kit that stays has it. For one kit,
+  `install` runs `wh --yes install
   PACKAGE` for each `tool` in turn, so each comes from the first source
   that has it (Debian, Kali) and a missing one is reported and skipped.
   Then the core packages not installed yet go to one `wh --yes install`:
@@ -1061,10 +1176,20 @@ in [building.md](building.md); what each feature does for the user, in the
 - The program passes the password from its dialog to the helper's input
   and keeps the dialog open after a wrong one (exit status 3).
 - Launcher (`launcher.c`): an overlay layer surface with exclusive keyboard
-  focus: a search field over a grid of the desktop entries GIO lists
-  (`g_app_info_should_show`), filtered by name, description, generic name,
-  program and keywords. Enter starts the first match, Escape or a click
-  outside closes it.
+  focus and a card: search field, sidebar of sections, content. Entries are
+  the ones GIO lists (`g_app_info_should_show`). Sections: Recent (desktop
+  ids in `$XDG_STATE_HOME/wormos/launcher-recent`, newest first, 12),
+  All, the usual categories (the first freedesktop main category: Utility
+  is Accessories, Network is Internet, AudioVideo is Multimedia...), and the
+  security sections wh writes into tool entries (`X-WormOS-Section`),
+  ordered and with icons from `/usr/share/wormos/tool-menu/sections`.
+  Terminal=true entries show as rows with their description, the others
+  as tiles; All leaves out the security command line tools. Search scores
+  every word against name (start of the name, then of a word, then
+  anywhere), program, generic name, keywords, description and section, and
+  lists up to 60 results, best first; Up and Down move the selection from
+  the search field, Enter starts it. Typing anywhere goes to the search
+  field; Escape clears it, then closes.
 - Notifications (`notify.c`): `org.freedesktop.Notifications` on the session
   bus (Notify, CloseNotification, GetCapabilities, GetServerInformation and
   the two signals), shown as cards in an overlay surface at the top right.
@@ -1092,7 +1217,11 @@ in [building.md](building.md); what each feature does for the user, in the
   svga, VMware with 3D acceleration) or is QEMU's virtio GPU with virgl
   (since 1.11.1: the DRM card's device is the PCI device, driver
   `virtio-pci`; the virtio device below it, driver `virtio_gpu`, has
-  VIRTIO_GPU_F_VIRGL as bit 0 of its `features`); otherwise wlroots' pixman renderer
+  VIRTIO_GPU_F_VIRGL as bit 0 of its `features`; with virgl the cursor is
+  drawn into the frame, `WLR_NO_HARDWARE_CURSORS=1`, because QEMU showed
+  the cursor plane's image upside down, hotspot included: wlroots draws it
+  with OpenGL ES and virglrenderer flips it again when QEMU reads it back);
+  otherwise wlroots' pixman renderer
   (`WLR_RENDERER=pixman`), which beats OpenGL emulated on the CPU. With
   VMware's 3D acceleration off, EGL fails at once and the session falls
   back to pixman (below). wlroots checked every client's DMA-BUF by

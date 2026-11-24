@@ -122,21 +122,28 @@ popover .power-action > box {
 /* ---- launcher ---- */
 
 window.launcher {
-	background: rgba(8, 6, 14, 0.82);
+	background: rgba(8, 6, 14, 0.55);
 	color: @shell_fg;
 }
 
-window.launcher .launcher-content {
-	margin: 72px 48px 48px;
+window.launcher .launcher-card {
+	background: @shell_card;
+	border-radius: 20px;
+	border: 1px solid rgba(139, 92, 246, 0.22);
+	box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+window.launcher .launcher-top {
+	padding: 16px 18px 12px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 window.launcher .launcher-search {
-	min-width: 420px;
-	min-height: 40px;
+	min-height: 42px;
 	font-size: 15px;
-	border-radius: 20px;
+	border-radius: 12px;
 	padding: 0 14px;
-	background: rgba(255, 255, 255, 0.07);
+	background: rgba(255, 255, 255, 0.06);
 	border: 1px solid rgba(255, 255, 255, 0.08);
 	box-shadow: none;
 }
@@ -146,15 +153,92 @@ window.launcher .launcher-search:focus-within {
 	background: rgba(139, 92, 246, 0.10);
 }
 
+/* The sidebar of sections. */
+window.launcher .sidebar-scroll {
+	min-width: 236px;
+	border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+window.launcher .launcher-sidebar {
+	background: none;
+	padding: 10px 8px;
+}
+
+window.launcher .launcher-sidebar > row {
+	border-radius: 9px;
+	padding: 7px 10px;
+	margin: 1px 0;
+	color: rgba(236, 231, 245, 0.85);
+	transition: background 100ms ease-out;
+}
+
+window.launcher .launcher-sidebar > row:hover {
+	background: @shell_hover;
+}
+
+window.launcher .launcher-sidebar > row:selected {
+	background: rgba(139, 92, 246, 0.28);
+	color: @shell_fg;
+}
+
+window.launcher .launcher-sidebar > row:selected image {
+	color: #c4b5fd;
+}
+
+window.launcher .launcher-sidebar > row:not(:selectable),
+window.launcher .launcher-sidebar > row:not(:selectable):hover {
+	background: none;
+	padding: 14px 10px 4px;
+}
+
+window.launcher .sidebar-heading {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	color: @shell_dim;
+}
+
+window.launcher .count {
+	font-size: 11px;
+	color: @shell_dim;
+	background: rgba(255, 255, 255, 0.06);
+	border-radius: 8px;
+	padding: 0 7px;
+	min-width: 12px;
+}
+
+/* The section shown. */
+window.launcher .content {
+	padding: 18px 22px 22px;
+}
+
+window.launcher .content-title {
+	font-size: 19px;
+	font-weight: 700;
+}
+
+window.launcher .content-subtitle {
+	color: @shell_dim;
+	font-size: 12px;
+	margin-bottom: 4px;
+}
+
+window.launcher .content-heading {
+	font-size: 12px;
+	font-weight: 700;
+	color: @shell_dim;
+	margin-top: 10px;
+}
+
 window.launcher flowbox {
 	background: none;
 }
 
 window.launcher flowboxchild {
 	border-radius: 14px;
-	padding: 14px 10px 10px;
-	min-width: 112px;
-	transition: background 120ms ease-out;
+	padding: 12px 6px 10px;
+	min-width: 100px;
+	transition: background 100ms ease-out;
 }
 
 window.launcher flowboxchild:hover {
@@ -168,6 +252,58 @@ window.launcher flowboxchild:focus-visible {
 
 window.launcher .app label {
 	font-size: 12px;
+}
+
+window.launcher .entry-list {
+	background: none;
+}
+
+window.launcher .entry-list > row {
+	border-radius: 10px;
+	padding: 6px 10px;
+	transition: background 100ms ease-out;
+}
+
+window.launcher .entry-list > row:hover {
+	background: @shell_hover;
+}
+
+window.launcher .entry-list > row:selected,
+window.launcher .entry-list > row:focus-visible {
+	background: rgba(139, 92, 246, 0.25);
+	outline: none;
+}
+
+window.launcher .row-name {
+	font-weight: 600;
+}
+
+window.launcher .row-comment {
+	font-size: 12px;
+	color: @shell_dim;
+}
+
+window.launcher .row-note {
+	font-size: 11px;
+	color: @shell_dim;
+	background: rgba(255, 255, 255, 0.05);
+	border-radius: 8px;
+	padding: 1px 8px;
+}
+
+window.launcher .row-badge {
+	color: @shell_dim;
+	-gtk-icon-size: 14px;
+}
+
+window.launcher .launcher-hint {
+	padding: 9px 18px;
+	border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+window.launcher .launcher-hint label {
+	font-size: 11px;
+	color: @shell_dim;
 }
 
 /* ---- notifications ---- */

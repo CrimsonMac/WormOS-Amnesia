@@ -24,7 +24,7 @@ PACKAGES := base-files busybox worminit wormrd snap \
 	pciutils libusb usbutils dosfstools whois traceroute mtr iperf3 socat \
 	gmp mpfr gdb e2fsprogs exfatprogs mc btop fastfetch lz4 pigz pv yara ssdeep \
 	smartmontools hdparm dmidecode bc screen mtools hexedit links aria2 ngrep \
-	macchanger torsocks proxychains-ng cmatrix nethogs ffmpeg sqlmap \
+	macchanger torsocks proxychains-ng cmatrix nethogs ffmpeg sqlmap tool-menus \
 	tor-browser-bundle licenses \
 	wormos-desktop wormos-installer wormos-standard wormos-amnesia \
 	wormos-login
@@ -78,6 +78,12 @@ test:
 test-wormholes:
 	tests/wormhole-test.py $(if $(DNS),--dns $(DNS))
 
+# Needs internet access (several GB): installs every tool kit and graphical
+# programs from Debian and Kali, starts every menu entry on the desktop and
+# runs every exported command. KITS=blueteam,web picks kits.
+test-apps:
+	tests/apps-test.py $(if $(KITS),--kits $(KITS))
+
 # Needs internet access: installs Tor Browser's libraries, downloads the
 # browser from torproject.org and starts it.
 test-torbrowser:
@@ -121,4 +127,4 @@ clean:
 distclean:
 	rm -rf build out
 
-.PHONY: all toolchain kernel packages repo rootfs image iso iso-barebones iso-amnesia run run-gui test test-wormholes test-torbrowser test-upgrade test-delta test-iso test-qemu-windows release release-amnesia sources publish-repo clean distclean
+.PHONY: all toolchain kernel packages repo rootfs image iso iso-barebones iso-amnesia run run-gui test test-wormholes test-apps test-torbrowser test-upgrade test-delta test-iso test-qemu-windows release release-amnesia sources publish-repo clean distclean

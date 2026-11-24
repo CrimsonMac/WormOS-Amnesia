@@ -67,6 +67,11 @@ if [ -n "${USB_ISO:-}" ]; then
 	disk_boot=1
 fi
 
+# QEMU_VDAGENT=off leaves the guest's agent port to QEMU_EXTRA.
+vdagent=(-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on,mouse=${QEMU_VDAGENT_MOUSE:-off}
+	-device virtserialport,bus=vserial0.0,chardev=vdagent0,name=com.redhat.spice.0)
+[ "${QEMU_VDAGENT:-on}" = off ] && vdagent=()
+
 accel=(-accel tcg)
 [ -w /dev/kvm ] && accel=(-accel kvm -cpu host)
 
@@ -83,6 +88,5 @@ exec qemu-system-x86_64 \
 	-device "${QEMU_NIC:-virtio-net-pci}",netdev=net0 \
 	-device virtio-rng-pci \
 	-device virtio-serial-pci,id=vserial0 \
-	-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on,mouse=${QEMU_VDAGENT_MOUSE:-off} \
-	-device virtserialport,bus=vserial0.0,chardev=vdagent0,name=com.redhat.spice.0 \
+	"${vdagent[@]}" \
 	"${display[@]}" "${extra[@]}" ${QEMU_EXTRA:-}

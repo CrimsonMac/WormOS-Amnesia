@@ -1,0 +1,4 @@
+# The programs that open each type of file and link (GLib reads them only
+# from mimeinfo.cache), when a package adds or removes desktop entries.
+path = usr/share/applications
+exec = /usr/lib/wh/mime-cache /usr/share/applications

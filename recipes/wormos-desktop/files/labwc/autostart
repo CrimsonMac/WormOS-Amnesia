@@ -2,6 +2,10 @@
 # Programs the message bus starts on demand need the display too.
 dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP > /dev/null 2>&1
 swaybg -i /usr/share/backgrounds/wormos.png -m fill > /dev/null 2>&1 &
+# The bridge of wormhole programs to the desktop (links, files, terminals
+# and root requests from inside wormholes). Started here, it has the
+# display to hand on; it exits with the compositor.
+[ -x /usr/lib/wh/bridge ] && /usr/lib/wh/bridge 2>> "$XDG_RUNTIME_DIR/bridge.log" &
 # The panel, the application launcher and notifications.
 worm-shell > "$XDG_RUNTIME_DIR/shell.log" 2>&1 &
 # The SPICE agent (QEMU, virt-manager): the clipboard shared with the

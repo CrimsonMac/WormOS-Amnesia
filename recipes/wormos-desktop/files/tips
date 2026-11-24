@@ -28,7 +28,7 @@ Tab after snap rewind, wh remove or bh close completes the name or number.
 ls | clip copy puts a command's output on the clipboard; clip paste prints it.
 Start a command with a space to keep it out of the history.
 The prompt's [snap N] is your newest snapshot.
-worm kit list shows tool kits (forensics, network, reverse engineering, web...); worm kit install NAME adds one.
+worm kit list shows tool kits (forensics, network, reverse engineering, web...); worm kit install NAME adds one (several at once, or all).
 Open a suspicious file in a blackhole: bh put lab file.bin, then bh open lab. It has no network and cannot see your files.
 worm panic cuts the network, stops every blackhole and keeps a snapshot for later analysis.
 Programs in a blackhole get a terminal of their own: they cannot type into yours or set your clipboard.

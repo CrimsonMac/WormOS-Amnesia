@@ -1,0 +1,28 @@
+name=tool-menus
+version=2026.3.4
+release=2
+description="Menu entries, icons and sections for security tools, from Kali's menu"
+# Kali keeps the menu entries of its tools (and of Debian's tools it
+# carries) in kali-menu, not in the tools' packages. wh gives a tool from
+# a wormhole the entries that name it (X-Kali-Package), with its section:
+# programs with a window start directly, command line tools open a
+# terminal that runs them and stays open, as in Kali's menu, and helper
+# scripts run inside the tool's wormhole.
+source=(https://gitlab.com/kalilinux/packages/kali-menu/-/archive/kali/$version/kali-menu-kali-$version.tar.gz)
+sha256=(7e688c6f650211fd0ffd2071b4b3cf2b7354e2fed28e9efb47be047e46fad28a)
+
+package() {
+	local d=$pkgdir/usr/share/wormos/tool-menu
+	install -d "$d/applications" "$pkgdir/usr/share/icons"
+	install -m644 desktop-files/*.desktop "$d/applications/"
+	# Kali's helper scripts (john's lists its *2john helpers, metasploit's
+	# prepares the database): wh's entries run them inside the tool's
+	# wormhole.
+	install -Dm644 -t "$d/helper-scripts" helper-scripts/*.sh
+	cp -r menu-icons "$pkgdir/usr/share/icons/hicolor"
+	find "$pkgdir/usr/share/icons" -type d -exec chmod 755 {} + -o -type f -exec chmod 644 {} +
+	# Sections: Kali's top-level menus, with every category inside each.
+	python3 -I "$recipedir/files/sections.py" menus/kali-applications.menu \
+		desktop-directories > "$d/sections"
+	install -Dm644 debian/copyright "$pkgdir/usr/share/licenses/tool-menus/copyright"
+}

@@ -76,6 +76,11 @@ printf "\n"
 if [ -z "$VARIANT_ID" ] && [ -d /usr/lib/wh/db ] && [ ! -e /usr/lib/wh/db/wormos-standard ]; then
 	printf "  ${b}New programs are ready:${r} ${b}wh upgrade${r} (as root) adds them.\n\n"
 fi
+# Wormholes set up before 1.13 get the app runtime (and their programs'
+# menu entries again) from the first wh upgrade run by the new wh.
+if ls /var/lib/wh/foreign/* > /dev/null 2>&1 && [ ! -e /var/lib/wh/runtime-1 ]; then
+	printf "  ${b}Programs from wormholes:${r} ${b}wh upgrade${r} (as root) brings them this version's fixes.\n\n"
+fi
 # The tip, wrapped at word boundaries to the terminal's width.
 if [ -n "$tip" ]; then
 	cols=$(stty size 2>/dev/null | cut -d' ' -f2)

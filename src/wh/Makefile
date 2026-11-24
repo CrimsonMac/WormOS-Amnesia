@@ -12,9 +12,9 @@ MONO_LIBS   ?= -lmonocypher
 PREFIX  ?= /usr
 BINDIR  ?= $(PREFIX)/bin
 
-SRCS = wh.c repo.c db.c pkg.c foreign.c hooks.c util.c sig.c ../snap/sha256.c
+SRCS = wh.c repo.c db.c pkg.c foreign.c runtime.c hooks.c util.c sig.c ../snap/sha256.c
 
-all: wh whc keep-accounts user
+all: wh whc keep-accounts user bridge mime-cache
 
 wh: $(SRCS) wh.h sig.h
 	$(CC) $(CFLAGS) $(MONO_CFLAGS) $(LDFLAGS) -o $@ $(SRCS) $(MONO_LIBS)
@@ -25,17 +25,27 @@ keep-accounts: keep-accounts.c
 user: user.c wh.h
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ user.c
 
+mime-cache: mime-cache.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ mime-cache.c
+
+bridge: bridge.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ bridge.c
+
 whc: whc.c ../common/ns.c ../common/ns.h
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ whc.c ../common/ns.c
 
-install: wh whc keep-accounts user
+install: wh whc keep-accounts user bridge mime-cache
 	install -Dm755 wh $(DESTDIR)$(BINDIR)/wh
 	install -Dm755 whc $(DESTDIR)$(BINDIR)/whc
 	install -Dm755 keep-accounts $(DESTDIR)$(PREFIX)/lib/wh/keep-accounts
 	install -Dm4755 user $(DESTDIR)$(PREFIX)/lib/wh/user
 	install -Dm644 keep-accounts.hook $(DESTDIR)$(PREFIX)/share/wh/hooks/keep-accounts.hook
+	install -Dm755 bridge $(DESTDIR)$(PREFIX)/lib/wh/bridge
+	install -Dm755 mime-cache $(DESTDIR)$(PREFIX)/lib/wh/mime-cache
+	install -Dm644 desktop-mime.hook $(DESTDIR)$(PREFIX)/share/wh/hooks/desktop-mime.hook
+	install -Dm644 runtime $(DESTDIR)$(PREFIX)/share/wh/runtime
 
 clean:
-	rm -f wh whc keep-accounts user
+	rm -f wh whc keep-accounts user bridge mime-cache
 
 .PHONY: all install clean

@@ -2,7 +2,8 @@
 title = Reverse engineering
 description = Disassemblers, debuggers, unpackers and binary inspection
 included = strace, objdump, readelf, nm, strings, xxd, file, python3
-tool = radare2
+tool = rizin
+tool = rizin-cutter
 core = gdb
 tool = ltrace
 tool = upx-ucl
