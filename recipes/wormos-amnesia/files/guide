@@ -21,8 +21,10 @@
 
   The desktop
     The Super key opens the launcher, Super+Enter a terminal, Super+Q
-    closes a window, Alt+Tab switches windows. The power icon at the
-    bottom right shuts the computer down, and with it everything here.
+    closes a window, Alt+Tab switches windows, Super+I opens Settings
+    (keyboard, mouse, sound, display; they last until the computer stops).
+    The power icon at the bottom right has quick settings and shuts the
+    computer down, and with it everything here.
 
   Sandboxes, inside the sandbox
     bh open lab            a disposable sandbox: no network, no files

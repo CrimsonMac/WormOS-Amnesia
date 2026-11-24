@@ -84,7 +84,11 @@ AMNESIA_CHECKS = [
     ("grey desktop settings",
      "tr '\\0' '\\n' < /proc/$(pidof worm-shell)/environ | "
      "grep -e ^GTK_THEME= -e ^WORM_SHELL_PANEL= -e ^XDG_CONFIG_DIRS= | sort",
-     r"^GTK_THEME=WormOS-Amnesia\nWORM_SHELL_PANEL=bottom\nXDG_CONFIG_DIRS=/etc/xdg/amnesia:"),
+     r"^GTK_THEME=WormOS-Amnesia\nWORM_SHELL_PANEL=bottom\n"
+     r"XDG_CONFIG_DIRS=/home/live/\.config/wormos/xdg:/etc/xdg/amnesia:"),
+    # labwc runs every autostart it finds; WormOS's steps aside for Amnesia's.
+    ("one panel and one wallpaper (only Amnesia's autostart)",
+     "pidof worm-shell | wc -w; pidof swaybg | wc -w", r"^1\n1$"),
     ("grey wallpaper", "tr '\\0' ' ' < /proc/$(pidof swaybg)/cmdline",
      r"wormos-amnesia\.png"),
     ("the updater is there, for the user", "ls -l /usr/bin/amnesia-update", r"^-rwsr-xr-x .* root "),
@@ -107,6 +111,16 @@ AMNESIA_CHECKS = [
      "stat -c '%a %U' /dev/snd/pcmC0D0c /dev/snd/pcmC0D0p", r"^600 root\n660 root$"),
     ("each destination gets its own Tor circuit", "grep ^TransPort /etc/tor/torrc",
      r"IsolateDestAddr"),
+    # The VM offers a shared folder and a guest agent channel: both stay off.
+    ("the host's shared folder is seen but not mounted",
+     "grep -e ^share-tags= -e ^shares= /run/worm/vm; grep -c ' /media/' /proc/mounts",
+     r"^share-tags=hostshare\nshares=off\n0$"),
+    ("no guest agent", "grep ^agent= /run/worm/vm; su live -c 'worm vm' | grep 'Guest agent'",
+     r"^agent=off\nGuest agent: +off$"),
+    ("Settings is there, the system stays locked",
+     "command -v wormos-settings; echo x | su live -c '/usr/lib/worm/settings hostname other' "
+     "> /dev/null 2>&1; echo rc=$?; hostname",
+     r"^/usr/bin/wormos-settings\nrc=[13]\n(?!other)"),
     ("updates are looked for once Tor is connected",
      "ls /usr/lib/worm/amnesia-update-notice; grep -c amnesia-update-notice "
      "/etc/xdg/amnesia/labwc/autostart", r"amnesia-update-notice\n1$"),
@@ -189,6 +203,12 @@ def main():
     if args.edition == "amnesia":
         # A sound card with a microphone, which Amnesia must not let anyone use.
         extra += " -audiodev none,id=snd0 -device ich9-intel-hda -device hda-duplex,audiodev=snd0"
+        # A shared folder and a guest agent channel, which Amnesia leaves alone.
+        share = os.path.join(tmp, "share")
+        os.mkdir(share)
+        extra += (f" -virtfs local,path={share},mount_tag=hostshare,security_model=none,id=fs0"
+                  f" -chardev socket,path={os.path.join(tmp, 'qga')},server=on,wait=off,id=qga0"
+                  " -device virtserialport,bus=vserial0.0,chardev=qga0,name=org.qemu.guest_agent.0")
     if args.skew:
         behind = time.gmtime(time.time() - args.skew * 3600)
         # Without kvmclock the guest takes its time from the (skewed) RTC.

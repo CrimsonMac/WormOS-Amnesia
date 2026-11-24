@@ -138,6 +138,18 @@ does, and what comes next. It ships as
   the start screen, and `/etc/zsh/prompt-colors` for the shell prompt; the
   wallpaper is the WormOS one drawn in greys; the welcome logo is grey and the welcome terminal opens at every start with
   what Amnesia does and does not do (`/usr/share/wormos/guide-amnesia`).
+- **Desktop since 1.14.** WormOS's labwc `autostart` steps aside when the
+  edition has its own (labwc now runs every autostart it finds), and
+  `VARIANT_WALLPAPER` makes the grey wallpaper the default of
+  `/usr/lib/worm/wallpaper`. Settings and the quick settings work for the
+  session; system changes (time zone, host name, the VM's settings) need
+  root, which is locked, so the dialog says so.
+- **Virtual machines.** `/etc/worm/vm.conf` from `wormos-amnesia` sets
+  `shares = off` (the host's shared folders are seen but never mounted:
+  nothing is kept, nothing touches the host's disks) and `agent = off`
+  (no guest agent: the host learns nothing from inside). Drawing, the
+  pointer and disk tuning follow the hypervisor as on WormOS. Root is
+  locked, so neither can be turned on.
 - **Emergency shutdown.** wormrd links the device the system started from
   as `/dev/wormos-medium`; on Amnesia the service `04-medium`
   (`/usr/lib/worm/medium-watch`) checks every second that it is still

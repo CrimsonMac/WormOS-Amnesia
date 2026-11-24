@@ -7,3 +7,4 @@ VARIANT="Amnesia"
 VARIANT_XDG=/etc/xdg/amnesia
 VARIANT_GTK_THEME=WormOS-Amnesia
 VARIANT_PANEL=bottom
+VARIANT_WALLPAPER=/usr/share/backgrounds/wormos-amnesia.png

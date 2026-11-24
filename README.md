@@ -61,7 +61,13 @@ remains. It is not meant for real work: by design, nothing can be kept.
   choice, so a network that blocks Tor never sees a direct attempt.
 - **The desktop** is grey, with the panel at the bottom and Tor Browser in
   the launcher. `worm anon status` shows how far Tor has connected; a
-  welcome guide opens at every start.
+  welcome guide opens at every start. Settings (Super+I) and the panel's
+  quick settings change the keyboard, mouse, sound and display for the
+  session; the system itself stays locked.
+- **In a virtual machine** Amnesia sets up drawing and the pointer for the
+  hypervisor like WormOS, but never mounts the host's shared folders and
+  runs no guest agent: nothing is kept, and the host learns nothing from
+  inside the session.
 - **Programs** go straight into memory: `wh install NAME`, or a whole tool
   kit with `worm kit install web` (`worm kit list`). They are gone at the
   next start, like everything else. Untrusted files open best in a

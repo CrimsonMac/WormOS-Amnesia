@@ -1,5 +1,5 @@
 name=wormos-amnesia
-version=1.6
+version=1.7
 description="WormOS Amnesia: the live edition that forgets everything and goes through Tor"
 depends=(wormos-desktop worm wh tor tor-browser tor-browser-runtime tor-browser-bundle curl)
 # GTK's theme sources, for the grey GTK theme (as in wormos-gtk-theme).
@@ -27,6 +27,8 @@ package() {
 	install -Dm644 "$f/variant" "$pkgdir/etc/worm/variant"
 	# Anonymous mode, on from the first start (worm anon refuses to turn it off).
 	install -Dm644 "$f/anon" "$pkgdir/etc/worm/anon"
+	# Virtual machines: no shared folders, no guest agent.
+	install -Dm644 "$f/vm.conf" "$pkgdir/etc/worm/vm.conf"
 	# The desktop's settings, found before /etc/xdg (session-env).
 	install -Dm644 "$f/xdg/labwc/autostart" "$pkgdir/etc/xdg/amnesia/labwc/autostart"
 	sed 's|<name>WormOS</name>|<name>WormOS-Amnesia</name>|' \
