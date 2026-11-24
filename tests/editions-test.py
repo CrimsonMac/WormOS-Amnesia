@@ -88,6 +88,11 @@ AMNESIA_CHECKS = [
     ("grey wallpaper", "tr '\\0' ' ' < /proc/$(pidof swaybg)/cmdline",
      r"wormos-amnesia\.png"),
     ("the updater is there, for the user", "ls -l /usr/bin/amnesia-update", r"^-rwsr-xr-x .* root "),
+    # Programs from wormholes reach the desktop through the session's bridge.
+    ("the wormhole bridge runs in the session", "ls -l /run/user/*/wormhole-bridge",
+     r"^p.* live "),
+    ("root requests say that root is locked", "su live -c 'sudo id' 2>&1",
+     r"no administrator \(root is locked\)"),
     ("no root, but the user installs programs into memory (through Tor)",
      "for i in $(seq 90); do worm anon status | grep -q connected && break; sleep 2; done; "
      "su live -c 'wh install tree' 2>&1 | tail -1; su live -c 'tree -d /etc/xdg | tail -1'",
