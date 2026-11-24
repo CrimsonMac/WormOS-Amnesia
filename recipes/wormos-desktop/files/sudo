@@ -21,6 +21,10 @@ while [ $# -gt 0 ]; do
 	esac
 done
 [ $# -gt 0 ] || { echo "usage: sudo COMMAND [ARGS...]" >&2; exit 1; }
+if [ -e /etc/worm/no-root ]; then
+	echo "sudo: this system has no administrator (root is locked)" >&2
+	exit 1
+fi
 [ "$(id -u)" = 0 ] && exec "$@"
 cmd=
 for arg; do

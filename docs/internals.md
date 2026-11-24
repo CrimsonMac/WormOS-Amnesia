@@ -524,7 +524,11 @@ in [building.md](building.md); what each feature does for the user, in the
   terminal's path for one command: `root-terminal --once --cd $PWD
   "exec 'CMD' 'ARGS'..."` (arguments quoted for sh), so it asks for the
   root password, keeps the display and returns the command's status. Run
-  by root it just runs the command.
+  by root it just runs the command. With `/etc/worm/no-root` (an edition without an
+  administrator ships it: WormOS Amnesia, whose root is locked), `sudo` and
+  the root terminal say so instead of asking for a password that cannot
+  work (the root terminal waits for Enter when it has a terminal, so a
+  wormhole program's root request shows why it failed).
 - The root terminal runs `/usr/lib/worm/root-terminal [--once] [--cd FOLDER] [COMMAND]`: `su - root -c` running `root-shell` with
   the Wayland socket's full path and `DISPLAY` handed over, and
   `XDG_RUNTIME_DIR=/run/user/0`, so graphical programs open from it

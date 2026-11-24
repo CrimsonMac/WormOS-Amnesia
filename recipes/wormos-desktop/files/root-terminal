@@ -10,6 +10,16 @@
 # asking for root), root runs it first, in FOLDER with --cd. --once runs
 # only the command and returns its status (sudo).
 # Usage: root-terminal [--once] [--cd FOLDER] [COMMAND]
+# Systems without an administrator (WormOS Amnesia: root is locked) say
+# so instead of asking for a password that cannot work.
+if [ -e /etc/worm/no-root ]; then
+	echo "This system has no administrator: root is locked, so nothing can run as root." >&2
+	if [ -t 0 ]; then
+		printf 'Press Enter to close.' >&2
+		read -r _
+	fi
+	exit 1
+fi
 once= folder=
 while [ $# -gt 0 ]; do
 	case $1 in
