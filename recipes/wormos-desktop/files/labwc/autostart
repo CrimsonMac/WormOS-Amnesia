@@ -1,4 +1,12 @@
 # Programs started with the desktop (labwc runs this with sh).
+# The session merges labwc's settings (labwc -m), so labwc runs every
+# autostart it finds, this one first: an edition with its own (WormOS
+# Amnesia, VARIANT_XDG in /etc/worm/variant) starts its programs there.
+if [ -r /etc/worm/variant ]; then
+	VARIANT_XDG=
+	. /etc/worm/variant
+	[ -n "$VARIANT_XDG" ] && [ -r "$VARIANT_XDG/labwc/autostart" ] && exit 0
+fi
 # Programs the message bus starts on demand need the display too.
 dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP > /dev/null 2>&1
 # The wallpaper the user chose (Settings > Appearance).

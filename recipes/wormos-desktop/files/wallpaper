@@ -1,12 +1,17 @@
 #!/bin/sh
 # Show the user's wallpaper, from ~/.config/wormos/wallpaper (Settings >
 # Appearance): "image = PATH" or "color = #RRGGBB"; nothing there means
-# the WormOS wallpaper. Starts swaybg, then stops the one before, so the
+# the WormOS wallpaper (or the edition's). Starts swaybg, then stops the one before, so the
 # background never flashes.
 conf=${XDG_CONFIG_HOME:-$HOME/.config}/wormos/wallpaper
 pidfile=$XDG_RUNTIME_DIR/swaybg.pid
 image=/usr/share/backgrounds/wormos.png
 color=
+# An edition's own (VARIANT_WALLPAPER in /etc/worm/variant).
+if [ -r /etc/worm/variant ]; then
+	value=$(sed -n 's/^VARIANT_WALLPAPER=//p' /etc/worm/variant | head -n 1)
+	[ -n "$value" ] && [ -r "$value" ] && image=$value
+fi
 
 if [ -r "$conf" ]; then
 	value=$(sed -n 's/^image = //p' "$conf" | head -n 1)

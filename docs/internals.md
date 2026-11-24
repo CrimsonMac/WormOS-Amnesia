@@ -1317,7 +1317,11 @@ in [building.md](building.md); what each feature does for the user, in the
   `-m`, which merges rc.xml, menu, environment and themerc from every
   directory, lowest priority first: the system's, the Settings
   program's, then `~/.config/labwc`, so the user's own file wins and
-  needs only what it changes. Changes run `labwc --reconfigure` (labwc's
+  needs only what it changes. labwc then also runs every `autostart` it
+  finds: the system's exits at once when the edition (`VARIANT_XDG` in
+  `/etc/worm/variant`) has its own, and a user's `~/.config/labwc/autostart`
+  runs in addition. The wallpaper script takes an edition's
+  `VARIANT_WALLPAPER` as its default. Changes run `labwc --reconfigure` (labwc's
   PID from `LABWC_PID`, which its children inherit); sliders write 0.4 s
   after they rest.
 - Display: the scale list of the panel; each screen's modes from
