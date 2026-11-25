@@ -42,7 +42,7 @@ on top of this one.
   passwords, as in the disk image below. The live system's snapshots and
   files are not carried over.
 
-- **The disk image for QEMU / virt-manager** (`wormos-1.14-x86_64.qcow2`): an
+- **The disk image for QEMU / virt-manager** (`wormos-1.14.1-x86_64.qcow2`): an
   installed system, ready to start. In virt-manager,
   import an existing disk image and choose a generic recent Linux.
 
@@ -180,7 +180,8 @@ WormOS finds the hypervisor at every start and sets itself up for it
 On the first start of an installed system (from the ISO or the disk
 image), WormOS asks for your name, a user name, a password for it and a
 password for root. Then the desktop starts; later, log in on the login
-screen.
+screen, which shows the version in its bottom left corner (as does the
+title of `welcome --full`).
 
 ## The desktop
 

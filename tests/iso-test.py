@@ -39,7 +39,8 @@ boot_test = load("boot_test", "boot-test.py")
 
 LIVE_CHECKS = [
     ("live system", "cat /proc/cmdline", r"wormos\.live"),
-    ("runs from memory", "readlink /dev/wormos-root", r"^/dev/loop\d+$"),
+    # Daemons' messages on the console can land on the same line.
+    ("runs from memory", "readlink /dev/wormos-root", r"(^|\s)/dev/loop\d+$"),
     ("every subvolume from memory",
      "grep -E ' /(var|home|var/lib/wormholes) ' /proc/mounts | grep -vc -e loop -e wormos-root",
      r"^0$"),

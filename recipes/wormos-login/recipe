@@ -1,6 +1,6 @@
 name=wormos-login
 version=0.1.0
-release=7
+release=8
 description="The graphical login and first-boot setup (wormlogin and the greeter)"
 depends=(glibc gtk4 labwc libxcrypt wormos-desktop wormos-gtk-theme adwaita-icon-theme)
 users=(greeter)

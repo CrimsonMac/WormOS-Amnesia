@@ -156,10 +156,42 @@ static GtkWidget *power_button(const char *icon, const char *tooltip, const char
 	return b;
 }
 
-/* Wallpaper behind everything, the clock above the card, power below. */
+/* "WormOS 1.14", with the edition ("WormOS 1.14 Amnesia"); g_free. */
+static char *system_name(void)
+{
+	char *text = NULL, *name = NULL, *variant = NULL, *result;
+
+	if (g_file_get_contents("/etc/os-release", &text, NULL, NULL)) {
+		char **lines = g_strsplit(text, "\n", -1);
+
+		for (int i = 0; lines[i]; i++)
+			if (!name && g_str_has_prefix(lines[i], "PRETTY_NAME="))
+				name = g_shell_unquote(lines[i] + 12, NULL);
+		g_strfreev(lines);
+		g_free(text);
+	}
+	if (g_file_get_contents("/etc/worm/variant", &text, NULL, NULL)) {
+		char **lines = g_strsplit(text, "\n", -1);
+
+		for (int i = 0; lines[i]; i++)
+			if (!variant && g_str_has_prefix(lines[i], "VARIANT="))
+				variant = g_shell_unquote(lines[i] + 8, NULL);
+		g_strfreev(lines);
+		g_free(text);
+	}
+	result = g_strdup_printf("%s%s%s", name ? name : "WormOS", variant && *variant ? " " : "",
+				 variant ? variant : "");
+	g_free(name);
+	g_free(variant);
+	return result;
+}
+
+/* Wallpaper behind everything, the clock above the card, power below,
+ * the system's name and version in the other corner. */
 static void frame(GtkWidget *card)
 {
-	GtkWidget *overlay = gtk_overlay_new(), *picture, *column, *corner;
+	GtkWidget *overlay = gtk_overlay_new(), *picture, *column, *corner, *version;
+	char *name;
 
 	picture = gtk_picture_new_for_filename(
 		g_file_test(AMNESIA_WALLPAPER, G_FILE_TEST_EXISTS) ? AMNESIA_WALLPAPER : WALLPAPER);
@@ -187,6 +219,16 @@ static void frame(GtkWidget *card)
 	gtk_box_append(GTK_BOX(corner), power_button("system-reboot-symbolic", "Restart", "reboot"));
 	gtk_box_append(GTK_BOX(corner), power_button("system-shutdown-symbolic", "Shut down", "off"));
 	gtk_overlay_add_overlay(GTK_OVERLAY(overlay), corner);
+
+	name = system_name();
+	version = gtk_label_new(name);
+	g_free(name);
+	gtk_widget_add_css_class(version, "version");
+	gtk_widget_set_halign(version, GTK_ALIGN_START);
+	gtk_widget_set_valign(version, GTK_ALIGN_END);
+	gtk_widget_set_margin_start(version, 28);
+	gtk_widget_set_margin_bottom(version, 30);
+	gtk_overlay_add_overlay(GTK_OVERLAY(overlay), version);
 
 	gtk_window_set_child(GTK_WINDOW(window), overlay);
 	tick(NULL);

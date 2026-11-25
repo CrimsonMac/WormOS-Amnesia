@@ -1557,7 +1557,11 @@ in [building.md](building.md); what each feature does for the user, in the
 ## Login
 
 - `wormos-login` (`src/login/`): `wormlogin`, the login manager on tty1,
-  and `wormos-greeter`, the login screen and first-boot setup.
+  and `wormos-greeter`, the login screen and first-boot setup. Its bottom
+  left corner shows the system and version (`PRETTY_NAME` from
+  `/etc/os-release` and `VARIANT` from `/etc/worm/variant`: "WormOS 1.14.1
+  Amnesia"). `welcome --full` puts `VERSION_ID` after "WormOS" on the
+  guide's title line (the logo's middle line, line 3).
 - wormlogin runs the login screen as the system user `greeter` (with the
   groups video, input and render set directly, not in `/etc/group`; home
   and runtime directory `/run/wormlogin/greeter`):

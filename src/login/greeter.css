@@ -88,3 +88,11 @@ button.power {
 button.power:hover {
 	background: rgba(124, 58, 237, 0.45);
 }
+
+/* The system's name and version, bottom left. */
+.version {
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 13px;
+	font-weight: 600;
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}

@@ -1,6 +1,6 @@
 name=wormos-desktop
 version=1.0
-release=34
+release=35
 description="The WormOS desktop session: labwc, foot and the WormOS look"
 depends=(labwc foot swaybg grim wlr-randr xcompose seatd dbus font-inter font-hack base-files
 	gtk4 gtk4-layer-shell wormos-gtk-theme adwaita-icon-theme dconf worm-shell wormos-snapshots
