@@ -289,6 +289,39 @@ static int cmd_lock(const char *comment)
 	return 0;
 }
 
+/*
+ * Commands a user may run through the settings helper (setuid, for the
+ * group wheel): looking at the protections always, and on a system without
+ * root (/etc/worm/no-root, WormOS Amnesia) the safe changes nobody else
+ * could make: bridges, a clock check, panic. Returns only when the command
+ * is not one of them.
+ */
+static void user_action(int argc, char **argv)
+{
+	const char *helper = "/usr/lib/worm/settings";
+	int no_root = access("/etc/worm/no-root", F_OK) == 0;
+	char *args[4] = { (char *)helper, NULL, NULL, NULL };
+
+	if (argc == 2 && !strcmp(argv[1], "status"))
+		args[1] = "status";
+	else if (argc == 3 && !strcmp(argv[1], "fw") && !strcmp(argv[2], "status"))
+		args[1] = "firewall";
+	else if (no_root && argc == 4 && !strcmp(argv[1], "anon") && !strcmp(argv[2], "bridges"))
+		args[1] = "bridges", args[2] = argv[3];
+	else if (no_root && argc == 3 && !strcmp(argv[1], "time") && !strcmp(argv[2], "sync"))
+		args[1] = "time-sync";
+	else if (no_root && argc == 2 && !strcmp(argv[1], "panic"))
+		args[1] = "panic";
+	else if (no_root && argc == 3 && !strcmp(argv[1], "panic") && !strcmp(argv[2], "off"))
+		args[1] = "panic-off";
+	else
+		return;
+	if (access(helper, X_OK) != 0)
+		return;
+	fflush(stdout);
+	execv(helper, args);
+}
+
 /* worm hostname [NAME]: show or set the machine's name (/etc/hostname). */
 static int cmd_hostname(const char *name)
 {
@@ -430,6 +463,9 @@ int main(int argc, char **argv)
 		usage(stdout);
 		return 0;
 	}
+	/* What a user may do through the settings helper (user_action). */
+	if (geteuid() != 0)
+		user_action(argc, argv);
 	/* Changing one's own password works for everyone. */
 	if (!strcmp(argv[1], "passwd") && argc == 2)
 		return cmd_passwd();

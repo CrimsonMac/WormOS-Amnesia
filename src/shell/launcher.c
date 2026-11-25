@@ -184,6 +184,7 @@ static int section_order(gconstpointer a, gconstpointer b)
 static void load(void)
 {
 	GList *all = g_app_info_get_all();
+	gboolean no_root = g_file_test("/etc/worm/no-root", G_FILE_TEST_EXISTS);
 
 	if (entries)
 		g_ptr_array_free(entries, TRUE);
@@ -206,6 +207,10 @@ static void load(void)
 		 * them out): take a snapshot, a settings page... */
 		action = g_desktop_app_info_get_boolean(d, "X-WormOS-Action");
 		if (!action && !g_app_info_should_show(info))
+			continue;
+		/* Programs that only work as root, where root is locked
+		 * (/etc/worm/no-root: WormOS Amnesia). */
+		if (no_root && g_desktop_app_info_get_boolean(d, "X-WormOS-Needs-Root"))
 			continue;
 		e = g_new0(struct entry, 1);
 		e->action = action;

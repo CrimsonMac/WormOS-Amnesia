@@ -1,6 +1,6 @@
 name=wormos-settings
 version=0.1.0
-release=2
+release=3
 description="Settings: display, appearance, keyboard, mouse, sound, time, privacy and the virtual machine"
 depends=(glibc gtk4 worm wlr-randr wireplumber hicolor-icon-theme)
 localsrc=src/settings

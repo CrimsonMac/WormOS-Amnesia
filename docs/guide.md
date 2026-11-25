@@ -221,7 +221,8 @@ idles at well under 100 MB of memory.
   network and privacy (addresses, anonymous mode, automatic snapshots,
   the firewall), the virtual machine and About (version, hardware, the
   computer's name, your password). Changes to the system ask for the root
-  password. `wormos-settings --page sound` opens one page.
+  password. `worm status` and `worm fw status` work for administrators
+  (the group `wheel`) without `su`. `wormos-settings --page sound` opens one page.
 - Sound goes through [PipeWire](https://pipewire.org), which also serves
   programs written for PulseAudio or ALSA (including those installed from
   Debian or Kali). The speaker button in the panel sets the volume (scroll

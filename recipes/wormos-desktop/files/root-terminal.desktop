@@ -7,3 +7,4 @@ Exec=foot --title "Root terminal" /usr/lib/worm/root-terminal
 Icon=wormos-root-terminal
 Categories=System;TerminalEmulator;
 Keywords=root;admin;su;shell;
+X-WormOS-Needs-Root=true

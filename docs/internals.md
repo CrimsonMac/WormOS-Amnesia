@@ -1342,7 +1342,16 @@ in [building.md](building.md); what each feature does for the user, in the
   clears its environment, becomes root and runs `worm` with its own
   argument list. Automatic snapshots go through the snapshots helper
   (`auto on|off`), the user's own password through `/usr/lib/worm/passwd`.
-  With `/etc/worm/no-root` the dialog says root is locked instead.
+  With `/etc/worm/no-root` the dialog says root is locked instead, and
+  the controls that change the system are insensitive.
+- The helper also serves `worm` itself: run by a user, `worm status` and
+  `worm fw status` go through it (`status`, `firewall`: no password, wheel
+  only), and on a system without root (`/etc/worm/no-root`) so do
+  `worm anon bridges KIND`, `worm time sync` and `worm panic [off]`
+  (`bridges`, `time-sync`, `panic`, `panic-off`), which elsewhere need
+  root's password: nobody could give it there, and they are safe for the
+  session's own user. The launcher hides entries with
+  `X-WormOS-Needs-Root=true` (the root terminal) on such systems.
 
 ## Desktop session
 

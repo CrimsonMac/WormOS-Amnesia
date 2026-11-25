@@ -21,7 +21,7 @@
         <action name="Execute" command="foot --hold --title Snapshots su -c 'snap list'" />
       </item>
       <item label="System status">
-        <action name="Execute" command="foot --hold --title 'System status' su -c 'worm status'" />
+        <action name="Execute" command="foot --hold --title 'System status' worm status" />
       </item>
     </menu>
     <item label="Settings">

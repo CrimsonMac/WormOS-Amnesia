@@ -1246,6 +1246,15 @@ static void zone_done(gboolean ok, gpointer data)
 	}
 }
 
+/* Where root is locked, system settings can only be looked at. */
+static void lock_if_no_root(GtkWidget *w)
+{
+	if (root_locked()) {
+		gtk_widget_set_sensitive(w, FALSE);
+		gtk_widget_set_tooltip_text(w, "Root is locked on this system");
+	}
+}
+
 static void zone_activated(GtkListBox *box, GtkListBoxRow *row, gpointer data)
 {
 	const char *zone = g_object_get_data(G_OBJECT(row), "zone");
@@ -1344,6 +1353,8 @@ static void build_time(void)
 	gtk_widget_set_size_request(scroll, -1, 200);
 	gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), zone_list);
 	gtk_box_append(GTK_BOX(gtk_widget_get_parent(group)), scroll);
+	lock_if_no_root(zone_search);
+	lock_if_no_root(scroll);
 
 	group = group_new(page, "Clock in the panel", NULL);
 	row_new(group, "12-hour clock", "3:45 PM instead of 15:45",
@@ -1516,9 +1527,11 @@ static void build_privacy(void)
 	anon_switch = switch_new(FALSE, G_CALLBACK(anon_changed), NULL);
 	row_new(group, "Anonymous mode", "All traffic goes through Tor; what cannot is blocked.",
 		anon_switch, NULL);
+	lock_if_no_root(anon_switch);
 	auto_switch = switch_new(TRUE, G_CALLBACK(auto_changed), NULL);
 	row_new(group, "Automatic snapshots", "A snapshot before every package change, so "
 		"wh undo can go back.", auto_switch, NULL);
+	lock_if_no_root(auto_switch);
 	group = group_new(page, "Firewall", NULL);
 	fw_label = gtk_label_new("…");
 	gtk_label_set_xalign(GTK_LABEL(fw_label), 0);
@@ -1643,6 +1656,7 @@ static void vm_fill(void)
 		gtk_drop_down_set_selected(GTK_DROP_DOWN(dropdown), selected);
 		g_signal_connect(dropdown, "notify::selected", G_CALLBACK(vm_selected),
 				 GUINT_TO_POINTER(k));
+		lock_if_no_root(dropdown);
 		row_new(vm_settings, vm_keys[k].title, vm_keys[k].subtitle, dropdown, NULL);
 		g_free(v);
 	}
@@ -1942,6 +1956,7 @@ static void build_about(void)
 	gtk_entry_set_max_length(GTK_ENTRY(entry), 63);
 	gtk_widget_set_tooltip_text(entry, "Type a new name and press Enter");
 	g_signal_connect(entry, "activate", G_CALLBACK(host_rename), NULL);
+	lock_if_no_root(entry);
 	row_new(group, "Computer name", host, entry, &host_sub);
 
 	group = group_new(page, "You", NULL);
