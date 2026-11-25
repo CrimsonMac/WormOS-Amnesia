@@ -66,6 +66,17 @@ does, and what comes next. It ships as
   disk, change the firewall or turn anonymous mode off, and snapshots
   cannot be exported. The live user is in Tor's group, so `worm anon
   status` shows how far Tor has connected.
+- **Safe actions without root (1.14.1).** WormOS's settings helper runs
+  the actions nobody else could do here, for the live user (in `wheel`)
+  and without a password because `/etc/worm/no-root` exists: `worm status`,
+  `worm fw status`, `worm anon bridges snowflake|obfs4|meek|off|status`,
+  `worm time sync` and `worm panic [off]`; typed in a terminal, they just
+  work. Nothing that weakens a promise is among them (no firewall
+  changes, no anonymous mode off, no mounts). The root terminal is hidden
+  from the launcher (`X-WormOS-Needs-Root`) and from Amnesia's own desktop
+  menu (`amnesia-menu` in `/etc/xdg/amnesia/labwc/menu.xml`; its rc.xml
+  opens that one on a right click, since labwc keeps the first menu of an
+  id), and Settings shows system settings greyed out.
 - **Installing without root.** `wormos-amnesia` ships `/etc/wh/live` and
   `/etc/wh/users-may-install`: `wh install`, `remove`, `update` and
   `upgrade` and `worm kit install` by the live user go through wh's setuid

@@ -121,6 +121,19 @@ AMNESIA_CHECKS = [
      "command -v wormos-settings; echo x | su live -c '/usr/lib/worm/settings hostname other' "
      "> /dev/null 2>&1; echo rc=$?; hostname",
      r"^/usr/bin/wormos-settings\nrc=[13]\n(?!other)"),
+    # Root is locked: WormOS's own safe actions run for the live user.
+    ("the live user sees the protections", "su live -c 'worm status' 2>&1",
+     r"(?i)firewall(?![\s\S]*needs root)"),
+    ("the live user sees the firewall", "su live -c 'worm fw status' 2>&1", r"^Firewall: active"),
+    ("the live user checks the clock", "su live -c 'worm time sync' 2>&1; echo rc=$?",
+     r"\A(?![\s\S]*needs root)[\s\S]*rc=\d+"),
+    ("the live user sees the bridges", "su live -c 'worm anon bridges status' 2>&1",
+     r"\A(?![\s\S]*needs root)[\s\S]*\S"),
+    ("no root terminal in the launcher or the menu",
+     "grep -c '^X-WormOS-Needs-Root=true' /usr/share/applications/org.wormos.RootTerminal.desktop; "
+     "grep -c root-terminal /etc/xdg/amnesia/labwc/menu.xml; "
+     "grep -c 'menu=\"amnesia-menu\"' /etc/xdg/amnesia/labwc/rc.xml",
+     r"^1\n0\n1$"),
     ("updates are looked for once Tor is connected",
      "ls /usr/lib/worm/amnesia-update-notice; grep -c amnesia-update-notice "
      "/etc/xdg/amnesia/labwc/autostart", r"amnesia-update-notice\n1$"),

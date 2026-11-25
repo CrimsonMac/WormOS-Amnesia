@@ -1,5 +1,5 @@
 name=wormos-amnesia
-version=1.7
+version=1.8
 description="WormOS Amnesia: the live edition that forgets everything and goes through Tor"
 depends=(wormos-desktop worm wh tor tor-browser tor-browser-runtime tor-browser-bundle curl)
 # GTK's theme sources, for the grey GTK theme (as in wormos-gtk-theme).
@@ -34,7 +34,11 @@ package() {
 	sed 's|<name>WormOS</name>|<name>WormOS-Amnesia</name>|' \
 		"$recipedir/../wormos-desktop/files/labwc/rc.xml" > rc.xml
 	grep -q '<name>WormOS-Amnesia</name>' rc.xml || die "theme name not found in rc.xml"
+	# Right click on the background opens Amnesia's menu (menu.xml).
+	sed -i 's|<context name="Root">|&\n      <mousebind button="Right" action="Press"><action name="ShowMenu" menu="amnesia-menu" /></mousebind>|' rc.xml
+	grep -q 'menu="amnesia-menu"' rc.xml || die "Root context not found in rc.xml"
 	install -Dm644 rc.xml "$pkgdir/etc/xdg/amnesia/labwc/rc.xml"
+	install -Dm644 "$f/xdg/labwc/menu.xml" "$pkgdir/etc/xdg/amnesia/labwc/menu.xml"
 	install -Dm644 "$f/xdg/foot/foot.ini" "$pkgdir/etc/xdg/amnesia/foot/foot.ini"
 	install -Dm644 "$f/settings.ini" "$pkgdir/etc/xdg/amnesia/gtk-4.0/settings.ini"
 	install -Dm644 "$f/themerc" "$pkgdir/usr/share/themes/WormOS-Amnesia/labwc/themerc"

@@ -63,7 +63,9 @@ remains. It is not meant for real work: by design, nothing can be kept.
   the launcher. `worm anon status` shows how far Tor has connected; a
   welcome guide opens at every start. Settings (Super+I) and the panel's
   quick settings change the keyboard, mouse, sound and display for the
-  session; the system itself stays locked.
+  session; the system itself stays locked. There is no root, and nothing
+  asks for it: `worm status`, Tor bridges, a clock check and `worm panic`
+  work for the live user.
 - **In a virtual machine** Amnesia sets up drawing and the pointer for the
   hypervisor like WormOS, but never mounts the host's shared folders and
   runs no guest agent: nothing is kept, and the host learns nothing from

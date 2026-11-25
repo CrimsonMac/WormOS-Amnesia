@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!-- WormOS Amnesia's desktop menu (right click on the background). Its own
+     id: labwc keeps the first menu of an id, WormOS's root-menu. No root
+     terminal: root is locked. -->
+<openbox_menu>
+  <menu id="amnesia-menu" label="WormOS Amnesia">
+    <item label="Terminal">
+      <action name="Execute" command="foot" />
+    </item>
+    <item label="Tor Browser">
+      <action name="Execute" command="tor-browser" />
+    </item>
+    <menu id="amnesia-apps" label="Applications" execute="/usr/lib/worm/apps-menu" />
+    <separator />
+    <item label="Settings">
+      <action name="Execute" command="wormos-settings" />
+    </item>
+    <item label="Change wallpaper">
+      <action name="Execute" command="wormos-settings --page appearance" />
+    </item>
+    <item label="System status">
+      <action name="Execute" command="foot --hold --title 'System status' worm status" />
+    </item>
+    <item label="Tor status">
+      <action name="Execute" command="foot --hold --title 'Tor' worm anon status" />
+    </item>
+    <item label="Screenshot">
+      <action name="Execute" command="/usr/lib/worm/screenshot" />
+    </item>
+    <separator />
+    <item label="Reload settings">
+      <action name="Reconfigure" />
+    </item>
+  </menu>
+</openbox_menu>
