@@ -147,6 +147,14 @@ AMNESIA_CHECKS = [
     ("Super+Shift+Escape shuts down at once",
      "grep -c 'key=\"W-S-Escape\".*/usr/lib/worm/power off' /etc/xdg/amnesia/labwc/rc.xml; "
      "grep -c 'quick-action new-circuits' /etc/xdg/amnesia/labwc/menu.xml", r"^1\n1$"),
+    # Everyday programs: the Welcome window at every start, Software
+    # without a password, Files.
+    ("the Welcome window opens at every start", "pidof wormos-welcome", r"^\d+$"),
+    ("Software searches for the live user", "su live -c '/usr/lib/worm/software search tree' 2>&1 | head -3",
+     r"^tree "),
+    ("Files, Software and Welcome in the menu",
+     "grep -c -e wormos-files -e wormos-software -e wormos-welcome /etc/xdg/amnesia/labwc/menu.xml; "
+     "grep -c 'key=\"W-e\".*wormos-files' /etc/xdg/amnesia/labwc/rc.xml", r"^3\n1$"),
     ("updates are looked for once Tor is connected",
      "ls /usr/lib/worm/amnesia-update-notice; grep -c amnesia-update-notice "
      "/etc/xdg/amnesia/labwc/autostart", r"amnesia-update-notice\n1$"),

@@ -163,6 +163,15 @@ does, and what comes next. It ships as
   the start screen, and `/etc/zsh/prompt-colors` for the shell prompt; the
   wallpaper is the WormOS one drawn in greys; the welcome logo is grey and the welcome terminal opens at every start with
   what Amnesia does and does not do (`/usr/share/wormos/guide-amnesia`).
+- **Everyday programs (1.16).** The Welcome window (`wormos-welcome`,
+  with Amnesia's own pages in greys: what it forgets, Tor, programs for
+  the session, the emergency key, what it cannot protect against, the
+  keyboard shortcuts) opens at every start instead of the terminal guide
+  (`welcome --full` still prints it). Files (Super+E) and Software are in
+  the launcher and the desktop menu; Software installs through wh's user
+  helper without a password, like `wh install` in a terminal, and its
+  changes go straight into memory. WormOS's update notice stays off here:
+  the stick is updated with Update Amnesia.
 - **Desktop since 1.14.** WormOS's labwc `autostart` steps aside when the
   edition has its own (labwc now runs every autostart it finds), and
   `VARIANT_WALLPAPER` makes the grey wallpaper the default of
