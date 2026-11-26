@@ -4,6 +4,9 @@
      terminal: root is locked. -->
 <openbox_menu>
   <menu id="amnesia-menu" label="WormOS Amnesia">
+    <item label="Files">
+      <action name="Execute" command="wormos-files" />
+    </item>
     <item label="Terminal">
       <action name="Execute" command="foot" />
     </item>
@@ -11,6 +14,9 @@
       <action name="Execute" command="tor-browser" />
     </item>
     <menu id="amnesia-apps" label="Applications" execute="/usr/lib/worm/apps-menu" />
+    <item label="Software">
+      <action name="Execute" command="wormos-software" />
+    </item>
     <separator />
     <item label="Settings">
       <action name="Execute" command="wormos-settings" />
@@ -31,6 +37,9 @@
       <action name="Execute" command="/usr/lib/worm/screenshot" />
     </item>
     <separator />
+    <item label="Welcome and shortcuts">
+      <action name="Execute" command="wormos-welcome" />
+    </item>
     <item label="Reload settings">
       <action name="Reconfigure" />
     </item>

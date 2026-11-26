@@ -9,6 +9,7 @@ worm-shell > "$XDG_RUNTIME_DIR/shell.log" 2>&1 &
 if ! grep -qx 'clipboard=off' /run/worm/vm 2> /dev/null; then
 	clip agent > "$XDG_RUNTIME_DIR/clip.log" 2>&1 &
 fi
-# Every start is a first start: say what this system does and does not do.
-foot --title "WormOS Amnesia" sh -c 'welcome --full; WORMOS_GREETED=1 exec "${SHELL:-/bin/sh}" -l' > /dev/null 2>&1 &
+# Every start is a first start: the Welcome window says what this system
+# does and does not do (welcome --full says it in a terminal).
+wormos-welcome > /dev/null 2>&1 &
 sh /usr/lib/worm/amnesia-update-notice > /dev/null 2>&1 &

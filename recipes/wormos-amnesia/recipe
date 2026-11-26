@@ -1,5 +1,5 @@
 name=wormos-amnesia
-version=1.9
+version=1.10
 description="WormOS Amnesia: the live edition that forgets everything and goes through Tor"
 depends=(wormos-desktop worm wh tor tor-browser tor-browser-runtime tor-browser-bundle curl)
 # GTK's theme sources, for the grey GTK theme (as in wormos-gtk-theme).
