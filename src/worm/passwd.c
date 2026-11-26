@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "password.h"
@@ -44,6 +45,9 @@ int main(void)
 	struct passwd *pw = getpwuid(uid);
 	int p[2], status;
 	pid_t pid;
+
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
 
 	clearenv();
 	if (!pw || strlen(pw->pw_name) >= sizeof(name))

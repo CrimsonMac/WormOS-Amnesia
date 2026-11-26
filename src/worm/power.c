@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <grp.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "admin.h"
@@ -25,6 +26,9 @@
 int main(int argc, char **argv)
 {
 	int sig;
+
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
 
 	clearenv();
 	if (argc != 2 || (strcmp(argv[1], "off") && strcmp(argv[1], "reboot") &&

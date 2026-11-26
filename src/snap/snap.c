@@ -685,6 +685,9 @@ int main(int argc, char **argv)
 	argv++;
 	argc--;
 
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
+
 	/* --top DIR: work on an already mounted top level (initramfs, tests). */
 	if (argc >= 2 && strcmp(argv[0], "--top") == 0) {
 		top = argv[1];

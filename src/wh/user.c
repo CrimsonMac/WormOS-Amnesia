@@ -25,6 +25,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "wh.h"
@@ -48,6 +49,9 @@ int main(int argc, char **argv)
 	struct passwd *pw = getpwuid(getuid());
 	int n = 0, i = 1;
 	const char *command = "";
+
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
 
 	if (access(WH_USERS_FLAG, F_OK) < 0)
 		fail("packages are managed by root, try again with su");

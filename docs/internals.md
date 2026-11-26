@@ -1484,6 +1484,11 @@ in [building.md](building.md); what each feature does for the user, in the
   default action (watched with `gdbus monitor` for an hour) runs
   `wormos-software --updates`. Skipped on live systems (`/etc/wh/live`,
   `/run/wormos/live`) and with `~/.config/wormos/no-update-notice`.
+- Every setuid helper, `worm` and `snap` start with `umask(022)`: a
+  helper hands the caller's umask on to what it runs as root, so a user
+  with `umask 000` would otherwise get root's files (Tor's bridges file,
+  firewall rules, snapshot status) made writable for everyone. CodeQL's
+  weekly scan (`codeql.yml`) found it.
 
 ## Shell
 

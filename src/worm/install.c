@@ -72,6 +72,9 @@ int main(int argc, char **argv)
 	pid_t pid;
 	int status;
 
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
+
 	clearenv();
 	if (!caller_is_admin())
 		fail(1, "only administrators (the group wheel) can do this");

@@ -25,6 +25,7 @@
 #include <sys/mount.h>
 #include <sys/statvfs.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "worm.h"
@@ -439,6 +440,8 @@ static void overview(void)
 
 int main(int argc, char **argv)
 {
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
 	if (argc < 2) {
 		usage(stderr);
 		return 2;

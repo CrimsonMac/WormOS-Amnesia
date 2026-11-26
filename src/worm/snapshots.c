@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "admin.h"
@@ -104,6 +105,9 @@ int main(int argc, char **argv)
 	const char *cmd = argc > 1 ? argv[1] : "";
 	const char *args[8] = { SNAP };
 	int n = 1;
+
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
 
 	clearenv();
 	if (!caller_is_admin())

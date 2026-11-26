@@ -407,6 +407,10 @@ ANON_CHECKS = [
      "nft list chain inet worm output | grep -c -e 'l4proto udp accept' -e 'l4proto 17 accept'; "
      "tor -f /etc/tor/torrc --verify-config | tail -1",
      r"snowflake bridges?\.\n[1-9]\n1\nConfiguration was valid"),
+    ("files made as root ignore the caller's umask",
+     "worm anon bridges off > /dev/null; (umask 000; worm anon bridges obfs4 > /dev/null); "
+     "stat -c %a /etc/tor/torrc.d/bridges.conf",
+     r"^644$"),
     ("bridges off", "worm anon bridges off > /tmp/br; head -1 /tmp/br; ls /etc/tor/torrc.d | wc -l; "
      "nft list chain inet worm output | grep -c -e 'l4proto udp accept' -e 'l4proto 17 accept'",
      r"^Tor connects directly again(.|\n)*^0\n0$"),

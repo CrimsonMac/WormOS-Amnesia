@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "admin.h"
@@ -160,6 +161,9 @@ int main(int argc, char **argv)
 	const char *cmd = argc > 1 ? argv[1] : "";
 	char *args[MAX_PACKAGES + 8];
 	int n = 0, users_may = access(USERS_FLAG, F_OK) == 0, i = 2;
+
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
 
 	if (!caller_is_admin())
 		fail(1, "only administrators (the group wheel) can do this");

@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "bh.h"
@@ -92,6 +93,9 @@ static int our_child(pid_t pid, uid_t uid)
 int main(int argc, char **argv)
 {
 	uid_t uid = getuid();
+
+	/* Files made as root never inherit the caller's umask (setuid helpers). */
+	umask(022);
 
 	if (argc == 6 && !strcmp(argv[1], "create")) {
 		unsigned long long memory = number(argv[4]), pids = number(argv[5]);

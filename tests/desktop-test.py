@@ -101,17 +101,17 @@ SESSION_CHECKS = [
      "--dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.ListNames'",
      r'string "org\.freedesktop\.DBus"'),
     ("programs on the desktop know the bus",
-     "tr '\\0' '\\n' < /proc/$(pidof foot | cut -d' ' -f1)/environ | grep ^DBUS_SESSION",
+     "tr '\\0' '\\n' < /proc/$(pidof worm-shell | cut -d' ' -f1)/environ | grep ^DBUS_SESSION",
      r"^DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus$"),
     ("standard folders", f"ls -1 /home/{USER}; grep -c DIR= /home/{USER}/.config/user-dirs.dirs",
      r"Documents(.|\n)*Downloads(.|\n)*Pictures(.|\n)*^8$"),
     # X11 programs: Xwayland starts when the first one connects. xkbcomp
     # is an X client too (it reads the server's keymap).
     ("programs on the desktop know the X display",
-     "tr '\\0' '\\n' < /proc/$(pidof foot | cut -d' ' -f1)/environ | grep ^DISPLAY=",
+     "tr '\\0' '\\n' < /proc/$(pidof worm-shell | cut -d' ' -f1)/environ | grep ^DISPLAY=",
      r"^DISPLAY=:\d+$"),
     ("an X11 program connects through Xwayland",
-     f"d=$(tr '\\0' '\\n' < /proc/$(pidof foot | cut -d' ' -f1)/environ | sed -n 's/^DISPLAY=//p'); "
+     f"d=$(tr '\\0' '\\n' < /proc/$(pidof worm-shell | cut -d' ' -f1)/environ | sed -n 's/^DISPLAY=//p'); "
      f"su {USER} -c \"DISPLAY=$d xkbcomp -xkb $d /tmp/x11.xkb\" 2>&1 | grep -v -i warning | head -3; "
      "grep -c xkb_keymap /tmp/x11.xkb; pidof Xwayland | wc -w; "
      "grep -a -e '(EE)' -e '(II)' -e glamor -e GLX -e EGL /run/user/1000/desktop.log | head -40",
@@ -736,7 +736,7 @@ def main():
             run_checks(con, AFTER_SETUP_CHECKS)
 
             # The new user is logged in right away: the desktop starts.
-            out = wait_for(con, "pidof foot", r"^\d+", 300)
+            out = wait_for(con, "pidof worm-shell", r"^\d+", 300)
             check("desktop started after the setup", re.search(r"^\d+", out, re.M) is not None,
                   con.run("tail -n 20 /run/user/1000/desktop.log"))
             time.sleep(5)

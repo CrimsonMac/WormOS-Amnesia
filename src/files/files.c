@@ -298,6 +298,17 @@ static void navigate(struct win *w, GFile *folder, gboolean record)
 	gtk_widget_set_sensitive(w->back, w->history != NULL);
 	gtk_widget_set_sensitive(w->forward, w->future != NULL);
 	message(w, "");
+	/* The sidebar marks the place shown, if it is one. */
+	gtk_list_box_unselect_all(GTK_LIST_BOX(w->places));
+	for (GtkWidget *row = gtk_widget_get_first_child(w->places); row;
+	     row = gtk_widget_get_next_sibling(row)) {
+		GFile *place = g_object_get_data(G_OBJECT(row), "file");
+
+		if (place && g_file_equal(place, folder)) {
+			gtk_list_box_select_row(GTK_LIST_BOX(w->places), GTK_LIST_BOX_ROW(row));
+			break;
+		}
+	}
 }
 
 static void go_back(struct win *w)
