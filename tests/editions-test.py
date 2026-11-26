@@ -134,6 +134,19 @@ AMNESIA_CHECKS = [
      "grep -c root-terminal /etc/xdg/amnesia/labwc/menu.xml; "
      "grep -c 'menu=\"amnesia-menu\"' /etc/xdg/amnesia/labwc/rc.xml",
      r"^1\n0\n1$"),
+    # Tor's controller: only root reaches it; the live user gets new circuits
+    # through the settings helper.
+    ("new Tor circuits for the live user", "su live -c 'worm anon new-circuits' 2>&1",
+     r"^New connections now use new Tor circuits\.$"),
+    ("Tor's controller is out of the user's reach",
+     "stat -c '%a %U' /run/tor-control; su live -c 'cat /run/tor-control/cookie 2>/dev/null' | wc -c; "
+     "su live -c 'ls /run/tor-control' 2>&1",
+     r"^700 tor\n0\n.*(Permission denied|can't open)"),
+    ("no TCP timestamps, no core dumps", "sysctl -n net.ipv4.tcp_timestamps kernel.core_pattern",
+     r"^0\n\|/bin/false$"),
+    ("Super+Shift+Escape shuts down at once",
+     "grep -c 'key=\"W-S-Escape\".*/usr/lib/worm/power off' /etc/xdg/amnesia/labwc/rc.xml; "
+     "grep -c 'quick-action new-circuits' /etc/xdg/amnesia/labwc/menu.xml", r"^1\n1$"),
     ("updates are looked for once Tor is connected",
      "ls /usr/lib/worm/amnesia-update-notice; grep -c amnesia-update-notice "
      "/etc/xdg/amnesia/labwc/autostart", r"amnesia-update-notice\n1$"),

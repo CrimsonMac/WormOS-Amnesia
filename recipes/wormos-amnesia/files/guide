@@ -12,7 +12,9 @@
   Everything goes through Tor.
     Every connection of this computer goes through the Tor network from
     the moment it starts; anything that cannot (other traffic, IPv6) is
-    blocked. worm anon status shows how far Tor has connected.
+    blocked. worm anon status shows how far Tor has connected, and
+    worm anon new-circuits (also in the shield menu of the panel) gives new
+    connections new circuits, unlinked to earlier ones.
     Tor Browser is in the launcher (the grid at the bottom left).
 
   Made for one-off tasks.
@@ -24,7 +26,8 @@
     closes a window, Alt+Tab switches windows, Super+I opens Settings
     (keyboard, mouse, sound, display; they last until the computer stops).
     The power icon at the bottom right has quick settings and shuts the
-    computer down, and with it everything here.
+    computer down, and with it everything here. In a hurry, Super+Shift+
+    Escape shuts down at once, and so does pulling out the USB stick.
 
   Sandboxes, inside the sandbox
     bh open lab            a disposable sandbox: no network, no files
@@ -40,3 +43,9 @@
   There is no administrator: root cannot log in, so nothing can make this
   system keep anything or reach a disk. Nothing can use a microphone or a
   camera either.
+
+  What it cannot protect you from
+    A computer that is already compromised (its firmware, a hardware key
+    logger, the host of a virtual machine), what you reveal yourself
+    (names, accounts, writing style, files you share), and attacks on the
+    Tor network itself. Signing in to your own accounts links them to you.

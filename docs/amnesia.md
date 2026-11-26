@@ -31,7 +31,8 @@ does, and what comes next. It ships as
 5. **Honest limits.** Amnesia cannot protect against a compromised
    computer (firmware, hardware keyloggers, a hostile hypervisor when run
    in a VM), against what the user reveals themselves, or against attacks
-   on Tor itself. It says so in its welcome text.
+   on Tor itself. It says so in its welcome text (since 1.15 in a section
+   of its own).
 
 ## How it works (first version)
 
@@ -131,6 +132,19 @@ does, and what comes next. It ships as
   its own circuit (`IsolateDestAddr`), so an exit relay cannot link the
   connections of different programs or to different sites; Tor Browser
   isolates its own sites through SOCKS.
+- **New circuits (1.15).** Tor Browser uses the system Tor, so its own
+  "New Tor circuit" cannot reach Tor. `worm anon new-circuits` (also
+  "New Tor circuits" in the panel's shield menu, the desktop menu and the
+  launcher's quick actions) sends Tor `NEWNYM` through its control socket.
+  Only root reaches the socket (`/run/tor-control`, 0700, Tor's user;
+  cookie authentication), since a controller could ask Tor for the
+  computer's real address; the live user goes through the settings
+  helper, which runs nothing else for it. The shield menu also shows how
+  far Tor has connected.
+- **Kernel settings (1.15).** On top of WormOS's: no TCP timestamps (less
+  for the first relay to learn about the clock and uptime) and no core
+  dumps (`kernel.core_pattern=|/bin/false`: a crashing program's memory
+  is never written to a file), in `/usr/lib/sysctl.d/60-amnesia.conf`.
 - **No microphone, no camera.** The kernel has no camera drivers at all.
   A udev rule (`90-amnesia-microphone.rules`) gives the sound capture
   devices to root alone, so neither PipeWire nor any program can record;
@@ -166,7 +180,10 @@ does, and what comes next. It ships as
   (`/usr/lib/worm/medium-watch`) checks every second that it is still
   there and powers off at once (`poweroff -f`, no shutdown sequence) when
   the USB stick is pulled out. A CD or DVD drive stays when its disc is
-  ejected, so started from a disc there is nothing to watch.
+  ejected, so started from a disc there is nothing to watch. Super+Shift+
+  Escape (and "Shut down now" in the desktop menu) does the same from the
+  keyboard, through WormOS's power helper: the shutdown wipes the session
+  first.
 - **Tests.** `tests/editions-test.py amnesia` boots the ISO from a USB
   stick (QEMU's usb-storage) and checks the
   edition, the kernel options, that Tor runs from the start as its own
@@ -174,7 +191,9 @@ does, and what comes next. It ships as
   the host hear nothing from the VM, the desktop settings, that the screen
   is grey, and that pulling the stick out (`device_del`) turns the VM off;
   also the keyboard layout chosen on the start screen, the microphone,
-  stream isolation and the update notice. `--skew -48` starts the VM with
+  stream isolation, new circuits for the live user while Tor's controller
+  stays out of its reach, the kernel settings, the emergency key and the
+  update notice. `--skew -48` starts the VM with
   its clock two days ahead (kvmclock off, so the guest reads the RTC) and
   checks that the clock is set from Tor's reports.
   `tests/amnesia-update-test.py OLD.iso NEW.iso` (or `--synthetic`) runs
@@ -223,8 +242,9 @@ does, and what comes next. It ships as
 - **Bridges** are done (snowflake, obfs4, meek and pasted lines, including
   webtunnel, on the start screen). Still to do: requesting bridges from
   inside Amnesia (moat), and Conjure.
-- **Stream isolation:** done for destinations (`IsolateDestAddr`); still
-  to do: separate SOCKS ports per program.
+- **Stream isolation:** done for destinations (`IsolateDestAddr`), and
+  new circuits on request (`worm anon new-circuits`); still to do:
+  separate SOCKS ports per program.
 - **Uniform fingerprint:** the same screen size steps for Tor Browser
   (letterboxing is already on in Tor Browser), the same fonts, a fixed
   keyboard layout list, UTC everywhere.

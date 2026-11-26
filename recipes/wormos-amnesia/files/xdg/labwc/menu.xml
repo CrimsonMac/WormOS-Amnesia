@@ -24,12 +24,19 @@
     <item label="Tor status">
       <action name="Execute" command="foot --hold --title 'Tor' worm anon status" />
     </item>
+    <item label="New Tor circuits">
+      <action name="Execute" command="/usr/lib/worm/quick-action new-circuits" />
+    </item>
     <item label="Screenshot">
       <action name="Execute" command="/usr/lib/worm/screenshot" />
     </item>
     <separator />
     <item label="Reload settings">
       <action name="Reconfigure" />
+    </item>
+    <separator />
+    <item label="Shut down now (Super+Shift+Escape)">
+      <action name="Execute" command="/usr/lib/worm/power off" />
     </item>
   </menu>
 </openbox_menu>
