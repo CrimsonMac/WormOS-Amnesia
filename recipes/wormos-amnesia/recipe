@@ -37,11 +37,11 @@ package() {
 	# Right click on the background opens Amnesia's menu (menu.xml).
 	sed -i 's|<context name="Root">|&\n      <mousebind button="Right" action="Press"><action name="ShowMenu" menu="amnesia-menu" /></mousebind>|' rc.xml
 	grep -q 'menu="amnesia-menu"' rc.xml || die "Root context not found in rc.xml"
-	install -Dm644 rc.xml "$pkgdir/etc/xdg/amnesia/labwc/rc.xml"
 	# Super+Shift+Escape: shut down at once (the shutdown still wipes the
 	# session first), as pulling the USB stick out does.
 	sed -i 's|</keyboard>|  <keybind key="W-S-Escape"><action name="Execute" command="/usr/lib/worm/power off" /></keybind>\n  &|' rc.xml
 	grep -q 'key="W-S-Escape"' rc.xml || die "keyboard section not found in rc.xml"
+	install -Dm644 rc.xml "$pkgdir/etc/xdg/amnesia/labwc/rc.xml"
 	install -Dm644 "$f/xdg/labwc/menu.xml" "$pkgdir/etc/xdg/amnesia/labwc/menu.xml"
 	install -Dm644 "$f/xdg/foot/foot.ini" "$pkgdir/etc/xdg/amnesia/foot/foot.ini"
 	install -Dm644 "$f/settings.ini" "$pkgdir/etc/xdg/amnesia/gtk-4.0/settings.ini"
