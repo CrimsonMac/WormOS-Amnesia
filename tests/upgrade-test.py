@@ -11,7 +11,11 @@ edition now comes with; the test runs it, then removes one of them and
 checks that upgrades leave it removed. Disk writes are discarded. The
 console output is written to build/upgrade.log.
 
-Usage: tests/upgrade-test.py IMAGE [--timeout SECONDS]
+With --published the upgrade comes from the published package repository
+(the URL wh ships with) instead of out/repo: what a user of the older
+release gets once a new release is out. CI runs it for every release.
+
+Usage: tests/upgrade-test.py IMAGE [--published] [--timeout SECONDS]
 """
 
 import argparse
@@ -88,6 +92,8 @@ DECLINED_CHECKS = [
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("image", help="an older release image (qcow2)")
+    parser.add_argument("--published", action="store_true",
+                        help="upgrade from the published package repository")
     parser.add_argument("--timeout", type=int, default=600,
                         help="seconds to wait for the login prompt")
     args = parser.parse_args()
@@ -102,7 +108,12 @@ def main():
     proc = subprocess.Popen([os.path.join(ROOT, "scripts", "run-qemu.sh"), "--snapshot"],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, env=env)
-    repo = boot_test.serve_repo()
+    if args.published:
+        with open(os.path.join(ROOT, "recipes", "wh", "recipe")) as f:
+            repo = re.search(r"https://github\.com/[^\s]*/releases/download/[^/\s]+/", f.read()).group(0)
+        print(f"upgrading from {repo}")
+    else:
+        repo = boot_test.serve_repo()
     passed = failures = 0
     total = len(AFTER_CHECKS) + len(DECLINED_CHECKS) + 5
 
@@ -165,7 +176,7 @@ def main():
             check("older release set up", "VERSION_ID=" in out and VERSION not in out, out)
 
             out = con.run(f"wh --repo {repo} update", 120)
-            check("package index from out/repo", "Package index updated" in out, out)
+            check("package index fetched", "Package index updated" in out, out)
 
             con.send(f"wh --repo {repo} -y upgrade\n")
             out = con.expect("login:", 1800)

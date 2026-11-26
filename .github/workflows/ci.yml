@@ -1,7 +1,11 @@
-# Every push and pull request: quick checks (recipes, scripts, documents,
-# files that must not be committed) and WormOS's own programs built with
-# GCC and Clang, warnings as errors, plus the unit tests. No image is built
-# here: a full build takes hours (see release-tests.yml for the images).
+# Every push and pull request: quick checks (recipes, scripts with
+# ShellCheck, the workflows with actionlint, documents, files that must
+# not be committed) and WormOS's own programs built with GCC and Clang,
+# warnings as errors, plus the unit tests, once more under AddressSanitizer
+# and UndefinedBehaviorSanitizer. No image is built here: a full build
+# takes hours (see release-tests.yml for the images).
+#
+# Actions are pinned to commits (Dependabot keeps them current).
 name: CI
 
 on:
@@ -22,12 +26,25 @@ jobs:
     name: Lint
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
     steps:
-      - uses: actions/checkout@v7
-      - run: scripts/lint.sh
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Recipes, scripts, documents, files
+        run: scripts/lint.sh
+      - name: Workflows (actionlint)
+        run: |
+          curl -fsSLo actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "$ACTIONLINT_SHA256  actionlint.tar.gz" | sha256sum -c -
+          tar -xzf actionlint.tar.gz actionlint
+          ./actionlint -color
 
   build:
-    name: Build (${{ matrix.cc }})
+    name: Build (${{ matrix.name }})
     runs-on: ubuntu-24.04
     # Debian testing: kernel headers and GTK 4 recent enough for the
     # Landlock scopes and GTK calls WormOS uses (its own are newer still).
@@ -36,14 +53,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        cc: [gcc, clang]
+        include:
+          - name: gcc
+            cc: gcc
+          - name: clang
+            cc: clang
+          - name: sanitizers
+            cc: gcc
+            sanitize: 1
     steps:
       - name: Install build dependencies
         run: |
           apt-get update
           apt-get install -y --no-install-recommends build-essential clang pkg-config curl \
             ca-certificates git libcrypt-dev libgtk-4-dev libgtk4-layer-shell-dev libwayland-dev \
-            libwayland-bin wayland-protocols meson ninja-build
-      - uses: actions/checkout@v7
+            libwayland-bin wayland-protocols meson ninja-build python3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build and run the unit tests
-        run: scripts/ci-build.sh ${{ matrix.cc }}
+        env:
+          SANITIZE: ${{ matrix.sanitize || 0 }}
+        run: |
+          set -o pipefail
+          scripts/ci-build.sh ${{ matrix.cc }} 2>&1 | tee unit.txt
+      - name: Summary
+        if: always()
+        run: scripts/ci-summary.py "Unit tests (${{ matrix.name }})" unit.txt

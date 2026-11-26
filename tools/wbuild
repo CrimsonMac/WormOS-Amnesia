@@ -303,9 +303,9 @@ build_one() (
 	mkdir -p "$pkgdir"
 	: > "$CACHE/$name.pclog"
 	export WBUILD_PCLOG=$CACHE/$name.pclog
-	cd "$srcdir"
+	cd "$srcdir" || exit 1
 	if declare -F build >/dev/null; then build; fi
-	cd "$srcdir"
+	cd "$srcdir" || exit 1
 	package
 	unset WBUILD_PCLOG
 

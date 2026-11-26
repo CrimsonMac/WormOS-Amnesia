@@ -5,7 +5,10 @@
 # layer-shell and Wayland development files; without them they are skipped
 # (CI installs them, so there nothing is skipped).
 #
-# Usage: scripts/ci-build.sh [CC]
+# With SANITIZE=1 the unit tests also run under AddressSanitizer and
+# UndefinedBehaviorSanitizer (any report fails them).
+#
+# Usage: [SANITIZE=1] scripts/ci-build.sh [CC]
 
 . "$(dirname "$0")/env.sh"
 set +u
@@ -40,9 +43,16 @@ if pkg-config --exists gtk4 && ! pkg-config --exists gtk4-layer-shell-0 && comma
 	export PKG_CONFIG_PATH=$work/prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}
 fi
 
-cp -r "$WORMOS_ROOT/src" "$work/src"
+# CI_IN_PLACE=1 builds in the checkout itself (CodeQL needs the sources
+# where it saw them compiled); otherwise in a copy, leaving the tree clean.
+srcroot=$work
+if [ "${CI_IN_PLACE:-0}" = 1 ]; then
+	srcroot=$WORMOS_ROOT
+else
+	cp -r "$WORMOS_ROOT/src" "$work/src"
+fi
 failed=()
-for dir in "$work"/src/*/; do
+for dir in "$srcroot"/src/*/; do
 	name=$(basename "$dir")
 	[ -f "$dir/Makefile" ] || continue
 	if grep -q 'PKG_CONFIG' "$dir/Makefile" && ! pkg-config --exists gtk4 wayland-client 2>/dev/null; then
@@ -58,7 +68,13 @@ done
 
 msg "Unit tests"
 cp -r "$WORMOS_ROOT/tests" "$work/tests"
-make -s -C "$work/tests/unit" CC="$CC" \
+unit_cflags="-O2 -D_FORTIFY_SOURCE=3"
+if [ "${SANITIZE:-0}" = 1 ]; then
+	unit_cflags="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all"
+	export ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=print_stacktrace=1
+	msg "Unit tests run under AddressSanitizer and UndefinedBehaviorSanitizer"
+fi
+make -s -C "$work/tests/unit" CC="$CC" CFLAGS="$unit_cflags" \
 	MONO_CFLAGS="-I$mono/src -I$mono/src/optional" \
 	MONO_LIBS="$mono/src/monocypher.c $mono/src/optional/monocypher-ed25519.c" check ||
 	failed+=(unit-tests)

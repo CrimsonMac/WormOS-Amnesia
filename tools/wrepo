@@ -60,6 +60,7 @@ if [ "${1:-}" = --index-only ]; then
 	shift
 else
 	if [ $# -eq 0 ]; then
+		# shellcheck disable=SC2046 # package names have no spaces
 		set -- $(cd "$BUILD/pkginfo" && ls *.info | sed 's/\.info$//')
 	fi
 	"$WORMOS_ROOT/tools/wpack" "$@"

@@ -1,7 +1,9 @@
 # The published images, booted in QEMU with KVM: the same tests a release
 # passes before it is published, run again on every release and every week
 # (the network, the package repository and Tor change under a release).
-# Started by hand, it can test any release tag.
+# Started by hand, it can test any release tag. The upgrade job takes the
+# release before it and upgrades it from the published package repository,
+# as its users do.
 name: Release tests
 
 on:
@@ -40,6 +42,10 @@ jobs:
           - name: Barebones edition
             asset: "wormos-*-barebones-x86_64.iso"
             test: tests/editions-test.py barebones $GITHUB_WORKSPACE/out/release/wormos-$VERSION-barebones-x86_64.iso --release
+          - name: Upgrade from the release before
+            asset: SHA256SUMS
+            previous: "wormos-*-x86_64.qcow2"
+            test: tests/upgrade-test.py --published $GITHUB_WORKSPACE/out/previous/wormos-$PREVIOUS-x86_64.qcow2
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -50,25 +56,46 @@ jobs:
           [ -n "$tag" ] || tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "VERSION=${tag#v}" >> "$GITHUB_ENV"
+          # The release published before it (for the upgrade job).
+          previous=$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
+            --limit 50 --json tagName,publishedAt -q 'sort_by(.publishedAt) | reverse | .[].tagName' |
+            awk -v t="$tag" 'found { print; exit } $0 == t { found = 1 }')
+          echo "PREVIOUS=${previous#v}" >> "$GITHUB_ENV"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
       # The release's own tests (what it promised when it was published),
       # in tagged/; the default branch in the workspace for everything else.
-      - uses: actions/checkout@v7
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.release.outputs.tag }}
           path: tagged
+          persist-credentials: false
       - name: Test harness fixes from the default branch
         run: |
           # Releases before 1.11 could not run their desktop test without
           # the WormOS toolchain (it cross-compiles a GTK program).
           grep -q 'no WormOS toolchain' tagged/tests/desktop-test.py ||
             cp tests/desktop-test.py tagged/tests/desktop-test.py
+          # Releases before 1.16 had no upgrade test against the published
+          # repository.
+          grep -q -- '--published' tagged/tests/upgrade-test.py ||
+            cp tests/upgrade-test.py tagged/tests/upgrade-test.py
       - name: Download and check the image
         run: |
           mkdir -p out/release tagged/build tagged/out
           gh release download "${{ steps.release.outputs.tag }}" -R "$GITHUB_REPOSITORY" \
             -D out/release -p '${{ matrix.asset }}' -p SHA256SUMS
           cd out/release && sha256sum -c --ignore-missing SHA256SUMS
+      - name: Download and check the release before
+        if: matrix.previous
+        run: |
+          [ -n "$PREVIOUS" ] || { echo "no earlier release"; exit 1; }
+          mkdir -p out/previous
+          gh release download "${{ steps.release.outputs.previous }}" -R "$GITHUB_REPOSITORY" \
+            -D out/previous -p '${{ matrix.previous }}' -p SHA256SUMS
+          cd out/previous && sha256sum -c --ignore-missing SHA256SUMS
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
@@ -81,10 +108,15 @@ jobs:
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
       - name: Test
         working-directory: tagged
-        run: ${{ matrix.test }}
+        run: |
+          set -o pipefail
+          ${{ matrix.test }} 2>&1 | tee "$GITHUB_WORKSPACE/test.txt"
+      - name: Summary
+        if: always()
+        run: scripts/ci-summary.py "${{ matrix.name }} (${{ steps.release.outputs.tag }})" test.txt
       - name: Keep the logs
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-${{ strategy.job-index }}
           path: |

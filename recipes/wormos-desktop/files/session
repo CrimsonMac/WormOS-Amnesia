@@ -3,7 +3,9 @@
 # in (wormlogin, or a console login on tty1). Its output goes to
 # $XDG_RUNTIME_DIR/desktop.log.
 
-export XDG_RUNTIME_DIR=/run/user/$(id -u)
+XDG_RUNTIME_DIR=/run/user/"$(id -u)"
+export XDG_RUNTIME_DIR
+# shellcheck disable=SC3067 # busybox test has -O
 if [ ! -d "$XDG_RUNTIME_DIR" ] || [ ! -O "$XDG_RUNTIME_DIR" ]; then
 	echo "desktop: $XDG_RUNTIME_DIR is missing or not yours" >&2
 	exit 1

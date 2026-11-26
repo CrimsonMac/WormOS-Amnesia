@@ -124,22 +124,42 @@ GitHub Actions runs, on every push and pull request (`.github/workflows/ci.yml`)
 
 - `scripts/lint.sh`: every recipe read as `tools/wbuild` reads it (name,
   version, a checksum per source, dependencies that exist), shell and
-  Python syntax, links between the documents, and no private keys, large
-  files or build-machine paths in the repository;
+  Python syntax, ShellCheck at warning level (settings and the reasons
+  for what it skips in `.shellcheckrc`; used locally when installed),
+  links between the documents, and no private keys, large files or
+  build-machine paths in the repository;
+- actionlint on the workflows themselves;
 - `scripts/ci-build.sh`: WormOS's own programs built with GCC and with
-  Clang, warnings as errors, and the unit tests (`tests/unit`, e.g. the
-  parser for Tor's clock-skew reports). Both scripts need no toolchain:
-  run them before committing.
+  Clang, warnings as errors, and the unit tests (`tests/unit`: the parser
+  for Tor's clock-skew reports, SHA-256 against the FIPS 180-4 examples,
+  and the signature checks behind wh's index and Amnesia's updates); a
+  third job runs the unit tests under AddressSanitizer and
+  UndefinedBehaviorSanitizer (`SANITIZE=1`). Neither script needs the
+  toolchain: run them before committing.
+
+`codeql.yml` runs CodeQL's security queries over the C programs and the
+Python test harness on pushes, pull requests and every week (results under
+Security, Code scanning; `CI_IN_PLACE=1` builds in the checkout so the
+results point at the real files).
 
 A full build takes hours, so images are not built there. Instead, on every
 release and every week, `release-tests.yml` boots the published images in
-QEMU with KVM and runs the release tests (desktop, live ISOs, Barebones);
-`package-repo.yml` checks the published package repository every day
+QEMU with KVM and runs the release tests (desktop, live ISOs, Barebones),
+and takes the release before it and upgrades it from the published
+package repository (`tests/upgrade-test.py --published`), as its users
+do. `package-repo.yml` checks the published package repository every day
 (`scripts/check-package-repo.sh`: signed index, every package present with
 its size and SHA-256, dependencies, source archives); and `updates.yml`
 lists recipes with newer upstream releases each week
 (`scripts/check-updates.py`, from Repology) in an issue titled "Outdated
-packages". Dependabot keeps the actions up to date.
+packages".
+
+Every test job writes its checks to the run's summary page
+(`scripts/ci-summary.py`: the totals, each failed check with its output,
+the passed ones folded away), and failed image tests keep their logs and
+screenshots as artifacts. Actions are pinned to commits, checkouts keep no
+credentials, and every workflow starts with read-only permissions;
+Dependabot keeps the pinned actions current.
 
 On a Windows PC, from WSL: `make test-qemu-windows` boots the image in
 QEMU for Windows, which it expects under `D:\qemu` (see

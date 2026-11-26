@@ -1,0 +1,59 @@
+# CodeQL's security queries over WormOS's own C programs (the setuid
+# helpers, wh, init, the sandboxes) and the Python test harness: on pushes
+# to main, pull requests and every week, with results under Security >
+# Code scanning.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "29 3 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    # Debian testing, as in ci.yml: Ubuntu's kernel and GTK headers are too
+    # old for the Landlock scopes and GTK calls WormOS uses.
+    container: debian:testing
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [c-cpp, python]
+    steps:
+      - name: Build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential pkg-config curl \
+            ca-certificates git libcrypt-dev libgtk-4-dev libgtk4-layer-shell-dev libwayland-dev \
+            libwayland-bin wayland-protocols meson ninja-build python3 zstd
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.language == 'c-cpp' && 'manual' || 'none' }}
+          queries: security-extended
+      - name: Build
+        if: matrix.language == 'c-cpp'
+        env:
+          CI_IN_PLACE: 1
+        run: scripts/ci-build.sh gcc
+      - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:${{ matrix.language }}

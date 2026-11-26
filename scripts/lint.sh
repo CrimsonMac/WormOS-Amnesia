@@ -6,7 +6,7 @@
 # Usage: scripts/lint.sh
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 failures=0
 fail() { printf 'FAIL  %s\n' "$*"; failures=$((failures + 1)); }
@@ -64,6 +64,18 @@ while IFS= read -r -d '' f; do
 	"${checker[@]}" "$f" 2>/dev/null || fail "$f: shell syntax error ($("${checker[@]}" "$f" 2>&1 | head -1))"
 done < <(git ls-files -z -- scripts tools recipes tests kernel Makefile)
 printf 'shell scripts: %d checked\n' "$shells"
+# ShellCheck, warnings and errors (CI always has it; locally it is used
+# when installed).
+if command -v shellcheck > /dev/null; then
+	mapfile -d '' scripts < <(git ls-files -z -- scripts tools recipes tests kernel |
+		xargs -0 grep -lZE '^#!(/bin/(ba)?sh|/usr/bin/env bash)' -- 2>/dev/null)
+	if [ ${#scripts[@]} -gt 0 ] && ! shellcheck -S warning "${scripts[@]}"; then
+		fail "ShellCheck found problems (above)"
+	fi
+	printf 'ShellCheck: %d scripts checked\n' "${#scripts[@]}"
+elif [ -n "${CI:-}" ]; then
+	fail "ShellCheck is not installed"
+fi
 
 # ---- Python ----
 pys=0

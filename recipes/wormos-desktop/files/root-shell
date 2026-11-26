@@ -10,7 +10,7 @@ export XDG_RUNTIME_DIR=/run/user/0
 [ -n "${1:-}" ] && export WAYLAND_DISPLAY="$1"
 [ -n "${2:-}" ] && export DISPLAY="$2"
 [ -n "${5:-}" ] && export WORMHOLE_BRIDGE="$5"
-[ -n "${4:-}" ] && cd "$4" 2>/dev/null
+[ -n "${4:-}" ] && { cd "$4" 2>/dev/null || true; }
 if [ -n "${6:-}" ]; then
 	exec sh -c "$3"
 fi

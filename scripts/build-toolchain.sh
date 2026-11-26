@@ -55,7 +55,7 @@ prepare_gcc_tree() {
 if ! done_step binutils; then
 	msg "Building $BINUTILS"
 	unpack "$SOURCES/$BINUTILS.tar.xz" "$WORK/binutils"
-	mkdir -p "$WORK/binutils/build" && cd "$WORK/binutils/build"
+	mkdir -p "$WORK/binutils/build" && cd "$WORK/binutils/build" || exit 1
 	../configure \
 		--target="$TARGET" \
 		--prefix="$TOOLS" \
@@ -73,7 +73,7 @@ fi
 if ! done_step gcc-bootstrap; then
 	msg "Building $GCC (bootstrap)"
 	prepare_gcc_tree
-	mkdir -p "$WORK/gcc/build-bootstrap" && cd "$WORK/gcc/build-bootstrap"
+	mkdir -p "$WORK/gcc/build-bootstrap" && cd "$WORK/gcc/build-bootstrap" || exit 1
 	../configure "${common_gcc_flags[@]}" \
 		--with-newlib \
 		--without-headers \
@@ -90,7 +90,7 @@ if ! done_step gcc-bootstrap; then
 	make -j"$JOBS"
 	make install
 	# Without libc headers gcc installs a partial limits.h; replace it.
-	cd "$WORK/gcc"
+	cd "$WORK/gcc" || exit 1
 	cat gcc/limitx.h gcc/glimits.h gcc/limity.h > \
 		"$(dirname "$("$TARGET-gcc" -print-libgcc-file-name)")/include/limits.h"
 	stamp gcc-bootstrap
@@ -99,7 +99,7 @@ fi
 if ! done_step linux-headers; then
 	msg "Installing $LINUX API headers"
 	unpack "$SOURCES/$LINUX.tar.xz" "$WORK/linux"
-	cd "$WORK/linux"
+	cd "$WORK/linux" || exit 1
 	make mrproper
 	make ARCH=$ARCH headers
 	rm -rf "$PKGDIR/linux-headers"
@@ -113,7 +113,7 @@ fi
 if ! done_step glibc; then
 	msg "Building $GLIBC"
 	unpack "$SOURCES/$GLIBC.tar.xz" "$WORK/glibc"
-	mkdir -p "$WORK/glibc/build" && cd "$WORK/glibc/build"
+	mkdir -p "$WORK/glibc/build" && cd "$WORK/glibc/build" || exit 1
 	echo "rootsbindir=/usr/sbin" > configparms
 	../configure \
 		--prefix=/usr \
@@ -140,7 +140,7 @@ if ! done_step gcc-final; then
 	msg "Building $GCC (final)"
 	[ -d "$WORK/gcc" ] || prepare_gcc_tree
 	rm -rf "$WORK/gcc/build-final"
-	mkdir -p "$WORK/gcc/build-final" && cd "$WORK/gcc/build-final"
+	mkdir -p "$WORK/gcc/build-final" && cd "$WORK/gcc/build-final" || exit 1
 	../configure "${common_gcc_flags[@]}" \
 		--enable-shared \
 		--enable-threads=posix \

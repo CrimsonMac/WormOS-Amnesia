@@ -35,6 +35,7 @@ for dev in /sys/class/net/*; do
 		echo "net-privacy: $name is a vmxnet3 card, keeping its MAC address" >&2
 		continue ;;
 	esac
+	# shellcheck disable=SC2046 # one word per byte
 	set -- $(od -An -N6 -tx1 /dev/urandom)
 	first=$(printf '%02x' $(( (0x$1 & 0xfc) | 0x02 )))
 	ip link set dev "$name" down

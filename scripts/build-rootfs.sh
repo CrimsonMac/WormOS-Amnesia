@@ -52,7 +52,7 @@ msg "Assembling root filesystem ($VARIANT)"
 rm -rf "$FSROOT"
 mkdir -p "$ROOTFS" "$FSROOT/@home" "$FSROOT/@snapshots" "$FSROOT/@wormholes"
 
-cd "$ROOTFS"
+cd "$ROOTFS" || die "cannot enter $ROOTFS"
 mkdir -p boot dev etc home mnt proc root run sys tmp \
 	usr/bin usr/lib usr/sbin usr/share \
 	var/cache var/lib var/lib/blackholes var/lib/wormholes var/log var/spool var/roothome \

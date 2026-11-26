@@ -1,0 +1,9 @@
+# ShellCheck settings for scripts/lint.sh (and editors).
+# Several empty assignments on one line (a= b=) are meant.
+disable=SC1007
+# QEMU's options are comma-separated words, not array mistakes.
+disable=SC2054
+# Recipes and files sourced at run time set variables ShellCheck cannot see.
+disable=SC2034,SC2154,SC1090,SC1091
+# mkdir -p -m: only the last directory needs the mode.
+disable=SC2174

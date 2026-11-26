@@ -68,6 +68,7 @@ if [ -n "${USB_ISO:-}" ]; then
 fi
 
 # QEMU_VDAGENT=off leaves the guest's agent port to QEMU_EXTRA.
+# shellcheck disable=SC2206 # the setting is one word
 vdagent=(-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on,mouse=${QEMU_VDAGENT_MOUSE:-off}
 	-device virtserialport,bus=vserial0.0,chardev=vdagent0,name=com.redhat.spice.0)
 [ "${QEMU_VDAGENT:-on}" = off ] && vdagent=()
