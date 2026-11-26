@@ -540,6 +540,15 @@ up and stay in place while Tor connects, so nothing leaks in between.
 The setting is kept across restarts and is part of system snapshots.
 Programs can also use Tor's SOCKS port directly (127.0.0.1:9050).
 
+`worm anon new-circuits` (or "New Tor circuits" in the panel's protection
+menu) asks Tor for fresh circuits: connections opened from then on cannot
+be linked to earlier ones by the relays they go through. Pages already
+open keep their circuits until they are reloaded. Administrators need no
+password for it, and Tor accepts it once every 10 seconds. Tor Browser
+uses the system's Tor in anonymous mode, so this is how to get new
+circuits for it too. While Tor connects, the protection menu shows how
+far it has got, for users who may read Tor's log (the group `tor`).
+
 Where Tor is blocked, it can connect through bridges, with the transports
 that come with Tor Browser:
 

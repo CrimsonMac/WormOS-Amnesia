@@ -1,6 +1,6 @@
 name=worm-shell
 version=0.1.0
-release=8
+release=9
 description="The WormOS desktop shell: panel, application launcher and notifications"
 depends=(glibc gtk4 gtk4-layer-shell wayland glib worm wormos-gtk-theme adwaita-icon-theme
 	wireplumber)

@@ -15,7 +15,7 @@ struct panel {
 	GtkWidget *clock;
 	GtkWidget *calendar;
 	GtkWidget *snap_label, *snap_info;
-	GtkWidget *shield, *shield_info;
+	GtkWidget *shield, *shield_info, *circuits;
 	GtkWidget *network, *network_info;
 	GtkWidget *volume, *volume_output, *volume_mute, *volume_scale, *volume_percent;
 	GtkWidget *confirm;             /* the power action waiting for a second click */
@@ -209,8 +209,15 @@ static gboolean refresh_status(gpointer data)
 		shield_info = g_strdup("The network is cut (worm panic or safe mode).");
 	} else if (s.anon) {
 		shield_icon = "network-vpn-symbolic";
-		shield_info = g_strdup("Firewall: incoming connections blocked\n"
-				       "Anonymous mode: all traffic goes through Tor");
+		char *tor = s.tor_percent >= 100 ? g_strdup("\nTor: connected") :
+			    s.tor_percent >= 0 ? g_strdup_printf("\nTor: connecting (%d%%): "
+								 "nothing gets out until it is "
+								 "connected", s.tor_percent) :
+			    g_strdup("");
+
+		shield_info = g_strdup_printf("Firewall: incoming connections blocked\n"
+					      "Anonymous mode: all traffic goes through Tor%s", tor);
+		g_free(tor);
 	} else {
 		shield_icon = "security-high-symbolic";
 		shield_info = g_strdup("Firewall: incoming connections blocked\n"
@@ -230,6 +237,7 @@ static gboolean refresh_status(gpointer data)
 		set_class(panel->shield, "warning", s.network_cut);
 		set_class(panel->shield, "tor", s.anon && !s.network_cut);
 		gtk_label_set_text(GTK_LABEL(panel->shield_info), shield_info);
+		gtk_widget_set_visible(panel->circuits, s.anon && !s.network_cut);
 		gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(panel->network), network_icon);
 		gtk_widget_set_tooltip_text(panel->network, network_info);
 		gtk_label_set_text(GTK_LABEL(panel->network_info), network_info);
@@ -715,6 +723,64 @@ static void open_snapshots(GtkButton *button, gpointer data)
 	}
 }
 
+static void circuits_done(GObject *source, GAsyncResult *res, gpointer data)
+{
+	GtkWidget *label = data;
+	GError *error = NULL;
+
+	if (g_subprocess_wait_check_finish(G_SUBPROCESS(source), res, &error)) {
+		gtk_label_set_text(GTK_LABEL(label), "New connections now use new Tor "
+				   "circuits.\nPages already open keep theirs until reloaded.");
+	} else {
+		gtk_label_set_text(GTK_LABEL(label), "Tor did not take new circuits: it is not "
+				   "connected, or was just asked (once every 10 seconds).");
+		g_error_free(error);
+	}
+	g_object_unref(label);
+}
+
+/* worm anon new-circuits, through the settings helper (no password). */
+static void new_circuits(GtkButton *button, gpointer data)
+{
+	struct panel *panel = data;
+	GError *error = NULL;
+	GSubprocess *proc = g_subprocess_new(G_SUBPROCESS_FLAGS_STDOUT_SILENCE |
+					     G_SUBPROCESS_FLAGS_STDERR_SILENCE, &error,
+					     "/usr/lib/worm/settings", "new-circuits", NULL);
+
+	(void)button;
+	if (!proc) {
+		g_warning("cannot ask Tor for new circuits: %s", error->message);
+		g_error_free(error);
+		return;
+	}
+	gtk_label_set_text(GTK_LABEL(panel->shield_info), "Asking Tor for new circuits...");
+	g_subprocess_wait_check_async(proc, NULL, circuits_done, g_object_ref(panel->shield_info));
+	g_object_unref(proc);
+}
+
+/* The protection menu: the summary, and new Tor circuits in anonymous mode. */
+static GtkWidget *shield_button(struct panel *panel)
+{
+	GtkWidget *button = info_button("security-high-symbolic", "Protection",
+					&panel->shield_info, NULL);
+	GtkWidget *popover = GTK_WIDGET(gtk_menu_button_get_popover(GTK_MENU_BUTTON(button)));
+	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+
+	g_object_ref(panel->shield_info);
+	gtk_popover_set_child(GTK_POPOVER(popover), box);
+	gtk_box_append(GTK_BOX(box), panel->shield_info);
+	g_object_unref(panel->shield_info);
+	panel->circuits = gtk_button_new_with_label("New Tor circuits");
+	gtk_widget_set_tooltip_text(panel->circuits, "New connections go through new Tor "
+				    "circuits, unlinked to earlier ones");
+	gtk_widget_set_halign(panel->circuits, GTK_ALIGN_START);
+	gtk_widget_set_visible(panel->circuits, FALSE);
+	g_signal_connect(panel->circuits, "clicked", G_CALLBACK(new_circuits), panel);
+	gtk_box_append(GTK_BOX(box), panel->circuits);
+	return button;
+}
+
 /* The snapshot menu: the summary and the two things people do most. */
 static GtkWidget *snapshot_button(struct panel *panel)
 {
@@ -805,8 +871,7 @@ static void panel_new(GdkMonitor *monitor)
 	end = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 	gtk_widget_add_css_class(end, "status");
 	gtk_box_append(GTK_BOX(end), snapshot_button(panel));
-	panel->shield = info_button("security-high-symbolic", "Protection",
-				    &panel->shield_info, NULL);
+	panel->shield = shield_button(panel);
 	gtk_box_append(GTK_BOX(end), panel->shield);
 	panel->network = info_button("network-wired-symbolic", "Network",
 				     &panel->network_info, NULL);

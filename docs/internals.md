@@ -607,6 +607,14 @@ in [building.md](building.md); what each feature does for the user, in the
   DNSPort 5353 (IPv4 and IPv6 loopback), .onion names automapped into
   10.192.0.0/10. `worm anon status` reads the last "Bootstrapped N%" line
   of the log.
+- Tor's controller (`ControlSocket /run/tor-control/control`, cookie in
+  `/run/tor-control/cookie`): `tor_start` makes the directory 0700 for
+  Tor's user, so only root reaches it (a controller can ask Tor for the
+  machine's real address, so users never get it). `worm anon new-circuits`
+  authenticates with the cookie and sends `SIGNAL NEWNYM`; users in wheel
+  run it through the settings helper (`new-circuits`, no password), as the
+  panel's "New Tor circuits" button does. The panel reads the bootstrap
+  percentage from `/run/tor/notices.log` when it can (group `tor`).
 - Rules (`write_anon()` in `fw.c`), added to the `inet worm` table: an
   output filter (policy drop) accepting `oif lo`, packets the NAT chain
   redirected (`ct status dnat` to 127.0.0.1 or ::1; after a redirect `oif`
@@ -1346,7 +1354,7 @@ in [building.md](building.md); what each feature does for the user, in the
   the controls that change the system are insensitive.
 - The helper also serves `worm` itself: run by a user, `worm status` and
   `worm fw status` go through it (`status`, `firewall`: no password, wheel
-  only), and on a system without root (`/etc/worm/no-root`) so do
+  only), so does `worm anon new-circuits` (`new-circuits`), and on a system without root (`/etc/worm/no-root`) so do
   `worm anon bridges KIND`, `worm time sync` and `worm panic [off]`
   (`bridges`, `time-sync`, `panic`, `panic-off`), which elsewhere need
   root's password: nobody could give it there, and they are safe for the

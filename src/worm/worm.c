@@ -7,6 +7,7 @@
  *     worm status             the state of the system's protections
  *     worm panic [off]        cut the network, stop blackholes, snapshot
  *     worm anon on|off|status all traffic through Tor (see anon.c)
+ *     worm anon new-circuits  fresh Tor circuits for new connections
  *
  * Only the mount of / changes (a bind remount), never the filesystem, so
  * /var and /home are not affected. Unlocking is a guard against accidents,
@@ -306,6 +307,8 @@ static void user_action(int argc, char **argv)
 		args[1] = "status";
 	else if (argc == 3 && !strcmp(argv[1], "fw") && !strcmp(argv[2], "status"))
 		args[1] = "firewall";
+	else if (argc == 3 && !strcmp(argv[1], "anon") && !strcmp(argv[2], "new-circuits"))
+		args[1] = "new-circuits";
 	else if (no_root && argc == 4 && !strcmp(argv[1], "anon") && !strcmp(argv[2], "bridges"))
 		args[1] = "bridges", args[2] = argv[3];
 	else if (no_root && argc == 3 && !strcmp(argv[1], "time") && !strcmp(argv[2], "sync"))
@@ -356,8 +359,8 @@ static int cmd_hostname(const char *name)
 
 static void usage(FILE *out)
 {
-	fputs("usage: worm help [COMMAND] | status | panic [off] | anon on|off|status|bridges KIND | unlock |\n"
-	      "       worm lock [-c COMMENT]\n"
+	fputs("usage: worm help [COMMAND] | status | panic [off] | anon on|off|status|bridges KIND|new-circuits\n"
+	      "       worm unlock | lock [-c COMMENT]\n"
 	      "       worm kit [list] | show NAME | install NAME...|all | remove NAME...|all\n"
 	      "       worm time [zones [TEXT] | zone NAME | sync]\n"
 	      "       worm passwd           change your own password\n"
@@ -398,6 +401,7 @@ static void overview(void)
 	       "  worm fw status           the firewall (everything inbound is blocked)\n"
 	       "  worm fw allow 22         open a port; worm fw deny 22 closes it\n"
 	       "  worm anon on|off         send all traffic through Tor\n"
+	       "  worm anon new-circuits   new connections get new Tor circuits (no password)\n"
 	       "  worm anon bridges snowflake  reach Tor where it is blocked (obfs4, meek,\n"
 	       "                           custom: lines from bridges.torproject.org; off)\n"
 	       "  worm unlock / lock       make / writable for a moment, then read-only again\n"

@@ -23,5 +23,13 @@ DNSPort [::1]:5353
 AutomapHostsOnResolve 1
 VirtualAddrNetworkIPv4 10.192.0.0/10
 
+# 'worm anon new-circuits' asks Tor for fresh circuits through this socket.
+# Only root reaches it: the directory is Tor's own (0700) and the cookie is
+# readable by Tor alone. A program that could talk to Tor's controller
+# could ask it for the machine's real address.
+ControlSocket /run/tor-control/control
+CookieAuthentication 1
+CookieAuthFile /run/tor-control/cookie
+
 # Bridges ('worm anon bridges') and other additions.
 %include /etc/tor/torrc.d/

@@ -1,6 +1,6 @@
 name=zsh
 version=5.9.2
-release=10
+release=11
 description="The Z shell, with the WormOS configuration and completions for its commands"
 depends=(glibc ncurses zsh-autosuggestions zsh-syntax-highlighting)
 # Signed by dana (7CA7ECAAF06216B90F894146ACF8146CAE8CBBC4).

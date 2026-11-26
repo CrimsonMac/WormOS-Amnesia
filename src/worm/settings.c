@@ -8,6 +8,7 @@
  *     firewall                 worm fw status
  *     anon-status              worm anon status
  *     status                   worm status
+ *     new-circuits             worm anon new-circuits
  *
  *     zone NAME                (password) worm time zone NAME
  *     anon on|off              (password) worm anon on|off
@@ -115,6 +116,10 @@ int main(int argc, char **argv)
 		args[n++] = "panic";
 		args[n++] = "off";
 		need_password_unless_no_root();
+	} else if (!strcmp(cmd, "new-circuits") && argc == 2) {
+		/* Only makes Tor more careful: no password. */
+		args[n++] = "anon";
+		args[n++] = "new-circuits";
 	} else if (!strcmp(cmd, "anon-status") && argc == 2) {
 		args[n++] = "anon";
 		args[n++] = "status";

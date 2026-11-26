@@ -9,6 +9,7 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -85,12 +86,32 @@ static void read_network(struct status *s)
 	freeifaddrs(list);
 }
 
+/*
+ * How far Tor has connected, from its log (readable by the group tor, which
+ * WormOS Amnesia's live user is in); -1 for everyone else.
+ */
+static int read_tor_percent(void)
+{
+	char line[512], *p;
+	int percent = -1;
+	FILE *f = fopen("/run/tor/notices.log", "re");
+
+	if (!f)
+		return -1;
+	while (fgets(line, sizeof(line), f))
+		if ((p = strstr(line, "Bootstrapped ")))
+			percent = atoi(p + 13);
+	fclose(f);
+	return percent < 0 ? 0 : percent;
+}
+
 void status_read(struct status *s)
 {
 	memset(s, 0, sizeof(*s));
 	read_snap_status(s);
 	s->anon = access("/etc/worm/anon", F_OK) == 0;
 	s->network_cut = access("/run/worm/network-cut", F_OK) == 0;
+	s->tor_percent = s->anon ? read_tor_percent() : -1;
 	read_network(s);
 }
 

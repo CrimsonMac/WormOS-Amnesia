@@ -28,6 +28,7 @@ struct status {
 	char pending[16];       /* rewind, change, trial or empty */
 	gboolean anon;          /* worm anon on */
 	gboolean network_cut;   /* worm panic or safe mode */
+	int tor_percent;        /* how far Tor has connected, -1: unknown or unreadable */
 	gboolean online;        /* a network device has a carrier */
 	char address[64];       /* first IPv4 address, if any */
 };

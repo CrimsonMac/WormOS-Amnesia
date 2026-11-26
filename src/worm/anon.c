@@ -40,7 +40,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include "worm.h"
@@ -53,6 +55,7 @@
 #define TOR_LOG      TOR_RUN "/notices.log"
 #endif
 #define TOR_DATA     "/var/lib/tor"
+#define TOR_CONTROL  "/run/tor-control"
 #define ANON_HOLD    "/run/worm/anon-hold"
 #define LYREBIRD     "/opt/tor-browser/Browser/TorBrowser/Tor/PluggableTransports/lyrebird"
 #define DEFAULT_BRIDGES "/usr/share/tor/bridges"
@@ -214,7 +217,9 @@ static int tor_start(void)
 	/* Tor insists on owning its directories. */
 	if ((mkdir(TOR_DATA, 0700) < 0 && errno != EEXIST) ||
 	    chown(TOR_DATA, uid, uid) < 0 || chmod(TOR_DATA, 0700) < 0 ||
-	    (mkdir(TOR_RUN, 0750) < 0 && errno != EEXIST) || chown(TOR_RUN, uid, uid) < 0) {
+	    (mkdir(TOR_RUN, 0750) < 0 && errno != EEXIST) || chown(TOR_RUN, uid, uid) < 0 ||
+	    (mkdir(TOR_CONTROL, 0700) < 0 && errno != EEXIST) ||
+	    chown(TOR_CONTROL, uid, uid) < 0 || chmod(TOR_CONTROL, 0700) < 0) {
 		warn("cannot prepare Tor's directories: %s", strerror(errno));
 		return -1;
 	}
@@ -303,6 +308,64 @@ const char *anon_summary(void)
 	snprintf(buf, sizeof(buf), "on: all traffic through Tor (connecting, %d%%)",
 		 percent < 0 ? 0 : percent);
 	return buf;
+}
+
+/*
+ * worm anon new-circuits: Tor's NEWNYM signal through its control socket
+ * (root only, cookie authentication): new connections get new circuits,
+ * so they cannot be linked to earlier ones by the exit relays they use.
+ * Tor Browser uses the system Tor, so its own "New Tor circuit" cannot
+ * reach Tor; this does it for every program. Tor limits it to one every
+ * 10 seconds.
+ */
+static int anon_new_circuits(void)
+{
+	struct sockaddr_un addr = { .sun_family = AF_UNIX };
+	unsigned char cookie[32];
+	char hex[sizeof(cookie) * 2 + 1], request[160], reply[512], *second;
+	size_t got = 0;
+	ssize_t r;
+	int fd, ok;
+	FILE *f;
+
+	if (!anon_enabled())
+		die("anonymous mode is off: no Tor to ask (worm anon on)%s", "");
+	if (!tor_pid() || !(f = fopen(TOR_CONTROL "/cookie", "re")))
+		die("Tor is not running%s", "");
+	ok = fread(cookie, 1, sizeof(cookie), f) == sizeof(cookie);
+	fclose(f);
+	if (!ok)
+		die("cannot read Tor's control cookie%s", "");
+	for (size_t i = 0; i < sizeof(cookie); i++)
+		snprintf(hex + 2 * i, 3, "%02x", cookie[i]);
+	explicit_bzero(cookie, sizeof(cookie));
+	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", TOR_CONTROL "/control");
+	if ((fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)) < 0 ||
+	    connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+		die("cannot reach Tor's controller: %s", strerror(errno));
+	snprintf(request, sizeof(request), "AUTHENTICATE %s\r\nSIGNAL NEWNYM\r\nQUIT\r\n", hex);
+	explicit_bzero(hex, sizeof(hex));
+	ok = write(fd, request, strlen(request)) == (ssize_t)strlen(request);
+	explicit_bzero(request, sizeof(request));
+	/* Three replies: AUTHENTICATE, SIGNAL and QUIT, each "250 ..." on success. */
+	while (ok && got < sizeof(reply) - 1 &&
+	       (r = read(fd, reply + got, sizeof(reply) - 1 - got)) > 0)
+		got += (size_t)r;
+	close(fd);
+	reply[got] = '\0';
+	/* The first two lines answer AUTHENTICATE and SIGNAL. */
+	second = strchr(reply, '\n');
+	if (!ok || strncmp(reply, "250", 3)) {
+		reply[strcspn(reply, "\r\n")] = '\0';
+		die("Tor refused: %s", reply);
+	}
+	if (!second || strncmp(second + 1, "250", 3)) {
+		second = second ? second + 1 : reply + got;
+		second[strcspn(second, "\r\n")] = '\0';
+		die("Tor refused: %s", second);
+	}
+	puts("New connections now use new Tor circuits.");
+	return 0;
 }
 
 /* A bridge line as Tor takes it: printable, no newlines, a sane length. */
@@ -444,6 +507,8 @@ int cmd_anon(int argc, char **argv)
 			printf("Tor connects through %s bridges.\n", anon_bridges());
 		return 0;
 	}
+	if (!strcmp(argv[0], "new-circuits"))
+		return anon_new_circuits();
 	if (!strcmp(argv[0], "start"))
 		return anon_enabled() && !safe_mode() && access(ANON_HOLD, F_OK) < 0 ?
 		       (tor_start() < 0) : 0;

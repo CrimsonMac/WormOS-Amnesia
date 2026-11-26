@@ -17,7 +17,7 @@ help) (( CURRENT == 3 )) && compadd snap wh worm bh clip tor-browser ;;
 panic) (( CURRENT == 3 )) && compadd off ;;
 anon)
 	if (( CURRENT == 3 )); then
-		compadd on off status bridges
+		compadd on off status bridges new-circuits
 	elif (( CURRENT == 4 )) && [[ $words[3] == bridges ]]; then
 		compadd snowflake obfs4 meek custom off status
 	fi ;;
