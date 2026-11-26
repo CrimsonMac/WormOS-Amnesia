@@ -4,7 +4,9 @@
 # by hand: the published release's files as amnesia-update uses them, and
 # the ISO booted in QEMU with KVM through the edition test (Tor from the
 # start, nothing past it, no root, installs without root, a grey screen,
-# power-off when the stick is pulled).
+# power-off when the stick is pulled), and the release before it updated
+# to it by amnesia-update, block by block, as a user's stick would be.
+# Actions are pinned to commits (Dependabot keeps them current).
 name: Amnesia
 
 on:
@@ -31,14 +33,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Monocypher, from its recipe's pinned source
         run: |
           bash -c '. scripts/env.sh
             eval "$(sed -n "/^\(name\|version\|source\|sha256\)=/p" recipes/monocypher/recipe)"
             fetch "${source[0]}" "${sha256[0]}"
             unpack "$SOURCES/$(basename "${source[0]}")" build/host/monocypher'
-      - run: tests/amnesia-update-test.py --synthetic
+      - name: Updater test
+        run: |
+          set -o pipefail
+          tests/amnesia-update-test.py --synthetic 2>&1 | tee test.txt
+      - name: Summary
+        if: always()
+        run: scripts/ci-summary.py "Updater on synthetic ISOs" test.txt
 
   release:
     name: Release in QEMU
@@ -56,11 +66,14 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       # The release's own tests in tagged/ (what it promised when it was
       # published); the default branch in the workspace for the scripts.
-      - uses: actions/checkout@v7
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.release.outputs.tag }}
           path: tagged
+          persist-credentials: false
       - name: Download the release
         run: |
           mkdir -p out/release tagged/build tagged/out
@@ -79,13 +92,57 @@ jobs:
           sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
       - name: Edition test
         working-directory: tagged
-        run: tests/editions-test.py amnesia "$GITHUB_WORKSPACE"/out/release/wormos-*-amnesia-x86_64.iso --release
+        run: |
+          set -o pipefail
+          tests/editions-test.py amnesia "$GITHUB_WORKSPACE"/out/release/wormos-*-amnesia-x86_64.iso --release 2>&1 |
+            tee "$GITHUB_WORKSPACE/test.txt"
+      - name: Summary
+        if: always()
+        run: scripts/ci-summary.py "Amnesia ${{ steps.release.outputs.tag }} in QEMU" test.txt
       - name: Keep the logs
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: amnesia-logs
           path: |
             tagged/build/*.log
             tagged/build/*.ppm
           if-no-files-found: ignore
+
+  update:
+    name: Update from the release before
+    if: github.repository == 'CrimsonMac/WormOS-Amnesia' && github.event_name != 'push' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download the release and the one before
+        run: |
+          tag="${{ github.event.release.tag_name || inputs.tag }}"
+          [ -n "$tag" ] || tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          previous=$(gh release list -R "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
+            --limit 50 --json tagName,publishedAt -q 'sort_by(.publishedAt) | reverse | .[].tagName' |
+            awk -v t="$tag" 'found { print; exit } $0 == t { found = 1 }')
+          [ -n "$previous" ] || { echo "no release before $tag"; exit 1; }
+          echo "Updating $previous to $tag"
+          mkdir -p out/new out/old build
+          gh release download "$tag" -R "$GITHUB_REPOSITORY" -D out/new -p '*.iso' -p SHA256SUMS
+          gh release download "$previous" -R "$GITHUB_REPOSITORY" -D out/old -p '*.iso'
+          (cd out/new && sha256sum -c --ignore-missing SHA256SUMS)
+      - name: Monocypher, from its recipe's pinned source
+        run: |
+          bash -c '. scripts/env.sh
+            eval "$(sed -n "/^\(name\|version\|source\|sha256\)=/p" recipes/monocypher/recipe)"
+            fetch "${source[0]}" "${sha256[0]}"
+            unpack "$SOURCES/$(basename "${source[0]}")" build/host/monocypher'
+      - name: Updater test
+        run: |
+          set -o pipefail
+          tests/amnesia-update-test.py out/old/*.iso out/new/*.iso 2>&1 | tee test.txt
+      - name: Summary
+        if: always()
+        run: scripts/ci-summary.py "Update from the release before" test.txt

@@ -203,8 +203,11 @@ does, and what comes next. It ships as
   `amnesia.yml` runs the updater test on synthetic ISOs on every push, and
   on every release, every week and by hand checks the published release's
   files (`scripts/check-amnesia-release.sh`: SHA256SUMS, the manifest's
-  signature, its ISO name, size and SHA-256) and boots the ISO through the
-  edition test in QEMU with KVM. `sync-upstream.yml` checks every day for
+  signature, its ISO name, size and SHA-256), boots the ISO through the
+  edition test in QEMU with KVM, and updates the release before it to
+  this one with the real updater (`tests/amnesia-update-test.py OLD NEW`),
+  as a user's stick would be. Each job writes its checks to the run's
+  summary page, and the actions are pinned to commits. `sync-upstream.yml` checks every day for
   WormOS commits not merged here and whether they merge cleanly, in an
   issue titled "Merge WormOS" (the merge is done by hand: the workflow
   token may not push changes to workflows). The README is Amnesia's own:
