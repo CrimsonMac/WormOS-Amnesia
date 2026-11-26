@@ -1,0 +1,52 @@
+/* The Files program, on top of the WormOS GTK theme. */
+
+.files {
+	padding: 12px;
+	background: none;
+}
+
+.files > child {
+	border-radius: 10px;
+	padding: 6px 4px;
+}
+
+.places {
+	background: rgba(0, 0, 0, 0.12);
+	padding: 8px 6px;
+}
+
+.places > row {
+	border-radius: 8px;
+}
+
+.place {
+	padding: 6px 8px;
+}
+
+.pathbar button.current {
+	font-weight: 700;
+}
+
+.placeholder {
+	opacity: 0.55;
+	font-size: 15px;
+}
+
+.statusbar {
+	padding: 4px 14px;
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+.dialog {
+	padding: 22px;
+}
+
+.title-2 {
+	font-size: 17px;
+	font-weight: 700;
+}
+
+.error {
+	color: #f0607a;
+}

@@ -1,10 +1,10 @@
 name=wormos-desktop
 version=1.0
-release=37
+release=38
 description="The WormOS desktop session: labwc, foot and the WormOS look"
 depends=(labwc foot swaybg grim wlr-randr xcompose seatd dbus font-inter font-hack base-files
-	gtk4 gtk4-layer-shell wormos-gtk-theme adwaita-icon-theme dconf worm-shell wormos-snapshots
-	pipewire wireplumber clip libxcb zsh xz bzip2 less libarchive nano licenses wormos-settings)
+	gtk4 gtk4-layer-shell wormos-gtk-theme adwaita-icon-theme dconf worm-shell wormos-snapshots wormos-software
+	wormos-welcome wormos-files pipewire wireplumber clip libxcb zsh xz bzip2 less libarchive nano licenses wormos-settings)
 # The last line replaces busybox applets that the busybox package left out.
 # Here rather than in busybox: wh plans an upgrade in name order, so an older
 # wh upgrades busybox (dropping its links) before it installs these.
@@ -20,6 +20,7 @@ package() {
 	install -Dm644 "$f/session-env" "$pkgdir/usr/lib/worm/session-env"
 	install -Dm755 "$f/screenshot" "$pkgdir/usr/lib/worm/screenshot"
 	install -Dm755 "$f/quick-action" "$pkgdir/usr/lib/worm/quick-action"
+	install -Dm755 "$f/update-notice" "$pkgdir/usr/lib/worm/update-notice"
 	install -Dm755 "$f/wallpaper" "$pkgdir/usr/lib/worm/wallpaper"
 	# Menu entries and icons for the command line tools, and the quick
 	# actions the launcher finds by searching.

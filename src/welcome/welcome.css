@@ -1,0 +1,48 @@
+/* The Welcome window, on top of the WormOS GTK theme (and Amnesia's). */
+
+.page {
+	padding: 32px 48px 12px;
+}
+
+.title-1 {
+	font-size: 26px;
+	font-weight: 800;
+}
+
+.body {
+	font-size: 15px;
+	line-height: 1.4;
+	opacity: 0.85;
+}
+
+.hero {
+	margin-bottom: 4px;
+}
+
+.key {
+	font-family: monospace;
+	font-weight: 700;
+	padding: 2px 8px;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.08);
+}
+
+button.pill {
+	border-radius: 999px;
+	padding: 6px 18px;
+}
+
+.bar {
+	padding: 14px 20px 18px;
+}
+
+.dot {
+	min-width: 8px;
+	min-height: 8px;
+	border-radius: 4px;
+	background: rgba(255, 255, 255, 0.2);
+}
+
+.dot.current {
+	background: rgba(255, 255, 255, 0.85);
+}

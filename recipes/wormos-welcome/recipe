@@ -1,0 +1,13 @@
+name=wormos-welcome
+version=0.1.0
+description="Welcome: a short tour of the system and its keyboard shortcuts"
+depends=(glibc gtk4 adwaita-icon-theme)
+localsrc=src/welcome
+
+build() {
+	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}

@@ -1,0 +1,13 @@
+name=wormos-files
+version=0.1.0
+description="Files: folders and files in a window"
+depends=(glibc gtk4 adwaita-icon-theme shared-mime-info)
+localsrc=src/files
+
+build() {
+	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}

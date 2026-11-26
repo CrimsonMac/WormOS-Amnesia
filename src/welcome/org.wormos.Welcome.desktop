@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome
+GenericName=Getting started
+Comment=A short tour: snapshots, programs, privacy and keyboard shortcuts
+Exec=wormos-welcome
+Icon=help-about
+Categories=System;Documentation;
+Keywords=welcome;tour;help;start;shortcuts;keys;keyboard;getting started;
+StartupNotify=true

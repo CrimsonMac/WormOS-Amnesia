@@ -1446,6 +1446,45 @@ in [building.md](building.md); what each feature does for the user, in the
   console, or with `--create NAME FULL-NAME LAYOUT` and the two passwords
   on standard input (for the graphical setup).
 
+
+## Everyday programs (Welcome, Files, Software)
+
+- `wormos-welcome` (`src/welcome`, package `wormos-welcome`): a GTK window
+  of pages in a GtkStack, each with buttons that run a program. The pages
+  are tables in the source, one for WormOS and one for editions whose
+  `/etc/worm/variant` says `VARIANT_ID=amnesia`. `--shortcuts` opens on
+  the last page (Super+/ in rc.xml). WormOS's labwc autostart opens it
+  once per user (`~/.config/wormos/welcomed`), not on the live installer
+  ISO; `welcome --full` (the terminal guide) stays for the terminal.
+- `wormos-files` (`src/files`): GtkDirectoryList (monitored) filtered by a
+  GtkCustomFilter (hidden files, the search text), sorted folders first
+  with `g_utf8_collate_key_for_filename`, in a GtkGridView with
+  GtkMultiSelection. Opening files goes through GtkFileLauncher (GIO's
+  default application from the MIME cache). The trash is GLib's own
+  (`g_file_trash`, `~/.local/share/Trash`); paste runs `cp -a` or `mv`
+  file by file, into a free name ("name (2)") when one is taken. The
+  desktop entry handles `inode/directory`, so folder links from other
+  programs (and the wormhole bridge) open in it.
+- `wormos-software` (`src/software`) parses `wh list` (as the user) and
+  the setuid helper `/usr/lib/worm/software` (`src/worm/software.c`, in
+  the worm package; wheel only): `search TERM` and `refresh` (`wh update`)
+  and `updates` (installed core packages whose index version differs,
+  from `wh --from core search ""`: "name old new" lines) need no password;
+  `install [--from SOURCE] PACKAGE...`, `remove` and `upgrade` need root's
+  password on standard input (status 3 when wrong) and run `wh --yes
+  --later`, after `wh update` for installs and upgrades. Where
+  `/etc/wh/users-may-install` exists (WormOS Amnesia) the helper drops
+  back to the caller and hands the change to `/usr/lib/wh/user` (its rules,
+  no password, live changes). Output streams into the program's details.
+  A finished change whose output says "applied at the next restart" shows
+  the restart banner (power helper `reboot`).
+- `/usr/lib/worm/update-notice` (wormos-desktop, from the labwc
+  autostart): five minutes after login and then daily, `software refresh`
+  and `software updates`; a count above zero becomes a notification whose
+  default action (watched with `gdbus monitor` for an hour) runs
+  `wormos-software --updates`. Skipped on live systems (`/etc/wh/live`,
+  `/run/wormos/live`) and with `~/.config/wormos/no-update-notice`.
+
 ## Shell
 
 - `zsh` 5.9.2 (`--disable-dynamic`: every module is linked in, so nothing

@@ -67,14 +67,14 @@ for dir in "$srcroot"/src/*/; do
 done
 
 msg "Unit tests"
-cp -r "$WORMOS_ROOT/tests" "$work/tests"
+[ "$srcroot" = "$work" ] && cp -r "$WORMOS_ROOT/tests" "$work/tests"
 unit_cflags="-O2 -D_FORTIFY_SOURCE=3"
 if [ "${SANITIZE:-0}" = 1 ]; then
 	unit_cflags="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all"
 	export ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 UBSAN_OPTIONS=print_stacktrace=1
 	msg "Unit tests run under AddressSanitizer and UndefinedBehaviorSanitizer"
 fi
-make -s -C "$work/tests/unit" CC="$CC" CFLAGS="$unit_cflags" \
+make -s -C "$srcroot/tests/unit" CC="$CC" CFLAGS="$unit_cflags" \
 	MONO_CFLAGS="-I$mono/src -I$mono/src/optional" \
 	MONO_LIBS="$mono/src/monocypher.c $mono/src/optional/monocypher-ed25519.c" check ||
 	failed+=(unit-tests)

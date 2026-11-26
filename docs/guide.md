@@ -189,6 +189,33 @@ The desktop is [labwc](https://labwc.github.io), a light stacking Wayland
 compositor, with the [foot](https://codeberg.org/dnkl/foot) terminal. It
 idles at well under 100 MB of memory.
 
+Everything everyday has a window, so the terminal is there when you want
+it, not because you need it:
+
+- **Welcome** opens the first time you log in: a short tour of snapshots,
+  programs, privacy and the keyboard shortcuts, each page with a button
+  that opens the program it is about. It is in the launcher and the
+  desktop menu; Super+/ opens its list of keyboard shortcuts.
+- **Files** (`wormos-files`, Super+E): your folders on the left (home, the
+  user folders, the trash, the whole computer, drives and shared folders
+  under `/media`), the folder as icons, a path bar to go back up. Double
+  click opens a folder, or a file with its program; typing in the search
+  field filters the folder. Right click (or the keys) to open, rename (F2),
+  copy (Ctrl+C), cut (Ctrl+X), paste (Ctrl+V), move to the trash (Delete;
+  in the trash, Delete removes for good), make a folder (Ctrl+Shift+N),
+  show hidden files (Ctrl+H) or open a terminal there. Alt+Left goes
+  back, Alt+Up to the parent folder. Other programs open folders in it.
+- **Software** (`wormos-software`): Explore lists popular programs and
+  searches every source (WormOS's own packages, then Debian's and Kali's);
+  Installed lists what is there; Updates looks for newer versions and
+  installs them all at once. Installing or removing asks for the root
+  password. Programs from Debian and Kali are ready in moments; WormOS
+  packages are added at the next restart (`wh --later`), so nothing closes
+  under you: the window says so and offers to restart. Administrators
+  also get a notification when WormOS has updates (a few minutes after
+  logging in, then daily; a click opens Software's Updates; `touch
+  ~/.config/wormos/no-update-notice` turns it off).
+
 - The Super key (or the button at the left of the panel) opens the
   launcher: start typing to search every program and tool by name,
   command, keywords or description, the best match first; the arrow keys
@@ -201,15 +228,16 @@ idles at well under 100 MB of memory.
   takes one, "screenshot" (also in five seconds), "do not disturb",
   "wallpaper", "keyboard", "time zone", "virtual machine" and the other
   pages of Settings.
-- Right click on the background opens the menu: terminals, applications
-  installed from wormholes, snapshots, Settings, screenshots, log out.
+- Right click on the background opens the menu: Files, terminals,
+  applications installed from wormholes, Software, snapshots, Settings,
+  screenshots, Welcome, log out.
 - The **quick settings** (the power button at the right of the panel):
   Settings, a terminal, a screenshot, Snapshots, a system monitor, *Do not
   disturb* (only urgent notifications show), the display scale, panic,
   log out, restart and shut down.
 - Keys: Super+Enter a terminal, Super+Q closes a window, Alt+Tab
-  switches, Super+Arrow keys snap windows, Super+I Settings, Super+E files
-  (Midnight Commander), Super+S a snapshot, Super+N do not disturb, Print
+  switches, Super+Arrow keys snap windows, Super+I Settings, Super+E Files,
+  Super+S a snapshot, Super+N do not disturb, Super+/ all the shortcuts, Print
   a screenshot in `~/Pictures` (its path is copied, and a notification
   says where it went), Shift+Print one in five seconds.
 - **Settings** (`wormos-settings`, Super+I) has pages for the display
@@ -366,7 +394,8 @@ isolated sandbox: a blackhole (see below).
 
 ## Packages
 
-`wh` (short for wormhole) installs software from the signed WormOS
+The Software program (see The desktop) does all of this in a window. In a
+terminal, `wh` (short for wormhole) installs software from the signed WormOS
 repository. Changes never touch the running system: they are made in a
 staged copy, the current system is snapshotted, and a quick restart (the
 kernel keeps running) switches over.

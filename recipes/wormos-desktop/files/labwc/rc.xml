@@ -80,12 +80,13 @@
     <keybind key="W-c"><action name="AutoPlace" policy="center" /></keybind>
     <keybind key="Print"><action name="Execute" command="/usr/lib/worm/screenshot" /></keybind>
     <keybind key="S-Print"><action name="Execute" command="/usr/lib/worm/screenshot --delay 5" /></keybind>
-    <!-- Super+I settings, Super+E files (Midnight Commander), Super+N do
-         not disturb, Super+S a snapshot. -->
+    <!-- Super+I settings, Super+E files, Super+N do
+         not disturb, Super+S a snapshot, Super+/ the keyboard shortcuts. -->
     <keybind key="W-i"><action name="Execute" command="wormos-settings" /></keybind>
-    <keybind key="W-e"><action name="Execute" command="foot --title Files mc" /></keybind>
+    <keybind key="W-e"><action name="Execute" command="wormos-files" /></keybind>
     <keybind key="W-n"><action name="Execute" command="worm-shell --do-not-disturb toggle" /></keybind>
     <keybind key="W-s"><action name="Execute" command="/usr/lib/worm/quick-action snapshot" /></keybind>
+    <keybind key="W-slash"><action name="Execute" command="wormos-welcome --shortcuts" /></keybind>
     <keybind key="XF86AudioRaiseVolume"><action name="Execute" command="worm-shell --volume up" /></keybind>
     <keybind key="XF86AudioLowerVolume"><action name="Execute" command="worm-shell --volume down" /></keybind>
     <keybind key="XF86AudioMute"><action name="Execute" command="worm-shell --volume mute" /></keybind>

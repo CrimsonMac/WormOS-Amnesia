@@ -1,0 +1,39 @@
+#!/bin/sh
+# Updates for WormOS: a few minutes after the desktop starts, and then once
+# a day while it runs, fetch the package lists and say in a notification
+# when WormOS packages have newer versions; a click opens Software on its
+# Updates page. Only for administrators (the group wheel: the Software
+# helper refuses others). Live systems are skipped: what they install is
+# gone when they stop. Off with: touch ~/.config/wormos/no-update-notice
+[ -e /etc/wh/live ] || [ -e /run/wormos/live ] && exit 0
+helper=/usr/lib/worm/software
+[ -x "$helper" ] || exit 0
+
+notify() {
+	gdbus call --session --dest org.freedesktop.Notifications \
+		--object-path /org/freedesktop/Notifications \
+		--method org.freedesktop.Notifications.Notify \
+		Software 0 system-software-update "$1" "$2" \
+		'["default", "Show updates"]' '{}' 0 2> /dev/null |
+		sed -n 's/^(uint32 \([0-9]*\),)$/\1/p'
+}
+
+sleep 300
+while :; do
+	if [ ! -e "$HOME/.config/wormos/no-update-notice" ] &&
+	   "$helper" refresh > /dev/null 2>&1 &&
+	   count=$("$helper" updates 2> /dev/null | grep -c .) && [ "$count" -gt 0 ]; then
+		if [ "$count" -eq 1 ]; then
+			id=$(notify "An update is available" "One WormOS package has a newer version.")
+		else
+			id=$(notify "Updates are available" "$count WormOS packages have newer versions.")
+		fi
+		# A click on the notification opens Software (for an hour).
+		if [ -n "$id" ]; then
+			timeout 3600 gdbus monitor --session --dest org.freedesktop.Notifications 2> /dev/null |
+				grep -q -m 1 "ActionInvoked (uint32 $id, 'default')" &&
+				wormos-software --updates > /dev/null 2>&1 &
+		fi
+	fi
+	sleep 86400
+done

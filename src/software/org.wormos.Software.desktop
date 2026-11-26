@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Software
+GenericName=Install programs
+Comment=Find, install, remove and update programs
+Exec=wormos-software
+Icon=org.wormos.Software
+Categories=System;PackageManager;
+Keywords=install;programs;apps;applications;packages;store;update;upgrade;remove;uninstall;
+StartupNotify=true

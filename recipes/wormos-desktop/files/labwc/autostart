@@ -24,12 +24,15 @@ worm-shell > "$XDG_RUNTIME_DIR/shell.log" 2>&1 &
 if ! grep -qx 'clipboard=off' /run/worm/vm 2> /dev/null; then
 	clip agent > "$XDG_RUNTIME_DIR/clip.log" 2>&1 &
 fi
+# Says when WormOS has updates (administrators only, not on live systems).
+/usr/lib/worm/update-notice > /dev/null 2>&1 &
 # The live system (the ISO) opens the installer.
 if [ -e /run/wormos/live ] && [ -x /usr/bin/wormos-installer ]; then
 	wormos-installer > /dev/null 2>&1 &
 fi
-# A welcome terminal the first time a user starts the desktop.
-if [ ! -e "$HOME/.config/wormos/welcomed" ]; then
+# The Welcome window the first time a user starts the desktop (Welcome in
+# the launcher opens it again).
+if [ ! -e "$HOME/.config/wormos/welcomed" ] && [ ! -e /run/wormos/live ]; then
 	mkdir -p "$HOME/.config/wormos" && touch "$HOME/.config/wormos/welcomed"
-	foot --title "Welcome to WormOS" sh -c 'welcome --full; WORMOS_GREETED=1 exec "${SHELL:-/bin/sh}" -l' > /dev/null 2>&1 &
+	wormos-welcome > /dev/null 2>&1 &
 fi

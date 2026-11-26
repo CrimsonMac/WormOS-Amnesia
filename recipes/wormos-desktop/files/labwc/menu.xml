@@ -2,6 +2,9 @@
 <!-- The desktop menu (right click on the background). -->
 <openbox_menu>
   <menu id="root-menu" label="WormOS">
+    <item label="Files">
+      <action name="Execute" command="wormos-files" />
+    </item>
     <item label="Terminal">
       <action name="Execute" command="foot" />
     </item>
@@ -9,16 +12,16 @@
       <action name="Execute" command="foot --title 'Root terminal' /usr/lib/worm/root-terminal" />
     </item>
     <menu id="apps" label="Applications" execute="/usr/lib/worm/apps-menu" />
+    <item label="Software">
+      <action name="Execute" command="wormos-software" />
+    </item>
     <separator />
     <menu id="snapshots" label="Snapshots">
       <item label="Open Snapshots">
         <action name="Execute" command="wormos-snapshots" />
       </item>
       <item label="Take a snapshot">
-        <action name="Execute" command="foot --hold --title Snapshot su -c 'snap now -c &quot;From the desktop&quot;'" />
-      </item>
-      <item label="List snapshots">
-        <action name="Execute" command="foot --hold --title Snapshots su -c 'snap list'" />
+        <action name="Execute" command="/usr/lib/worm/quick-action snapshot" />
       </item>
       <item label="System status">
         <action name="Execute" command="foot --hold --title 'System status' worm status" />
@@ -34,6 +37,9 @@
       <action name="Execute" command="/usr/lib/worm/screenshot" />
     </item>
     <separator />
+    <item label="Welcome and shortcuts">
+      <action name="Execute" command="wormos-welcome" />
+    </item>
     <item label="Reload settings">
       <action name="Reconfigure" />
     </item>

@@ -6,7 +6,7 @@ LDFLAGS += -Wl,-z,relro,-z,now
 PREFIX  ?= /usr
 BINDIR  ?= $(PREFIX)/bin
 
-all: worm power snapshots install-helper install-system passwd powerkey guest-agent settings-helper
+all: worm power snapshots install-helper install-system passwd powerkey guest-agent settings-helper software-helper
 
 OBJS = worm.o fw.o panic.o status.o anon.o kit.o time.o account.o vm.o
 
@@ -30,6 +30,10 @@ guest-agent: guest-agent.c
 settings-helper: settings.c admin.c admin.h ../common/password.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ settings.c admin.c ../common/password.c -lcrypt
 
+# Package changes for the Software program.
+software-helper: software.c admin.c admin.h ../common/password.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ software.c admin.c ../common/password.c -lcrypt
+
 # The power button service.
 powerkey: powerkey.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ powerkey.c
@@ -45,7 +49,7 @@ passwd: passwd.c ../common/password.c
 install-system: install-system.c admin.c admin.h ../common/password.c
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ install-system.c admin.c ../common/password.c -lcrypt
 
-install: worm power snapshots install-helper install-system passwd powerkey guest-agent settings-helper
+install: worm power snapshots install-helper install-system passwd powerkey guest-agent settings-helper software-helper
 	install -Dm755 worm $(DESTDIR)$(BINDIR)/worm
 	install -Dm4755 power $(DESTDIR)$(PREFIX)/lib/worm/power
 	install -Dm4755 snapshots $(DESTDIR)$(PREFIX)/lib/worm/snapshots
@@ -55,8 +59,9 @@ install: worm power snapshots install-helper install-system passwd powerkey gues
 	install -Dm755 powerkey $(DESTDIR)$(PREFIX)/lib/worm/powerkey
 	install -Dm755 guest-agent $(DESTDIR)$(PREFIX)/lib/worm/guest-agent
 	install -Dm4755 settings-helper $(DESTDIR)$(PREFIX)/lib/worm/settings
+	install -Dm4755 software-helper $(DESTDIR)$(PREFIX)/lib/worm/software
 
 clean:
-	rm -f worm power snapshots install-helper install-system passwd powerkey guest-agent settings-helper $(OBJS)
+	rm -f worm power snapshots install-helper install-system passwd powerkey guest-agent settings-helper software-helper $(OBJS)
 
 .PHONY: all install clean

@@ -310,7 +310,7 @@ def main():
             desktop.put_file(con, COMMANDS.encode(), "/tmp/commands")
             desktop.put_file(con, RUN.encode(), "/tmp/run")
             out = con.run("/tmp/in-session /tmp/toplevels")
-            check("windows listed (the welcome terminal)", "foot" in out, out)
+            check("windows listed (the Welcome window)", "Welcome" in out, out)
             out = con.run("ls -l $(/tmp/in-session 'echo $XDG_RUNTIME_DIR')/wormhole-bridge")
             check("the session's wormhole bridge is listening", out.startswith("p"), out)
 

@@ -92,7 +92,7 @@ SESSION_CHECKS = [
     ("software renderer on a virtual GPU", "grep -c 'pixman' /run/user/1000/desktop.log",
      r"^[1-9]"),
     ("wallpaper running", "pidof swaybg", r"^\d+"),
-    ("welcome terminal open", "pidof foot", r"^\d+$"),
+    ("Welcome window open", "pidof wormos-welcome", r"^\d+$"),
     ("shell running", "pidof worm-shell", r"^\d+$"),
     ("session bus for the user", "stat -c '%U %F' /run/user/1000/bus",
      rf"^{USER} socket$"),
@@ -604,7 +604,7 @@ def main():
     total = (len(DEVICE_CHECKS) + 1 + len(AFTER_SETUP_CHECKS) + 3 + len(SESSION_CHECKS) +
              len(TYPING_CHECKS) + len(SHORTCUT_CHECKS) + len(BUDGET_CHECKS) +
              len(RESIZES) + len(WELCOME_CHECKS) + len(GTK_CHECKS) + len(SOUND_CHECKS) +
-             len(SHELL_CHECKS) + len(CLIPBOARD_CHECKS) + 43)
+             len(SHELL_CHECKS) + len(CLIPBOARD_CHECKS) + 51)
     if gtk_check is None:
         total -= len(GTK_CHECKS) + 3
 
@@ -752,7 +752,13 @@ def main():
             check("pointer goes through the SPICE agent",
                   re.search(r"^\s*\*.*vdagent", mice, re.M | re.I) is not None, mice)
 
-            # The welcome terminal has the focus.
+            # The Welcome window has the focus: Escape closes it, then
+            # Super+Enter opens a terminal, which takes the focus.
+            mon.key("esc")
+            wait_for(con, "pidof wormos-welcome || echo closed", r"^closed$", 30)
+            mon.key("meta_l-ret")
+            wait_for(con, "pidof foot | wc -w", r"^1$", 60)
+            time.sleep(3)
             mon.type("echo $(id -un) typed > /tmp/typed\n")
             wait_for(con, "cat /tmp/typed", r"typed", 60)
             run_checks(con, TYPING_CHECKS)
@@ -1052,6 +1058,45 @@ def main():
                   con.run(f"grep -i -e critical -e warning /tmp/settings.log{noise} | grep -c .")
                   == "0", con.run("cat /tmp/settings.log"))
             con.run("kill $(pidof wormos-settings)")
+            # Files, Software and the keyboard shortcuts (Super+/).
+            put_file(con, b"wormos-files /usr/share\necho exited with status $?\n", "/tmp/run-files")
+            con.run(f"su {USER} -c '/tmp/in-session sh /tmp/run-files > /tmp/files.log 2>&1 &'")
+            out = wait_for(con, "pidof wormos-files", r"^\d+$", 60)
+            check("Files started", re.search(r"^\d+$", out, re.M) is not None,
+                  con.run("cat /tmp/files.log"))
+            time.sleep(4)
+            screen("files")
+            check("no warnings from Files",
+                  con.run(f"grep -i -e critical -e warning /tmp/files.log{noise} | grep -c .")
+                  == "0", con.run("cat /tmp/files.log"))
+            con.run("kill $(pidof wormos-files)")
+            put_file(con, b"wormos-software\necho exited with status $?\n", "/tmp/run-software")
+            con.run(f"su {USER} -c '/tmp/in-session sh /tmp/run-software > /tmp/software.log 2>&1 &'")
+            out = wait_for(con, "pidof wormos-software", r"^\d+$", 60)
+            check("Software started", re.search(r"^\d+$", out, re.M) is not None,
+                  con.run("cat /tmp/software.log"))
+            time.sleep(5)
+            screen("software")
+            check("no warnings from Software",
+                  con.run(f"grep -i -e critical -e warning /tmp/software.log{noise} | grep -c .")
+                  == "0", con.run("cat /tmp/software.log"))
+            con.run("kill $(pidof wormos-software)")
+            out = con.run(f"su {USER} -c '/usr/lib/worm/software search htop' 2>&1 | head -2")
+            check("Software's helper searches for administrators", re.search(r"^htop ", out, re.M)
+                  is not None, out)
+            out = con.run(f"echo wrong | su {USER} -c '/usr/lib/worm/software install tree' "
+                          "> /dev/null 2>&1; echo rc=$?")
+            check("Software's helper wants root's password for changes", out == "rc=3", out)
+            mon.key("meta_l-slash")
+            out = wait_for(con, "pidof wormos-welcome", r"^\d+$", 60)
+            check("Super+/ shows the keyboard shortcuts", re.search(r"^\d+$", out, re.M) is not None,
+                  out)
+            time.sleep(3)
+            screen("shortcuts")
+            con.run("kill $(pidof wormos-welcome)")
+            check("updates are looked for in the session",
+                  con.run("grep -c update-notice /etc/xdg/labwc/autostart; "
+                          "test -x /usr/lib/worm/update-notice && echo ok") == "1\nok")
             session("worm-shell --do-not-disturb on")
             check("do not disturb saved for the shell",
                   "do-not-disturb=true" in con.run(f"cat /home/{USER}/.config/wormos/shell"),

@@ -1,0 +1,13 @@
+name=wormos-software
+version=0.1.0
+description="Software: find, install, remove and update programs"
+depends=(glibc gtk4 worm wh hicolor-icon-theme)
+localsrc=src/software
+
+build() {
+	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}

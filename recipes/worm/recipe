@@ -1,6 +1,6 @@
 name=worm
 version=0.1.0
-release=23
+release=24
 description="WormOS system features (worm status, panic, fw, anon, kit, vm, unlock, lock, the power button, the guest agent)"
 depends=(glibc snap nftables libxcrypt curl tzdata)
 # Builds src/worm, which also uses sources from src/common.

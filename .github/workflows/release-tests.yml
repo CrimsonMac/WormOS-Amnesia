@@ -43,7 +43,6 @@ jobs:
             asset: "wormos-*-barebones-x86_64.iso"
             test: tests/editions-test.py barebones $GITHUB_WORKSPACE/out/release/wormos-$VERSION-barebones-x86_64.iso --release
           - name: Upgrade from the release before
-            asset: SHA256SUMS
             previous: "wormos-*-x86_64.qcow2"
             test: tests/upgrade-test.py --published $GITHUB_WORKSPACE/out/previous/wormos-$PREVIOUS-x86_64.qcow2
     env:
@@ -83,6 +82,7 @@ jobs:
           grep -q -- '--published' tagged/tests/upgrade-test.py ||
             cp tests/upgrade-test.py tagged/tests/upgrade-test.py
       - name: Download and check the image
+        if: matrix.asset
         run: |
           mkdir -p out/release tagged/build tagged/out
           gh release download "${{ steps.release.outputs.tag }}" -R "$GITHUB_REPOSITORY" \
@@ -92,7 +92,7 @@ jobs:
         if: matrix.previous
         run: |
           [ -n "$PREVIOUS" ] || { echo "no earlier release"; exit 1; }
-          mkdir -p out/previous
+          mkdir -p out/previous tagged/build tagged/out
           gh release download "${{ steps.release.outputs.previous }}" -R "$GITHUB_REPOSITORY" \
             -D out/previous -p '${{ matrix.previous }}' -p SHA256SUMS
           cd out/previous && sha256sum -c --ignore-missing SHA256SUMS

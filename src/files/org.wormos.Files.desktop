@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+GenericName=File manager
+Comment=Folders and files in a window
+Exec=wormos-files %U
+Icon=system-file-manager
+Categories=System;FileManager;Utility;
+Keywords=files;folders;file manager;explorer;browse;documents;downloads;trash;
+MimeType=inode/directory;
+StartupNotify=true
