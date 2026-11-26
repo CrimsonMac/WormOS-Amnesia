@@ -4,6 +4,7 @@
 #
 #     quick-action snapshot          take a snapshot of the system
 #     quick-action screenshot [N]    the whole screen into ~/Pictures, after N s
+#     quick-action new-circuits      new Tor circuits (anonymous mode)
 
 notify() {
 	gdbus call --session --dest org.freedesktop.Notifications \
@@ -21,9 +22,17 @@ snapshot)
 		notify dialog-warning-symbolic "No snapshot" \
 			"Only administrators can take one."
 	fi ;;
+new-circuits)
+	if out=$(worm anon new-circuits 2>&1); then
+		notify network-vpn-symbolic "New Tor circuits" \
+			"New connections use new circuits. Reload open pages to move them too."
+	else
+		notify dialog-warning-symbolic "No new Tor circuits" \
+			"$(printf '%s' "$out" | tail -n 1 | sed 's/^worm: //')"
+	fi ;;
 screenshot)
 	exec /usr/lib/worm/screenshot ${2:+--delay "$2"} ;;
 *)
-	echo "usage: quick-action snapshot | screenshot [SECONDS]" >&2
+	echo "usage: quick-action snapshot | screenshot [SECONDS] | new-circuits" >&2
 	exit 2 ;;
 esac

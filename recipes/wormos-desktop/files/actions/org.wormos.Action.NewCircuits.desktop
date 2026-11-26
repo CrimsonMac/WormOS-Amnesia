@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=New Tor circuits
+Comment=New connections go through new Tor circuits (anonymous mode)
+Exec=/usr/lib/worm/quick-action new-circuits
+Icon=network-vpn-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=tor;circuit;identity;anonymous;newnym;

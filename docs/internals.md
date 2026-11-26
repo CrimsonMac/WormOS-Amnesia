@@ -1298,8 +1298,8 @@ in [building.md](building.md); what each feature does for the user, in the
   into no section; search finds them as "Quick action". wormos-desktop
   ships them (`org.wormos.Action.*`: snapshot, screenshots, do not
   disturb, reload, every Settings page) and `/usr/lib/worm/quick-action`
-  (snapshot through the snapshots helper and screenshots, with a
-  notification through `gdbus`).
+  (snapshot through the snapshots helper, screenshots and new Tor
+  circuits, with a notification through `gdbus`).
 - Icons: an entry's icon that the theme lacks (a themed name) or whose
   file is missing is replaced by one for its section (applications-*,
   utilities-terminal for command line tools); GTK falls back to the
