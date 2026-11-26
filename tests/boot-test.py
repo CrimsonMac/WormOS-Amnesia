@@ -385,6 +385,10 @@ ANON_CHECKS = [
     ("tor installed", "tor --version | head -1", r"^Tor version 0\.4\.9"),
     ("worm anon on", "worm anon on", r"^Anonymous mode is on"),
     ("tor runs unprivileged", "sleep 3; ps -o user,comm | grep -w tor", r"^tor\s+tor"),
+    ("new Tor circuits through the controller",
+     "worm anon new-circuits; stat -c '%a %U' /run/tor-control; "
+     "su tester -c 'cat /run/tor-control/cookie 2>/dev/null' | wc -c",
+     r"^New connections now use new Tor circuits\.\n700 tor\n0$"),
     ("connections sent to Tor", "nft list chain inet worm anon_nat",
      r"udp dport 53 redirect to :5353(.|\n)*l4proto (tcp|6) redirect to :9040"),
     ("only what was sent to Tor reaches it", "nft list chain inet worm output",
