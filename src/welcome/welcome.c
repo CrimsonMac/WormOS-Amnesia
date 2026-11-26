@@ -26,7 +26,7 @@ struct page {
 };
 
 static const struct page wormos_pages[] = {
-	{ "org.wormos.Snapshots", "Welcome to %s",
+	{ "org.wormos.Settings.About", "Welcome to %s",
 	  "A safe place to try programs, write code and open files you do not trust. "
 	  "Nothing here has to be learned first: this short tour shows what makes it "
 	  "different, and everything has a window as well as a command.", { { NULL, NULL } } },
@@ -52,8 +52,9 @@ static const struct page wormos_pages[] = {
 	    { "Read the guide", "foot --title \"WormOS guide\" sh -c \"welcome --full | less -R\"" } } },
 };
 
+/* Amnesia's pages keep to its greys: symbolic icons only. */
 static const struct page amnesia_pages[] = {
-	{ "org.wormos.Snapshots", "Welcome to %s",
+	{ "edit-clear-all-symbolic", "Welcome to %s",
 	  "This system forgets. Everything runs from memory: when the computer stops, "
 	  "everything done here is gone, files, downloads, settings and programs alike. "
 	  "Nothing is written to a disk. Start it again and it is exactly as new.", { { NULL, NULL } } },
@@ -63,7 +64,7 @@ static const struct page amnesia_pages[] = {
 	  "gives new connections new circuits when you want a fresh start.",
 	  { { "Open Tor Browser", "tor-browser" },
 	    { "New Tor circuits", "/usr/lib/worm/quick-action new-circuits" } } },
-	{ "org.wormos.Software", "Programs, for this session",
+	{ "system-software-install-symbolic", "Programs, for this session",
 	  "Software adds programs from WormOS, Debian and Kali, through Tor, without any "
 	  "password. They stay until the computer stops.",
 	  { { "Open Software", "wormos-software" } } },
