@@ -1,0 +1,4 @@
+# The SSH server, behind the firewall (closed until 'worm fw allow 22').
+type = respawn
+exec = /usr/lib/worm/sshd
+safe = no

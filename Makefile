@@ -19,8 +19,8 @@ PACKAGES := base-files busybox worminit snap \
 	poppler wormos-viewer wormos-editor \
 	atk gtk3 tor-browser-runtime tor-browser \
 	zsh-autosuggestions zsh-syntax-highlighting zsh \
-	xz bzip2 wireless-regdb linux-firmware-wireless iwd bash less nano vim htop tmux file tree ncdu jq lsof strace \
-	wireguard-tools sqlite libarchive git openssh rsync python nmap binutils \
+	xz bzip2 wireless-regdb linux-firmware-wireless sof-firmware alsa-ucm-conf iwd bash less nano vim htop tmux file tree ncdu jq lsof strace \
+	wireguard-tools sqlite libarchive git openssh openssh-server rsync python nmap binutils \
 	grep sed gawk findutils diffutils patch coreutils wget zip 7zip iproute2 ethtool \
 	pciutils libusb usbutils dosfstools whois traceroute mtr iperf3 socat \
 	gmp mpfr gdb e2fsprogs popt json-c device-mapper cryptsetup exfatprogs mc btop fastfetch lz4 pigz pv yara ssdeep \

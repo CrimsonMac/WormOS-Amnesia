@@ -1,10 +1,10 @@
 name=wormos-desktop
 version=1.0
-release=39
+release=40
 description="The WormOS desktop session: labwc, foot and the WormOS look"
 depends=(labwc foot swaybg grim wlr-randr xcompose seatd dbus font-inter font-hack base-files
 	gtk4 gtk4-layer-shell wormos-gtk-theme adwaita-icon-theme dconf worm-shell wormos-snapshots wormos-software
-	wormos-welcome wormos-files wormos-viewer wormos-editor bh-wayland iwd linux-firmware-wireless bluez pipewire wireplumber clip libxcb zsh xz bzip2 less libarchive nano licenses wormos-settings)
+	wormos-welcome wormos-files wormos-viewer wormos-editor bh-wayland iwd linux-firmware-wireless sof-firmware alsa-ucm-conf bluez pipewire wireplumber clip libxcb zsh xz bzip2 less libarchive nano licenses wormos-settings)
 # The last line replaces busybox applets that the busybox package left out.
 # Here rather than in busybox: wh plans an upgrade in name order, so an older
 # wh upgrades busybox (dropping its links) before it installs these.
@@ -20,6 +20,9 @@ package() {
 	install -Dm644 "$f/session-env" "$pkgdir/usr/lib/worm/session-env"
 	install -Dm755 "$f/screenshot" "$pkgdir/usr/lib/worm/screenshot"
 	install -Dm755 "$f/quick-action" "$pkgdir/usr/lib/worm/quick-action"
+	install -Dm755 "$f/backlight" "$pkgdir/usr/lib/worm/backlight"
+	install -Dm644 "$f/90-backlight.rules" "$pkgdir/usr/lib/udev/rules.d/90-backlight.rules"
+	install -Dm755 "$f/backlight-save" "$pkgdir/etc/worm/shutdown.d/20-backlight"
 	install -Dm755 "$f/update-notice" "$pkgdir/usr/lib/worm/update-notice"
 	install -Dm644 "$f/mimeapps.list" "$pkgdir/etc/xdg/mimeapps.list"
 	install -Dm755 "$f/wallpaper" "$pkgdir/usr/lib/worm/wallpaper"

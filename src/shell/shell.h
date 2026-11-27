@@ -70,6 +70,9 @@ void status_battery(struct status *s);   /* just the battery */
 /* panel.c */
 void panels_init(GtkApplication *app);
 void panels_volume(const char *what);        /* up, down or mute */
+void panels_brightness(const char *what);    /* up or down */
+void panels_lock(void);                      /* start the lock screen */
+gboolean lock_possible(void);                /* the user has a password */
 
 /* launcher.c */
 void launcher_toggle(GtkApplication *app);
@@ -95,6 +98,12 @@ char *wifi_connected_name(void);
 void wifi_network_free(gpointer p);
 
 /* volume.c */
+/* brightness.c: the screen's backlight. */
+gboolean brightness_available(void);
+double brightness_get(void);                 /* 0 to 1, or -1 */
+void brightness_set(double level);
+void brightness_step(int direction);         /* up (1) or down (-1) by a tenth */
+
 typedef void (*volume_changed_fn)(void);
 void volume_watch(volume_changed_fn fn);
 void volume_refresh(gboolean details);       /* details: also the output's name */

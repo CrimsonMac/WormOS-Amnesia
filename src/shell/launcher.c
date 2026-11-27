@@ -861,6 +861,7 @@ static void sidebar_heading(const char *text)
 	gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), label);
 	gtk_list_box_row_set_selectable(GTK_LIST_BOX_ROW(row), FALSE);
 	gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), FALSE);
+	gtk_widget_add_css_class(row, "heading-row");
 	gtk_widget_set_focusable(row, FALSE);
 	gtk_list_box_append(GTK_LIST_BOX(sidebar), row);
 }

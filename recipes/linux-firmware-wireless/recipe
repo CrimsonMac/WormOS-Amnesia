@@ -1,6 +1,7 @@
 name=linux-firmware-wireless
 version=20261019
-description="Firmware for Intel Wi-Fi (iwlwifi) and Bluetooth adapters, from linux-firmware"
+release=2
+description="Firmware for Intel, MediaTek and Realtek Wi-Fi and Bluetooth, and Realtek Ethernet, from linux-firmware"
 depends=()
 # Signed by Josh Boyer (4CDE8575E547BF835FE15807A31B6BD72486CFD6).
 source=(https://www.kernel.org/pub/linux/kernel/firmware/linux-firmware-$version.tar.xz)
@@ -11,7 +12,11 @@ build() {
 	rm -rf "$srcdir"/*
 	tar -xf "$SOURCES/linux-firmware-$version.tar.xz" --strip-components=1 \
 		--wildcards "*/intel/iwlwifi/*" "*/intel/ibt-*" \
-		"*/LICENSES/LICENCE.iwlwifi_firmware" "*/LICENSES/LICENCE.ibt_firmware"
+		"*/mediatek/WIFI_*" "*/mediatek/BT_RAM_CODE_*" "*/mediatek/mt7925/*" \
+		"*/rtw88/*" "*/rtw89/*" "*/rtl_bt/*" "*/rtl_nic/*" \
+		"*/LICENSES/LICENCE.iwlwifi_firmware" "*/LICENSES/LICENCE.ibt_firmware" \
+		"*/LICENSES/LICENCE.mediatek" "*/LICENSES/LICENCE.rtlwifi_firmware.txt" \
+		"*/WHENCE"
 }
 
 package() {
@@ -32,8 +37,11 @@ package() {
 	done
 	find intel/iwlwifi -name 'iwlwifi-*.pnvm' -exec cp -L {} "$fw/" \;
 	find intel -maxdepth 1 -name 'ibt-*' -exec cp -L {} "$fw/intel/" \;
+	# MediaTek and Realtek: their folders as they are.
+	cp -rL mediatek rtw88 rtw89 rtl_bt rtl_nic "$fw/"
 	find "$fw" -type f -exec zstd -q -19 --rm {} +
 	find "$fw" -type f -exec chmod 644 {} +
 	install -Dm644 -t "$pkgdir/usr/share/licenses/linux-firmware-wireless" \
-		LICENSES/LICENCE.iwlwifi_firmware LICENSES/LICENCE.ibt_firmware
+		LICENSES/LICENCE.iwlwifi_firmware LICENSES/LICENCE.ibt_firmware \
+		LICENSES/LICENCE.mediatek LICENSES/LICENCE.rtlwifi_firmware.txt WHENCE
 }

@@ -1,0 +1,18 @@
+name=alsa-ucm-conf
+version=1.2.16.1
+description="ALSA use case configurations: how each sound card's speakers, headphones and microphones are set up"
+depends=(alsa-lib)
+source=(https://www.alsa-project.org/files/pub/lib/alsa-ucm-conf-$version.tar.bz2)
+sha256=(cf3d1c07e089a83c4ece2c20f05dd6a8aab7fcd108768c38811386880575492b)
+
+build() {
+	:
+}
+
+package() {
+	# PipeWire reads these (through alsa-lib) for cards that need them,
+	# such as Intel's Sound Open Firmware laptops.
+	mkdir -p "$pkgdir/usr/share/alsa"
+	cp -a ucm2 "$pkgdir/usr/share/alsa/"
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/alsa-ucm-conf/LICENSE"
+}

@@ -72,6 +72,11 @@ place, the download cache emptied): it makes a second repository from
 `scripts/make-deltas.sh`, and upgrades the development image to it, with
 one file of a package changed first so that its delta cannot be used.
 
+To try a build on a real computer from another one, `WORMOS_TEST_SSH_KEY=~/.ssh/id_ed25519.pub
+make iso` adds the SSH server to the ISO, opens port 22 and lets root log
+in with that key; write it to a USB stick and boot it there. Releases
+refuse the variable.
+
 `make test-secureboot` starts the development image with OVMF in Secure
 Boot mode and Microsoft's keys (`OVMF_CODE_4M.secboot.fd`,
 `OVMF_VARS_4M.ms.fd`, as PCs ship): without WormOS's certificate nothing

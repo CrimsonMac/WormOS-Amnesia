@@ -1,6 +1,6 @@
 name=busybox
 version=1.38.0
-release=5
+release=6
 description="Core command-line utilities (temporary userland)"
 depends=(glibc)
 source=(https://busybox.net/downloads/busybox-$version.tar.bz2)
@@ -27,6 +27,10 @@ build() {
 		bb_unset $applet
 	done
 	bb_set EXTRA_CFLAGS "\"-std=gnu17\""
+	# passwd and chpasswd hash with yescrypt, as WormOS's own tools do: the
+	# default (DES) keeps eight characters, and libxcrypt (strong hashes
+	# only) cannot check it.
+	bb_set FEATURE_DEFAULT_PASSWD_ALGO "\"yescrypt\""
 	make oldconfig < /dev/null > /dev/null
 
 	make CROSS_COMPILE="$TARGET-" CONFIG_EXTRA_LDFLAGS="$LDFLAGS" -j"$JOBS"

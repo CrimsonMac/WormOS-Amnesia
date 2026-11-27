@@ -7,6 +7,7 @@
 #include <gtk4-layer-shell.h>
 
 #include "shell.h"
+#include "sound.h"
 
 struct panel {
 	GtkWidget *window;
@@ -24,6 +25,7 @@ struct panel {
 	GtkWidget *battery, *battery_info;
 	GtkWidget *confirm;             /* the power action waiting for a second click */
 	GtkWidget *quiet;               /* the do not disturb tile */
+	GtkWidget *brightness_row, *brightness_scale;
 };
 
 /*
@@ -55,6 +57,7 @@ static void menu_direction(GtkWidget *button)
 static GtkApplication *app;
 static GPtrArray *panels;               /* of struct panel */
 static gboolean volume_updating;        /* showing a new reading, not a change */
+static gboolean brightness_updating;    /* likewise for the brightness slider */
 static int built_at_bottom = -1;        /* the edge the panels were built for */
 
 static void keyboard_while_open(GtkWidget *popover);
@@ -297,7 +300,12 @@ static void volume_changed(void)
 		gtk_widget_set_visible(panel->volume, v->available);
 		gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(panel->volume), volume_icon(v));
 		gtk_widget_set_tooltip_text(panel->volume, tooltip);
-		gtk_label_set_text(GTK_LABEL(panel->volume_output), v->output ? v->output : "Sound");
+		{
+			char *plain = sound_plain_name(v->output, TRUE);
+
+			gtk_label_set_text(GTK_LABEL(panel->volume_output), plain ? plain : "Sound");
+			g_free(plain);
+		}
 		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(panel->volume_mute), v->muted);
 		gtk_button_set_icon_name(GTK_BUTTON(panel->volume_mute), volume_icon(v));
 		gtk_range_set_value(GTK_RANGE(panel->volume_scale), percent);
@@ -342,104 +350,130 @@ static gboolean volume_scrolled(GtkEventControllerScroll *scroll, double dx, dou
 /* ---- choosing the sound output and input ---- */
 
 static gboolean devices_filling;
+static char *devices_signature;         /* what the lists show now */
+static guint devices_timer;
+
+static gboolean device_switched(gpointer data)
+{
+	(void)data;
+	volume_refresh(TRUE);
+	return G_SOURCE_REMOVE;
+}
+
+/* Switching a profile takes a moment: not on the main loop. */
+static gpointer device_switch(gpointer data)
+{
+	struct sound_choice *c = data;
+
+	sound_choose(c);
+	g_free(c->label);
+	g_free(c);
+	g_idle_add(device_switched, NULL);
+	return NULL;
+}
 
 static void device_chosen(GtkCheckButton *button, gpointer data)
 {
-	char id[16];
+	struct sound_choice *c;
 
 	if (devices_filling || !gtk_check_button_get_active(button))
 		return;
-	snprintf(id, sizeof(id), "%d", GPOINTER_TO_INT(data));
-	g_spawn_async(NULL, (char *[]){ "wpctl", "set-default", id, NULL }, NULL,
-		      G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, NULL);
-	volume_refresh(TRUE);
+	c = g_memdup2(data, sizeof(*c));
+	c->label = g_strdup(c->label);
+	g_thread_unref(g_thread_new("sound-choice", device_switch, c));
+}
+
+static void heading_add(GtkWidget *box, const char *text)
+{
+	GtkWidget *heading = gtk_label_new(text);
+
+	gtk_widget_add_css_class(heading, "dim-label");
+	gtk_widget_set_halign(heading, GTK_ALIGN_START);
+	gtk_box_append(GTK_BOX(box), heading);
 }
 
 /*
- * The audio sinks and sources of "wpctl status", as radio buttons:
- * "│  *   46. Built-in Audio Analog Stereo     [vol: 0.40]" (* the default).
+ * Every connector that can play or record (src/common/sound.c): the
+ * speakers and the headphone jack both, even when only one of them has a
+ * node, with plain names. Rebuilt only when something changed.
  */
-static void devices_fill(struct panel *panel)
+static void devices_fill(struct panel *panel, gboolean force)
 {
-	char *out = NULL, **lines;
-	GtkWidget *child, *group = NULL, *heading;
-	gboolean audio = FALSE;
-	int section = 0, shown[3] = { 0 };     /* 1 sinks, 2 sources */
+	char *signature = NULL;
+	GPtrArray *list = sound_choices(&signature);
+	GtkWidget *child, *group = NULL;
+	int section = -1, inputs = 0;
 
+	if (!force && list && !g_strcmp0(signature, devices_signature)) {
+		g_ptr_array_free(list, TRUE);
+		g_free(signature);
+		return;
+	}
+	g_free(devices_signature);
+	devices_signature = signature;
+	devices_filling = TRUE;
 	while ((child = gtk_widget_get_first_child(panel->volume_devices)))
 		gtk_box_remove(GTK_BOX(panel->volume_devices), child);
-	if (!g_spawn_sync(NULL, (char *[]){ "wpctl", "status", NULL }, NULL, G_SPAWN_SEARCH_PATH |
-			  G_SPAWN_STDERR_TO_DEV_NULL, NULL, NULL, &out, NULL, NULL, NULL))
-		return;
-	devices_filling = TRUE;
-	lines = g_strsplit(out, "\n", -1);
-	for (int i = 0; lines[i]; i++) {
-		char *s = lines[i], *dot, *vol, *name;
-		gboolean is_default = FALSE;
+	for (guint i = 0; list && i < list->len; i++) {
+		struct sound_choice *c = g_ptr_array_index(list, i);
 		GtkWidget *radio;
-		int id;
 
-		if (!strncmp(s, "Audio", 5))
-			audio = TRUE;
-		else if (!strncmp(s, "Video", 5) || !strncmp(s, "Settings", 8))
-			audio = FALSE;
-		if (!audio)
-			continue;
-		if (strstr(s, "Sinks:") || strstr(s, "Sources:")) {
-			section = strstr(s, "Sinks:") ? 1 : 2;
+		if (section != c->output) {
+			section = c->output;
 			group = NULL;
-			heading = gtk_label_new(section == 1 ? "Output" : "Input");
-			gtk_widget_add_css_class(heading, "dim-label");
-			gtk_widget_set_halign(heading, GTK_ALIGN_START);
-			gtk_box_append(GTK_BOX(panel->volume_devices), heading);
-			continue;
+			heading_add(panel->volume_devices, c->output ? "Output" : "Input");
 		}
-		if (strchr(s, ':') && !strstr(s, "[vol:")) {
-			section = 0;    /* Devices:, Filters:, Streams: */
-			continue;
-		}
-		if (!section)
-			continue;
-		while (*s && !g_ascii_isdigit(*s) && *s != '*')
-			s++;
-		if (*s == '*') {
-			is_default = TRUE;
-			s++;
-		}
-		id = atoi(s);
-		dot = strchr(s, '.');
-		vol = strstr(s, "[vol:");
-		if (!id || !dot || !vol)
-			continue;
-		name = g_strstrip(g_strndup(dot + 1, vol - dot - 1));
-		radio = gtk_check_button_new_with_label(name);
-		g_free(name);
+		inputs += !c->output;
+		radio = gtk_check_button_new_with_label(c->label);
 		if (group)
 			gtk_check_button_set_group(GTK_CHECK_BUTTON(radio), GTK_CHECK_BUTTON(group));
 		else
 			group = radio;
-		gtk_check_button_set_active(GTK_CHECK_BUTTON(radio), is_default);
-		g_signal_connect(radio, "toggled", G_CALLBACK(device_chosen), GINT_TO_POINTER(id));
+		gtk_check_button_set_active(GTK_CHECK_BUTTON(radio), c->active);
+		g_signal_connect(radio, "toggled", G_CALLBACK(device_chosen), c);
 		gtk_box_append(GTK_BOX(panel->volume_devices), radio);
-		shown[section]++;
+		if (c->output && c->active)
+			gtk_label_set_text(GTK_LABEL(panel->volume_output), c->label);
 	}
-	g_strfreev(lines);
-	g_free(out);
-	if (!shown[2]) {
+	if (!inputs) {
 		GtkWidget *none = gtk_label_new("No microphone");
 
+		if (section != 0)
+			heading_add(panel->volume_devices, "Input");
 		gtk_widget_add_css_class(none, "dim-label");
 		gtk_widget_set_halign(none, GTK_ALIGN_START);
 		gtk_box_append(GTK_BOX(panel->volume_devices), none);
 	}
+	/* The buttons point into the list: it lives as long as they do. */
+	if (list)
+		g_object_set_data_full(G_OBJECT(panel->volume_devices), "choices", list,
+				       (GDestroyNotify)g_ptr_array_unref);
 	devices_filling = FALSE;
+}
+
+/* While the menu is open, plugging in headphones shows up by itself. */
+static gboolean devices_tick(gpointer data)
+{
+	devices_fill(data, FALSE);
+	return G_SOURCE_CONTINUE;
 }
 
 static void volume_opened(GtkPopover *popover, gpointer data)
 {
 	(void)popover;
 	volume_refresh(TRUE);
-	devices_fill(data);
+	devices_fill(data, TRUE);
+	if (!devices_timer)
+		devices_timer = g_timeout_add_seconds(2, devices_tick, data);
+}
+
+static void volume_closed(GtkPopover *popover, gpointer data)
+{
+	(void)popover;
+	(void)data;
+	if (devices_timer)
+		g_source_remove(devices_timer);
+	devices_timer = 0;
 }
 
 /* ---- the battery ---- */
@@ -549,6 +583,7 @@ static GtkWidget *volume_button(struct panel *panel)
 
 	gtk_popover_set_child(GTK_POPOVER(popover), box);
 	g_signal_connect(popover, "show", G_CALLBACK(volume_opened), panel);
+	g_signal_connect(popover, "closed", G_CALLBACK(volume_closed), panel);
 	keyboard_while_open(popover);
 	gtk_menu_button_set_popover(GTK_MENU_BUTTON(button), popover);
 	menu_direction(button);
@@ -589,6 +624,12 @@ static void power_clicked(GtkButton *button, gpointer data)
 	struct panel *panel = data;
 	const char *action = g_object_get_data(G_OBJECT(button), "action");
 
+	if (!strcmp(action, "lock")) {
+		gtk_popover_popdown(GTK_POPOVER(gtk_widget_get_ancestor(GTK_WIDGET(button),
+									 GTK_TYPE_POPOVER)));
+		panels_lock();
+		return;
+	}
 	/* Restart, shut down and panic ask for a second click. */
 	if (strcmp(action, "logout") && panel->confirm != GTK_WIDGET(button)) {
 		if (panel->confirm)
@@ -626,6 +667,86 @@ static GtkWidget *power_button(struct panel *panel, const char *icon, const char
 		gtk_widget_add_css_class(button, "destructive-action");
 	g_signal_connect(button, "clicked", G_CALLBACK(power_clicked), panel);
 	return button;
+}
+
+/* ---- the lock screen (wormos-lock) ---- */
+
+/* Asked each time: a password set during the session counts at once. */
+gboolean lock_possible(void)
+{
+	int status = -1;
+
+	return g_spawn_sync(NULL, (char *[]){ "/usr/lib/worm/checkpass", "--status", NULL },
+			    NULL, G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
+			    NULL, NULL, NULL, NULL, &status, NULL) &&
+	       g_spawn_check_wait_status(status, NULL);
+}
+
+void panels_lock(void)
+{
+	if (lock_possible())
+		g_spawn_async(NULL, (char *[]){ "wormos-lock", NULL }, NULL, G_SPAWN_SEARCH_PATH,
+			      NULL, NULL, NULL, NULL);
+}
+
+/* ---- the screen's brightness (laptops) ---- */
+
+static void brightness_show(void)
+{
+	double level = brightness_get();
+
+	brightness_updating = TRUE;
+	for (guint p = 0; p < panels->len; p++) {
+		struct panel *panel = g_ptr_array_index(panels, p);
+
+		if (!panel->brightness_row)
+			continue;
+		gtk_widget_set_visible(panel->brightness_row, level >= 0);
+		if (level >= 0)
+			gtk_range_set_value(GTK_RANGE(panel->brightness_scale), level * 100);
+	}
+	brightness_updating = FALSE;
+}
+
+static void brightness_moved(GtkRange *range, gpointer data)
+{
+	(void)data;
+	if (!brightness_updating)
+		brightness_set(gtk_range_get_value(range) / 100);
+}
+
+void panels_brightness(const char *what)
+{
+	if (!strcmp(what, "up"))
+		brightness_step(1);
+	else if (!strcmp(what, "down"))
+		brightness_step(-1);
+	else
+		return;
+	brightness_show();
+}
+
+static GtkWidget *brightness_row(struct panel *panel)
+{
+	GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+
+	gtk_box_append(GTK_BOX(row), gtk_image_new_from_icon_name("display-brightness-symbolic"));
+	panel->brightness_scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 5, 100, 1);
+	gtk_scale_set_draw_value(GTK_SCALE(panel->brightness_scale), FALSE);
+	gtk_widget_set_hexpand(panel->brightness_scale, TRUE);
+	gtk_widget_set_tooltip_text(panel->brightness_scale, "Screen brightness");
+	g_signal_connect(panel->brightness_scale, "value-changed", G_CALLBACK(brightness_moved), NULL);
+	gtk_box_append(GTK_BOX(row), panel->brightness_scale);
+	panel->brightness_row = row;
+	gtk_widget_set_visible(row, brightness_available());
+	return row;
+}
+
+static void power_menu_shown(GtkPopover *popover, gpointer data)
+{
+	(void)popover;
+	(void)data;
+	brightness_show();
 }
 
 static void power_menu_closed(GtkPopover *popover, gpointer data)
@@ -761,6 +882,7 @@ static GtkWidget *power_menu(struct panel *panel)
 	gtk_box_append(GTK_BOX(box), user);
 	gtk_box_append(GTK_BOX(box), quick_actions(panel));
 	gtk_box_append(GTK_BOX(box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
+	gtk_box_append(GTK_BOX(box), brightness_row(panel));
 
 	row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
 	gtk_box_append(GTK_BOX(row), gtk_image_new_from_icon_name("video-display-symbolic"));
@@ -780,6 +902,10 @@ static GtkWidget *power_menu(struct panel *panel)
 	gtk_box_append(GTK_BOX(box), power_button(panel, "network-offline-symbolic",
 						  "Panic: cut the network", "panic"));
 	gtk_box_append(GTK_BOX(box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL));
+	/* Locking needs a password to open it again. */
+	if (lock_possible())
+		gtk_box_append(GTK_BOX(box), power_button(panel, "system-lock-screen-symbolic", "Lock",
+							  "lock"));
 	gtk_box_append(GTK_BOX(box), power_button(panel, "system-log-out-symbolic", "Log out",
 						  "logout"));
 	gtk_box_append(GTK_BOX(box), power_button(panel, "system-reboot-symbolic", "Restart",
@@ -788,6 +914,7 @@ static GtkWidget *power_menu(struct panel *panel)
 						  "Shut down", "off"));
 	gtk_popover_set_child(GTK_POPOVER(popover), box);
 	g_signal_connect(popover, "closed", G_CALLBACK(power_menu_closed), panel);
+	g_signal_connect(popover, "show", G_CALLBACK(power_menu_shown), panel);
 	keyboard_while_open(popover);
 	gtk_menu_button_set_popover(GTK_MENU_BUTTON(button), popover);
 	menu_direction(button);

@@ -1,8 +1,8 @@
 CC       ?= cc
 CFLAGS   ?= -O2
 PKG_CONFIG ?= pkg-config
-PKGS      = gtk4
-override CFLAGS += -std=gnu17 -Wall -Wextra $(shell $(PKG_CONFIG) --cflags $(PKGS))
+PKGS      = gtk4 json-c
+override CFLAGS += -std=gnu17 -Wall -Wextra -I../common $(shell $(PKG_CONFIG) --cflags $(PKGS))
 LDFLAGS  += -Wl,-z,relro,-z,now
 LIBS      = $(shell $(PKG_CONFIG) --libs $(PKGS))
 
@@ -12,8 +12,8 @@ DATADIR  ?= $(PREFIX)/share
 
 all: wormos-settings
 
-wormos-settings: settings.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ settings.c $(LIBS)
+wormos-settings: settings.c ../common/sound.c ../common/sound.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ settings.c ../common/sound.c $(LIBS) -lm
 
 install: wormos-settings
 	install -Dm755 wormos-settings $(DESTDIR)$(BINDIR)/wormos-settings

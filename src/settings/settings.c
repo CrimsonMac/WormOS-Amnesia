@@ -36,6 +36,8 @@
 
 #include <gtk/gtk.h>
 
+#include "sound.h"
+
 #define APP_ID          "org.wormos.Settings"
 #define CSS_PATH        "/usr/share/wormos/settings/settings.css"
 #define SETTINGS_HELPER "/usr/lib/worm/settings"
@@ -1017,90 +1019,43 @@ static void build_mouse(void)
 		switch_new(input.dwt, G_CALLBACK(bool_switch), &input.dwt), NULL);
 }
 
-/* ==== Sound (wpctl) ==== */
+/* ==== Sound (src/common/sound.c: every connector, with plain names) ==== */
 
 static GtkWidget *sound_outputs, *sound_inputs;
 static gboolean sound_filling;
+static GPtrArray *sound_list_now;       /* the choices the rows point into */
+static char *sound_signature;
+static guint sound_timer;
 
-struct node {
-	int id;
-	gboolean is_default;
-	double volume;
-	char *name;
-};
+static void sound_fill(gboolean force);
 
-static void node_free(gpointer p)
+static gboolean sound_switched(gpointer data)
 {
-	struct node *n = p;
-
-	g_free(n->name);
-	g_free(n);
+	(void)data;
+	sound_fill(TRUE);
+	return G_SOURCE_REMOVE;
 }
 
-/* Sinks and sources of "wpctl status" (Audio part only). */
-static void sound_read(GPtrArray *sinks, GPtrArray *sources)
+static gpointer sound_switch(gpointer data)
 {
-	char *out = capture((const char *const[]){ "wpctl", "status", NULL });
-	GPtrArray *into = NULL;
-	gboolean audio = FALSE;
+	struct sound_choice *c = data;
 
-	if (!out)
-		return;
-	for (char **lines = g_strsplit(out, "\n", -1), **l = lines; *l || (g_strfreev(lines), 0); l++) {
-		char *s = *l;
-		struct node *n;
-		char *dot, *vol;
-
-		if (!strncmp(s, "Audio", 5))
-			audio = TRUE;
-		else if (!strncmp(s, "Video", 5) || !strncmp(s, "Settings", 8))
-			audio = FALSE;
-		if (!audio)
-			continue;
-		if (strstr(s, "Sinks:")) {
-			into = sinks;
-			continue;
-		}
-		if (strstr(s, "Sources:")) {
-			into = sources;
-			continue;
-		}
-		if (strstr(s, ":") && !strstr(s, "[vol:")) {
-			into = NULL;    /* Devices:, Filters:, Streams: */
-			continue;
-		}
-		if (!into)
-			continue;
-		/* "│  *   46. Built-in Audio Analog Stereo     [vol: 0.40]" */
-		while (*s && !g_ascii_isdigit(*s) && *s != '*')
-			s++;
-		n = g_new0(struct node, 1);
-		if (*s == '*') {
-			n->is_default = TRUE;
-			s++;
-		}
-		n->id = atoi(s);
-		dot = strchr(s, '.');
-		vol = strstr(s, "[vol:");
-		if (!n->id || !dot || !vol) {
-			node_free(n);
-			continue;
-		}
-		n->volume = g_ascii_strtod(vol + 5, NULL);
-		n->name = g_strstrip(g_strndup(dot + 1, vol - dot - 1));
-		g_ptr_array_add(into, n);
-	}
-	g_free(out);
+	sound_choose(c);
+	g_free(c->label);
+	g_free(c);
+	g_idle_add(sound_switched, NULL);
+	return NULL;
 }
 
 static void node_default(GtkCheckButton *b, gpointer data)
 {
-	char id[16];
+	struct sound_choice *c;
 
 	if (sound_filling || !gtk_check_button_get_active(b))
 		return;
-	snprintf(id, sizeof(id), "%d", GPOINTER_TO_INT(data));
-	spawn((const char *const[]){ "wpctl", "set-default", id, NULL });
+	c = g_memdup2(data, sizeof(*c));
+	c->label = g_strdup(c->label);
+	g_thread_unref(g_thread_new("sound-choice", sound_switch, c));
 }
 
 static void node_volume(GtkRange *r, gpointer data)
@@ -1114,66 +1069,98 @@ static void node_volume(GtkRange *r, gpointer data)
 	spawn((const char *const[]){ "wpctl", "set-volume", id, vol, NULL });
 }
 
-static void sound_list(GtkWidget *group, GPtrArray *nodes, const char *none)
+static void sound_rows(GtkWidget *group, GPtrArray *list, gboolean output, const char *none)
 {
 	GtkWidget *child, *first = NULL;
+	int shown = 0;
 
 	while ((child = gtk_widget_get_first_child(group)))
 		gtk_list_box_remove(GTK_LIST_BOX(group), child);
-	if (!nodes->len) {
-		row_new(group, none, NULL, NULL, NULL);
-		return;
-	}
-	for (guint i = 0; i < nodes->len; i++) {
-		struct node *n = g_ptr_array_index(nodes, i);
+	for (guint i = 0; list && i < list->len; i++) {
+		struct sound_choice *c = g_ptr_array_index(list, i);
 		GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
 		GtkWidget *check = gtk_check_button_new();
-		GtkWidget *scale = slider(0, 100, 1, n->volume * 100, G_CALLBACK(node_volume),
-					  GINT_TO_POINTER(n->id));
 
+		if (c->output != output)
+			continue;
+		/* A volume for what has a node now (another profile's has none yet). */
+		if (c->node >= 0 && c->volume >= 0)
+			gtk_box_append(GTK_BOX(box), slider(0, 100, 1, c->volume * 100,
+							    G_CALLBACK(node_volume),
+							    GINT_TO_POINTER(c->node)));
 		if (first)
 			gtk_check_button_set_group(GTK_CHECK_BUTTON(check), GTK_CHECK_BUTTON(first));
 		else
 			first = check;
-		gtk_check_button_set_active(GTK_CHECK_BUTTON(check), n->is_default);
+		gtk_check_button_set_active(GTK_CHECK_BUTTON(check), c->active);
 		gtk_widget_set_tooltip_text(check, "Use this one");
-		g_signal_connect(check, "toggled", G_CALLBACK(node_default), GINT_TO_POINTER(n->id));
-		gtk_box_append(GTK_BOX(box), scale);
+		g_signal_connect(check, "toggled", G_CALLBACK(node_default), c);
 		gtk_box_append(GTK_BOX(box), check);
-		row_new(group, n->name, NULL, box, NULL);
+		row_new(group, c->label, NULL, box, NULL);
+		shown++;
 	}
+	if (!shown)
+		row_new(group, none, NULL, NULL, NULL);
 }
 
-static void sound_fill(void)
+static void sound_fill(gboolean force)
 {
-	GPtrArray *sinks = g_ptr_array_new_with_free_func(node_free);
-	GPtrArray *sources = g_ptr_array_new_with_free_func(node_free);
+	char *signature = NULL;
+	GPtrArray *list = sound_choices(&signature);
 
+	if (!force && list && !g_strcmp0(signature, sound_signature)) {
+		g_ptr_array_free(list, TRUE);
+		g_free(signature);
+		return;
+	}
+	g_free(sound_signature);
+	sound_signature = signature;
 	sound_filling = TRUE;
-	sound_read(sinks, sources);
-	sound_list(sound_outputs, sinks, "No sound output (no sound device or sound server)");
-	sound_list(sound_inputs, sources, "No microphone");
+	sound_rows(sound_outputs, list, TRUE, "No sound output (no sound device or sound server)");
+	sound_rows(sound_inputs, list, FALSE, "No microphone");
 	sound_filling = FALSE;
-	g_ptr_array_free(sinks, TRUE);
-	g_ptr_array_free(sources, TRUE);
+	if (sound_list_now)
+		g_ptr_array_free(sound_list_now, TRUE);
+	sound_list_now = list;
+}
+
+/* Plugging headphones in shows up while the page is open. */
+static gboolean sound_tick(gpointer data)
+{
+	(void)data;
+	sound_fill(FALSE);
+	return G_SOURCE_CONTINUE;
+}
+
+static void sound_unmapped(GtkWidget *w, gpointer data)
+{
+	(void)w;
+	(void)data;
+	if (sound_timer)
+		g_source_remove(sound_timer);
+	sound_timer = 0;
 }
 
 static void sound_mapped(GtkWidget *w, gpointer data)
 {
 	(void)w;
 	(void)data;
-	sound_fill();
+	sound_fill(TRUE);
+	if (!sound_timer)
+		sound_timer = g_timeout_add_seconds(2, sound_tick, NULL);
 }
 
 static void build_sound(void)
 {
 	GtkWidget *page = page_new("sound", "Sound", "audio-speakers-symbolic", NULL);
 
-	sound_outputs = group_new(page, "Output", "The ticked one plays the sound; each has its "
-				  "own volume.");
+	sound_outputs = group_new(page, "Output", "The ticked one plays the sound. Plugged-in "
+				  "headphones and screens appear by themselves.");
 	sound_inputs = group_new(page, "Input", NULL);
 	g_signal_connect(g_object_get_data(G_OBJECT(page), "scroll"), "map",
 			 G_CALLBACK(sound_mapped), NULL);
+	g_signal_connect(g_object_get_data(G_OBJECT(page), "scroll"), "unmap",
+			 G_CALLBACK(sound_unmapped), NULL);
 }
 
 /* ==== Notifications ==== */

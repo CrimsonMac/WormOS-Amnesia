@@ -1,0 +1,25 @@
+name=sof-firmware
+version=2026.09.2
+description="Sound Open Firmware: firmware and topologies for Intel laptop audio DSPs (Smart Sound)"
+depends=()
+source=(https://github.com/thesofproject/sof-bin/releases/download/v$version/sof-bin-$version.tar.gz)
+sha256=(5f7bc30b2b5c1e6b0da55a33fc44e2b7f56ae9b06952edcde614f51ef6b943e1)
+
+build() {
+	:
+}
+
+package() {
+	# Firmware signed by Intel (the DSP runs nothing else) and the
+	# topologies that describe each laptop's audio, for the older IPC3 and
+	# the newer IPC4 interface; the kernel picks. Debug dictionaries (.ldc)
+	# are left out. Stored uncompressed, as upstream ships them.
+	local dir
+	mkdir -p "$pkgdir/usr/lib/firmware/intel"
+	for dir in sof sof-ipc4 sof-ipc4-lib sof-ipc4-tplg sof-ace-tplg sof-tplg; do
+		cp -a "$dir" "$pkgdir/usr/lib/firmware/intel/"
+	done
+	find "$pkgdir/usr/lib/firmware/intel" -name '*.ldc' -delete
+	find "$pkgdir/usr/lib/firmware/intel" -type f -exec chmod 644 {} +
+	install -Dm644 -t "$pkgdir/usr/share/licenses/sof-firmware" LICENCE.Intel LICENCE.NXP Notice.NXP
+}

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Start sshd: host keys are made on /var the first time (the system is
+# read-only), then sshd runs in the foreground for worminit.
+mkdir -p /var/lib/ssh && chmod 755 /var/lib/ssh
+[ -f /var/lib/ssh/ssh_host_ed25519_key ] ||
+	ssh-keygen -q -t ed25519 -N '' -f /var/lib/ssh/ssh_host_ed25519_key
+[ -f /var/lib/ssh/ssh_host_rsa_key ] ||
+	ssh-keygen -q -t rsa -b 3072 -N '' -f /var/lib/ssh/ssh_host_rsa_key
+exec /usr/bin/sshd -D -e

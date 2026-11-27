@@ -1403,8 +1403,8 @@ initramfs inside LUKS.
   after they rest.
 - Display: the scale list of the panel; each screen's modes from
   `wlr-randr`, a choice runs `wlr-randr --output NAME --mode WxH@RHz`.
-  Sound: `wpctl status` (Audio's Sinks and Sources, `*` the default),
-  `wpctl set-default ID` and `set-volume ID V`. Date & time: zones from
+  Sound: the shared list of `src/common/sound.c` (below, Panel) with a
+  volume (`wpctl set-volume ID V`) for each choice that has a node. Date & time: zones from
   `zone1970.tab` plus UTC in a filtered list.
 - System changes go through `/usr/lib/worm/settings` (`src/worm/
   settings.c`, setuid root, wheel only, like the snapshots helper):
@@ -1584,11 +1584,37 @@ initramfs inside LUKS.
   (`EnableNetworkConfiguration`), `AddressRandomization=once` with the full
   range (net-privacy leaves Wi-Fi devices to it), `NameResolvingService=none`
   (unbound stays the resolver). Kernel: cfg80211/mac80211, iwlwifi
-  (dvm, mvm, mld) and mac80211_hwsim as modules, the regulatory database
+  (dvm, mvm, mld), mt7921e/mt7925e, rtw88/rtw89 PCIe and mac80211_hwsim
+  as modules (Bluetooth: btusb with MediaTek and Realtek support), the regulatory database
   checked against the kernel's built-in keys (`wireless-regdb`), AF_ALG
   and key types for iwd. `linux-firmware-wireless` ships the newest API
   version of each iwlwifi firmware (at the top of the firmware folder, as
-  the driver looks for them) and Intel's Bluetooth firmware, zstd. The
+  the driver looks for them), Intel's Bluetooth firmware, and MediaTek's,
+  Realtek's (rtw88, rtw89, rtl_bt) and Realtek Ethernet (rtl_nic) folders
+  as they are, zstd. Sound on Intel laptops with an audio DSP: SOF in the
+  kernel (Tiger Lake to Lunar Lake, HDA links and codecs, the generic HDA
+  and SSP machine drivers, DMIC) with `sof-firmware` (sof-bin: Intel-signed
+  firmware and topologies for IPC3 and IPC4 under
+  `/usr/lib/firmware/intel`, uncompressed, without the .ldc debug files)
+  and `alsa-ucm-conf` (UCM2, which PipeWire needs for those cards). USB
+  cameras: uvcvideo as a module (WormOS Amnesia blocks it). I2C touchpads:
+  Intel LPSS (DesignWare I2C, iDMA64), pinctrl for Tiger Lake to Meteor
+  Lake (the touchpad's interrupt line), i2c-hid-acpi and hid-multitouch;
+  hp-wmi for HP's hotkeys. Backlight: `90-backlight.rules` runs
+  `/usr/lib/worm/backlight add NAME`, which makes `brightness` writable
+  for the group video and sets the level saved in
+  `/var/lib/worm/backlight/NAME` (else at least 40%; never below 5%);
+  the shutdown hook `20-backlight` saves it. worm-shell
+  (`src/shell/brightness.c`) prefers a firmware, then platform, then raw
+  backlight; `--brightness up|down` (the XF86MonBrightness keys) steps by
+  10%, and the quick settings have a slider. `openssh-server`
+  (not in any edition) is sshd from the same source as `openssh`:
+  `46-sshd` runs `/usr/lib/worm/sshd`, which makes ed25519 and RSA host keys
+  in `/var/lib/ssh` the first time; keys-only `sshd_config`, privsep in
+  `/usr/share/empty.sshd`. `WORMOS_TEST_SSH_KEY=FILE make iso` builds a
+  test ISO for real hardware with it installed, `tcp 22` in
+  `/etc/worm/firewall` and the key as root's `authorized_keys`;
+  `release.sh` refuses the variable. The
   panel (`src/shell/wifi.c`) uses iwd's D-Bus interface (wheel may):
   the first Station, `GetOrderedNetworks`, `Network.Connect`, and an agent
   (`RegisterAgent`) that answers `RequestPassphrase` with the passphrase
@@ -1601,8 +1627,19 @@ initramfs inside LUKS.
   HSP/HFP backends; `recipes/sbc`). Settings > Bluetooth drives
   `bluetoothctl` (power, a 12-second scan, pair + trust + connect with the
   NoInputNoOutput agent, disconnect, remove).
-- Panel: the sound menu lists `wpctl status`'s audio sinks and sources as
-  radio buttons (`wpctl set-default`) each time it opens. The battery
+- Panel: the sound menu and Settings > Sound list sound choices from
+  `src/common/sound.c` (json-c over `pw-dump`): each Audio/Device's routes
+  (EnumRoute) not marked unavailable, so the speakers and the headphone
+  jack both appear even when they are in different profiles (one node at
+  a time, as on many Intel laptops with UCM), plus sinks and sources of
+  their own (no device). Names: route descriptions made plain (Speaker ->
+  Speakers, Digital Microphone -> Built-in microphone, "... HDMI /
+  DisplayPort 3 Output" -> "HDMI / DisplayPort 3"); Bluetooth and USB
+  devices go by their own description. Choosing one sets the device's
+  Profile and Route (`pw-cli set-param`, saved) and then the default node
+  (`wpctl set-default`, once the profile's node exists), in a thread. While
+  open, both re-read every two seconds and redraw only when the list or
+  what is active changed (a signature string). The battery
   (`status_battery`): every `/sys/class/power_supply/*` with type Battery
   and a scope other than Device, averaged; hidden without one; a critical
   notification once at 10% while discharging. `worm-shell --battery`
@@ -1797,6 +1834,39 @@ initramfs inside LUKS.
   `worm-shell --volume up|down|mute` (5% steps), as does scrolling on the
   button.
 - VMware images have an HD Audio device (`sound.virtualDev = "hdaudio"`).
+
+## Lock screen and lid
+
+- `wormos-lock` (`src/shell/lock.c`, in worm-shell): gtk4-session-lock
+  (ext-session-lock-v1), one window per monitor (time, user, password
+  entry), `prctl(PR_SET_DUMPABLE, 0)`. The password goes to
+  `/usr/lib/worm/checkpass` (setuid, `src/worm/checkpass.c`) on stdin with
+  `g_subprocess_communicate_utf8_async`: it checks the real user's own
+  password (`password_ok`, 2 s pause on failure), keeps wrong tries in
+  `/run/worm/checkpass/UID` (root 0600) and refuses to check for 30 s /
+  2 min / 10 min after 5 / 10 / 20 of them (exit 3, seconds on stdout);
+  `--status` says whether the user has a hash libxcrypt can check (`$`...;
+  none, locked or DES: exit 2, and nothing locks). While locked,
+  `$XDG_RUNTIME_DIR/wormos-locked` exists. labwc ignores keybindings while
+  locked (none has `allowWhenLocked`) and keeps the outputs locked when the
+  lock client dies; worm-shell (every 2 s) starts `wormos-lock` again when
+  the mark exists without a running `wormos-lock`, and removes a stale mark
+  at start. Started by Super+L, the power menu's Lock (shown when
+  `checkpass --status` succeeds) and SIGUSR1 to worm-shell.
+- Lid (`src/worm/powerkey.c`, root): watches input devices with SW_LID as
+  well as KEY_POWER. Closed for 10 s (poll timeout; opening cancels):
+  SIGUSR1 to every worm-shell, then up to 5 s for each session user with a
+  password to have both the mark and a running `wormos-lock` of theirs; only
+  then `mem` into `/sys/power/state` (s2idle where that is all there is).
+  Without a confirmed lock it stays awake and logs it. `/etc/worm/lid`:
+  `action = ignore` (WormOS Amnesia).
+- Release images (`WORMOS_RELEASE=1`, exported by `release.sh`): grub.cfg
+  sets `superusers` with no password (entries are `--unrestricted`, snap's
+  generated ones too), so entries cannot be edited and there is no GRUB
+  command line; `etc/worm/rescue-shell` is only made for development and
+  test images, and mkinitramfs adds `/rescue-allowed` from it, without which
+  wormrd never starts its rescue shell (not on failures, not with
+  `wormos.rescue`). BusyBox `passwd`/`chpasswd` hash with yescrypt.
 
 ## Login
 

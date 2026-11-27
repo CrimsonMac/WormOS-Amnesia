@@ -185,8 +185,8 @@ window.launcher .launcher-sidebar > row:selected image {
 	color: #c4b5fd;
 }
 
-window.launcher .launcher-sidebar > row:not(:selectable),
-window.launcher .launcher-sidebar > row:not(:selectable):hover {
+window.launcher .launcher-sidebar > row.heading-row,
+window.launcher .launcher-sidebar > row.heading-row:hover {
 	background: none;
 	padding: 14px 10px 4px;
 }

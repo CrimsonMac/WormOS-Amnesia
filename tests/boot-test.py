@@ -363,7 +363,7 @@ KIT_CHECKS = [
     ("tool kits listed", "worm kit list",
      r"^basic(.|\n)*^forensics(.|\n)*^pentest(.|\n)*^web(.|\n)*^windows"),
     ("basic kit marks core packages", "worm kit show basic",
-     r"WormOS packages(.|\n)* mtr (.|\n)* 7zip\*(.|\n)*Tools \(from Debian(.|\n)*bind9-dnsutils"),
+     r"WormOS packages(.|\n)* 7zip\*(.|\n)* mtr (.|\n)*Tools \(from Debian(.|\n)*bind9-dnsutils"),
     ("windows kit points at VM blackholes", "worm kit show windows", r"bh open --vm(.|\n)*wine"),
     ("kit contents", "worm kit show forensics", r"sleuthkit(.|\n)*Not installed"),
     ("unknown kit refused", "worm kit show nothing 2>&1; echo rc=$?", r"no kit(.|\n)*rc=1"),

@@ -1,0 +1,33 @@
+#!/bin/sh
+# The screen's backlight (udev runs "backlight add NAME" when one appears,
+# the shutdown hook "backlight save"). Users in the group video may set it;
+# its level is kept in /var/lib/worm/backlight/NAME across restarts, and a
+# backlight the firmware left dimmer than 40% starts at 40% the first time.
+PATH=/usr/bin:/usr/sbin
+dir=/var/lib/worm/backlight
+case $1 in
+add)
+	b=/sys/class/backlight/$2
+	[ -w "$b/brightness" ] || exit 0
+	chgrp video "$b/brightness" && chmod g+w "$b/brightness"
+	max=$(cat "$b/max_brightness") || exit 0
+	[ "$max" -gt 0 ] || exit 0
+	if [ -f "$dir/$2" ]; then
+		level=$(cat "$dir/$2")
+	else
+		level=$(cat "$b/brightness")
+		[ "$level" -ge $((max * 40 / 100)) ] || level=$((max * 40 / 100))
+	fi
+	# Never black: at least 5%.
+	[ "$level" -ge $((max * 5 / 100)) ] || level=$((max * 5 / 100))
+	[ "$level" -le "$max" ] || level=$max
+	echo "$level" > "$b/brightness"
+	;;
+save)
+	mkdir -p "$dir"
+	for b in /sys/class/backlight/*; do
+		[ -f "$b/brightness" ] && cat "$b/brightness" > "$dir/${b##*/}"
+	done
+	;;
+esac
+exit 0

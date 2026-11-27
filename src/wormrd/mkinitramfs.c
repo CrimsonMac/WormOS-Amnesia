@@ -314,6 +314,9 @@ int main(int argc, char **argv)
 			snprintf(name, sizeof(name), "usr/bin/%s", applets[i]);
 			add_link(name, "busybox");
 		}
+	/* Development images only (see wormrd's rescue shell). */
+	if (exists("etc/worm/rescue-shell"))
+		add_file("etc/worm/rescue-shell", "rescue-allowed", 0644);
 	if (exists("etc/worm/luks.key"))
 		add_file("etc/worm/luks.key", "crypto_keyfile", 0400);
 	header("TRAILER!!!", 0, 0, 0, 0);

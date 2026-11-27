@@ -107,6 +107,16 @@ grub-mkimage -O i386-pc -c "$TMP/bios.cfg" -p /EFI/BOOT -o "$TMP/core.img" \
 	serial terminal all_video vbe vga font gfxterm \
 	cryptodisk luks2 gcry_rijndael gcry_sha256 gcry_sha512 pbkdf2
 
+# Release images: the menu's entries boot, but nobody can edit them or open
+# GRUB's command line (a superuser without a password can never log in), so
+# the kernel command line cannot be changed to get a shell without the
+# system's passwords. Development images keep the menu editable.
+MENU_LOCK=
+[ "${WORMOS_RELEASE:-}" = 1 ] && MENU_LOCK='
+# Entries boot; editing them and the command line need a superuser that
+# has no password.
+set superusers="wormos"
+'
 cat > "$TMP/grub.cfg" <<EOF
 serial --unit=0 --speed=115200
 terminal_input console serial
@@ -114,7 +124,7 @@ terminal_output console serial
 
 set timeout=3
 set default=0
-
+${MENU_LOCK}
 # An encrypted install (the installer's LUKS2 with PBKDF2, which GRUB can
 # open): the system's filesystem appears once the disk is unlocked.
 if ! search --no-floppy --fs-uuid --set=root $FS_UUID; then
@@ -125,7 +135,7 @@ fi
 set wormos_cmdline="$KERNEL_CMDLINE"
 export wormos_cmdline
 
-menuentry "WormOS" {
+menuentry "WormOS" --unrestricted {
 	linux /@/boot/vmlinuz \$wormos_cmdline
 	initrd /@/boot/initramfs.img
 }
@@ -135,7 +145,7 @@ menuentry "WormOS" {
 if [ -f /@snapshots/grub.cfg ]; then
 	source /@snapshots/grub.cfg
 else
-	menuentry "Safe mode (no network)" {
+	menuentry "Safe mode (no network)" --unrestricted {
 		linux /@/boot/vmlinuz \$wormos_cmdline wormos.safe
 		initrd /@/boot/initramfs.img
 	}

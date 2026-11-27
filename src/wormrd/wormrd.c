@@ -114,7 +114,9 @@ static void run_shell(void)
 {
 	pid_t pid;
 
-	if (access(RESCUE_SHELL, X_OK) < 0) {
+	/* Release images have none: it would be a root shell without a
+	 * password (mkinitramfs adds /rescue-allowed to development ones). */
+	if (access("/rescue-allowed", F_OK) < 0 || access(RESCUE_SHELL, X_OK) < 0) {
 		log_msg("no rescue shell available");
 		return;
 	}

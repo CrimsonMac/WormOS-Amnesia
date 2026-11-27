@@ -1,14 +1,15 @@
 name=wormos-settings
 version=0.1.0
-release=4
+release=5
 description="Settings: display, appearance, keyboard, mouse, sound, time, privacy and the virtual machine"
-depends=(glibc gtk4 worm wlr-randr wireplumber hicolor-icon-theme)
-localsrc=src/settings
+depends=(glibc json-c gtk4 worm wlr-randr wireplumber hicolor-icon-theme)
+# Builds src/settings, which also uses src/common.
+localsrc=src
 
 build() {
-	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+	make -C settings CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
 }
 
 package() {
-	make DESTDIR="$pkgdir" install
+	make -C settings DESTDIR="$pkgdir" install
 }

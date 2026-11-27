@@ -1,0 +1,3 @@
+#!/bin/sh
+# Keep the screen's brightness for the next start.
+exec /usr/lib/worm/backlight save

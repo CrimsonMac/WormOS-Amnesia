@@ -90,6 +90,9 @@
     <keybind key="XF86AudioRaiseVolume"><action name="Execute" command="worm-shell --volume up" /></keybind>
     <keybind key="XF86AudioLowerVolume"><action name="Execute" command="worm-shell --volume down" /></keybind>
     <keybind key="XF86AudioMute"><action name="Execute" command="worm-shell --volume mute" /></keybind>
+    <keybind key="W-l"><action name="Execute" command="wormos-lock" /></keybind>
+    <keybind key="XF86MonBrightnessUp"><action name="Execute" command="worm-shell --brightness up" /></keybind>
+    <keybind key="XF86MonBrightnessDown"><action name="Execute" command="worm-shell --brightness down" /></keybind>
   </keyboard>
   <mouse>
     <default />

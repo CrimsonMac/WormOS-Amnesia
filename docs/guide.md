@@ -309,7 +309,10 @@ it, not because you need it:
   Debian or Kali). The speaker button in the panel sets the volume (scroll
   on it, or use the volume keys) and picks the output (speakers,
   headphones, HDMI) and the microphone; so does Settings > Sound
-  (`wpctl status` and `wpctl set-default ID` in a terminal).
+  (`wpctl status` and `wpctl set-default ID` in a terminal). Both list
+  every connector that can be used by a plain name, the speakers and the
+  headphones both while headphones are plugged in, and update by themselves
+  when something is plugged in or out.
 - **Wi-Fi**: the network button in the panel lists the networks in range
   (strongest first); click one, type its passphrase if it has one, and
   WormOS connects and remembers it (it reconnects by itself later). The
@@ -318,14 +321,25 @@ it, not because you need it:
   recognise the computer, and DNS stays with WormOS's encrypted resolver,
   not the network's. Wi-Fi starts only behind the firewall and follows
   `worm panic`. In a terminal: `iwctl station wlan0 get-networks`,
-  `iwctl station wlan0 connect NAME` (enterprise networks too). Intel Wi-Fi
-  adapters work out of the box; others need their drivers, which are not
-  built yet.
+  `iwctl station wlan0 connect NAME` (enterprise networks too). Intel,
+  MediaTek (MT7921, MT7922, MT7925) and Realtek (rtw88, rtw89) Wi-Fi and
+  Bluetooth adapters have their drivers and firmware; Realtek wired
+  network cards too.
 - **Bluetooth** (Settings > Bluetooth): switch it on, search for devices,
   then Connect pairs, trusts and connects one (headphones, speakers,
   mice and keyboards that pair without a code); Forget removes it.
   Bluetooth audio goes through PipeWire like any other output. It starts
   switched off at every start. In a terminal: `bluetoothctl`.
+- Laptop sound through Intel's audio DSP (Smart Sound, on most Intel
+  laptops since about 2020) uses Sound Open Firmware, so the speakers and
+  built-in microphones work; USB webcams work as cameras.
+- To reach the computer from another one over SSH, `wh install
+  openssh-server`, put your public key in `~/.ssh/authorized_keys` and open
+  the port with `worm fw allow 22`. Logins take keys only, never passwords.
+- On a laptop the brightness keys and the slider in the quick settings
+  (the power button in the panel) set the screen's brightness; it comes
+  back at the next start. Touchpads and touchscreens on I2C (most laptops'
+  built-in ones) work like a mouse.
 - On a laptop the panel shows the battery's charge (and whether it is
   charging), and warns once when it falls to 10%.
 - Ctrl+Alt+F2 switches to a second console (for logging in as root);
@@ -730,6 +744,36 @@ The boot menu has a **safe mode** entry: it rewinds to the newest
 known-good snapshot and starts without network. Snapshots left behind by a
 rewind and those saved by `worm panic` never count as known-good. Restart
 normally to leave safe mode.
+
+## Locking the screen and sleep
+
+**Super+L**, or **Lock** in the panel's power menu, locks the screen; your
+password opens it again. Closing a laptop's lid does nothing for the first
+10 seconds (time to open it again if you closed it by mistake); after that
+WormOS locks the screen and the laptop sleeps. Opening the lid wakes it at
+the lock screen. Users without a password (the live system) are never
+locked out: the laptop just sleeps.
+
+The lock is meant to hold against someone with the computer in hand:
+
+- The lock screen uses the Wayland session lock: the compositor shows
+  nothing else and gives no input to anything else, keyboard shortcuts
+  included. If the lock screen crashed, the screens would stay covered and
+  a new lock screen would appear.
+- Each wrong password costs two seconds; after 5 in a row the next try
+  waits 30 seconds, after 10 two minutes, after 20 ten minutes.
+- The laptop sleeps only once the screen is locked, never before.
+- Release images: GRUB's menu entries boot, but cannot be edited and GRUB's
+  command line cannot be opened, so the kernel cannot be started with a
+  shell instead of the system; the initramfs never opens a rescue shell.
+  The text console (Ctrl+Alt+F2) asks for a password like the login screen.
+
+There is no way around a forgotten password on a release system: no reset,
+no recovery shell. What stays possible with the computer in hand: booting
+other media, or taking the disk out, reads an unencrypted disk; choose the
+encrypted install (and a firmware password, with Secure Boot) to close that
+too. Rewinding the system to an older snapshot from the boot menu also
+brings back that snapshot's passwords.
 
 ## Privacy and hardening
 

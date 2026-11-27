@@ -1,0 +1,12 @@
+# WormOS: keys only, no passwords; root may log in with a key.
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthorizedKeysFile .ssh/authorized_keys
+X11Forwarding no
+AllowAgentForwarding no
+PrintMotd no
+Subsystem sftp /usr/lib/ssh/sftp-server
+# Host keys live on /var (the system itself is read-only).
+HostKey /var/lib/ssh/ssh_host_ed25519_key
+HostKey /var/lib/ssh/ssh_host_rsa_key

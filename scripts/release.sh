@@ -19,6 +19,7 @@
 . "$(dirname "$0")/env.sh"
 
 VERSION=${1:?usage: scripts/release.sh VERSION}
+[ -z "${WORMOS_TEST_SSH_KEY:-}" ] || die "WORMOS_TEST_SSH_KEY is for test builds, not releases"
 DISK_MB=${DISK_MB:-20480}
 DEST=$OUT/release
 NAME=wormos-$VERSION-x86_64
@@ -29,6 +30,9 @@ grep -qx "VERSION_ID=$VERSION" "$WORMOS_ROOT/recipes/base-files/files/etc/os-rel
 
 rm -rf "$DEST"
 mkdir -p "$DEST"
+# Every step builds release images (locked root, boot menu that cannot be
+# edited, no rescue shell).
+export WORMOS_RELEASE=1
 
 WORMOS_RELEASE=1 "$WORMOS_ROOT/scripts/build-rootfs.sh"
 IMAGE=$DEST/$NAME.img DISK_MB=$DISK_MB "$WORMOS_ROOT/scripts/mkimage.sh"

@@ -1,0 +1,36 @@
+name=openssh-server
+version=10.6p2
+description="SSH server (sshd): log in to this computer from others, with keys only"
+depends=(glibc openssl zlib openssh)
+# Signed by Damien Miller (7168B983815A5EEF59A4ADFD2A3F414E736060BA).
+source=(https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-$version.tar.gz)
+sha256=(9ae44872090cf2f06b3cf9ff147e7f16f309671340763ed2f99248398ae29d5b)
+
+# The server side of the openssh package's source, on its own: not in any
+# edition. sshd starts with the system (service 46-sshd); the firewall
+# stays closed until 'worm fw allow 22'. Logins take keys only
+# (~/.ssh/authorized_keys).
+build() {
+	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
+		--sysconfdir=/etc/ssh --libexecdir=/usr/lib/ssh \
+		--with-privsep-path=/usr/share/empty.sshd --with-privsep-user=nobody \
+		--disable-strip --without-pam --without-selinux --without-kerberos5 \
+		--without-security-key-builtin --with-pid-dir=/run \
+		--with-default-path=/usr/local/bin:/usr/bin:/usr/sbin \
+		--with-superuser-path=/usr/local/bin:/usr/bin:/usr/sbin
+	make -j"$JOBS"
+}
+
+package() {
+	local tmp=$srcdir/staged
+	make DESTDIR="$tmp" install-nokeys
+	install -Dm755 "$tmp/usr/sbin/sshd" "$pkgdir/usr/bin/sshd"
+	install -Dm755 -t "$pkgdir/usr/lib/ssh" "$tmp/usr/lib/ssh/sshd-session" \
+		"$tmp/usr/lib/ssh/sshd-auth" "$tmp/usr/lib/ssh/sftp-server"
+	install -Dm644 "$tmp/etc/ssh/moduli" "$pkgdir/etc/ssh/moduli"
+	install -Dm644 "$recipedir/files/sshd_config" "$pkgdir/etc/ssh/sshd_config"
+	install -Dm644 "$recipedir/files/46-sshd" "$pkgdir/etc/worm/services/46-sshd"
+	install -Dm755 "$recipedir/files/sshd" "$pkgdir/usr/lib/worm/sshd"
+	install -dm755 "$pkgdir/usr/share/empty.sshd"
+	install -Dm644 LICENCE "$pkgdir/usr/share/licenses/openssh-server/LICENCE"
+}
