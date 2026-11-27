@@ -23,7 +23,8 @@ grep -qx "VERSION_ID=$VERSION" "$WORMOS_ROOT/recipes/base-files/files/etc/os-rel
 
 rm -rf "$DEST"
 mkdir -p "$DEST"
-WORMOS_RELEASE=1 WORMOS_VARIANT=amnesia "$WORMOS_ROOT/scripts/build-rootfs.sh"
+export WORMOS_RELEASE=1
+WORMOS_VARIANT=amnesia "$WORMOS_ROOT/scripts/build-rootfs.sh"
 ISO=$DEST/$NAME.iso "$WORMOS_ROOT/scripts/mkiso.sh"
 # The update manifest, signed with the WormOS key: amnesia-update on a
 # running Amnesia uses it to bring its stick up to this version.
