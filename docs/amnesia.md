@@ -147,7 +147,8 @@ does, and what comes next. It ships as
   for the first relay to learn about the clock and uptime) and no core
   dumps (`kernel.core_pattern=|/bin/false`: a crashing program's memory
   is never written to a file), in `/usr/lib/sysctl.d/60-amnesia.conf`.
-- **No microphone, no camera.** The kernel has no camera drivers at all.
+- **No lock screen, no sleep.** The live user has no password, so there is nothing a lock screen could ask for; closing a laptop's lid does nothing (`/etc/worm/lid`: `action = ignore`), since a sleeping Amnesia would keep the whole session in memory. Shut down instead (Super+Shift+Escape, or pull the USB stick).
+- **No microphone, no camera.** The USB camera driver (a module in WormOS's kernel) is never loaded: `/usr/lib/modprobe.d/amnesia-camera.conf` blacklists it and replaces loading it with `/bin/false`.
   A udev rule (`90-amnesia-microphone.rules`) gives the sound capture
   devices to root alone, so neither PipeWire nor any program can record;
   playback works. With no root, nothing can change that.

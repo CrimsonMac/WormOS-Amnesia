@@ -1,0 +1,3 @@
+# WormOS Amnesia: closing the lid does nothing (no lock screen, no sleep:
+# a sleeping Amnesia would keep the whole session in memory, unlocked).
+action = ignore

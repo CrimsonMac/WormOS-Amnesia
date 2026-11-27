@@ -142,6 +142,12 @@ AMNESIA_CHECKS = [
      "stat -c '%a %U' /run/tor-control; su live -c 'cat /run/tor-control/cookie 2>/dev/null' | wc -c; "
      "su live -c 'ls /run/tor-control' 2>&1",
      r"^700 tor\n0\n.*(Permission denied|can't open)"),
+    ("closing the lid does nothing, no lock screen",
+     "grep -c '^action = ignore' /etc/worm/lid; su live -c '/usr/lib/worm/checkpass --status'; echo rc=$?",
+     r"^1\n(.|\n)*rc=2$"),
+    ("the camera driver never loads",
+     "modprobe -n -v uvcvideo 2>&1; grep -c uvcvideo /proc/modules",
+     r"install /bin/false(.|\n)*^0$"),
     ("no TCP timestamps, no core dumps", "sysctl -n net.ipv4.tcp_timestamps kernel.core_pattern",
      r"^0\n\|/bin/false$"),
     # The same for everyone: what the local network and programs can see
