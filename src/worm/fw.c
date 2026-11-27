@@ -481,7 +481,7 @@ static int cmd_deny(const char *arg)
 			 ports[i].lo <= want.lo && want.hi <= ports[i].hi) {
 			char range[32];
 
-			strcpy(range, port_str(&ports[i]));
+			snprintf(range, sizeof(range), "%s", port_str(&ports[i]));
 			printf("%s is open as part of %s; deny that instead.\n",
 			       port_str(&want), range);
 			return 1;
