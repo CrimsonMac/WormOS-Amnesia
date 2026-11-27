@@ -40,7 +40,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends build-essential pkg-config curl \
             ca-certificates git libcrypt-dev libgtk-4-dev libgtk4-layer-shell-dev libwayland-dev \
-            libwayland-bin wayland-protocols meson ninja-build python3 zstd
+            libwayland-bin wayland-protocols meson ninja-build python3 zstd \
+            libpoppler-glib-dev libzstd-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

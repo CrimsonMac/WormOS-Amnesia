@@ -158,7 +158,9 @@ encrypted install from the ISO, Secure Boot with Microsoft's keys and
 WormOS's certificate enrolled, Barebones),
 and takes the release before it and upgrades it from the published
 package repository (`tests/upgrade-test.py --published`), as its users
-do. `package-repo.yml` checks the published package repository every day
+do. A release's packages are uploaded after the release itself, so that
+job first waits (up to an hour) until the repository has the release's
+`base-files`, and reports a warning instead of failing if it never does. `package-repo.yml` checks the published package repository every day
 (`scripts/check-package-repo.sh`: signed index, every package present with
 its size and SHA-256, dependencies, source archives); and `updates.yml`
 lists recipes with newer upstream releases each week

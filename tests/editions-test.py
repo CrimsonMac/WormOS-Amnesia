@@ -65,7 +65,7 @@ BAREBONES_CHECKS = [
      "command -v $f > /dev/null || echo missing $f; done; echo end", r"^end$"),
     ("network configured", "ip -4 addr show eth0", r"inet 10\.0\.2\.15"),
     ("the basic kit offers the tools", "worm kit show basic",
-     r"WormOS packages(.|\n)* coreutils (.|\n)* 7zip (.|\n)*Not installed"),
+     r"WormOS packages(.|\n)* coreutils\* (.|\n)* patch (.|\n)* 7zip (.|\n)*Not installed"),
 ]
 
 AMNESIA_CHECKS = [
