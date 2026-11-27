@@ -7,7 +7,7 @@
  * is there; Updates looks for newer versions and installs them.
  *
  * Everything that needs root goes through /usr/lib/worm/software (see
- * src/worm/software.c), which asks for root's password where there is a
+ * src/worm/software.c), which asks for the administrator's own password where there is a
  * root, and where users may install by themselves (WormOS Amnesia) needs
  * none. This program only passes the password on. Programs from Debian or
  * Kali are ready at once; WormOS packages are applied at the next restart,
@@ -336,7 +336,7 @@ static void change_start(GtkWidget *widget, gpointer data)
 
 	(void)widget;
 	if (password && !*password) {
-		gtk_label_set_text(GTK_LABEL(c->error), "Type the root password.");
+		gtk_label_set_text(GTK_LABEL(c->error), "Type your password.");
 		return;
 	}
 	gtk_label_set_text(GTK_LABEL(c->error), "");
@@ -355,7 +355,7 @@ static void change_start(GtkWidget *widget, gpointer data)
 }
 
 /*
- * Ask (the root password where there is one), then run the change and
+ * Ask (the administrator's password where there is a root), then run the change and
  * show how it goes. Takes ownership of args.
  */
 static void change(const char *title, const char *text, const char *button, gboolean destructive,
@@ -398,7 +398,7 @@ static void change(const char *title, const char *text, const char *button, gboo
 
 	c->entry = gtk_password_entry_new();
 	gtk_password_entry_set_show_peek_icon(GTK_PASSWORD_ENTRY(c->entry), TRUE);
-	g_object_set(c->entry, "placeholder-text", "Root password", "activates-default", TRUE,
+	g_object_set(c->entry, "placeholder-text", "Your password", "activates-default", TRUE,
 		     NULL);
 	g_signal_connect(c->entry, "activate", G_CALLBACK(change_start), c);
 	gtk_widget_set_visible(c->entry, needs_password());
@@ -451,8 +451,8 @@ static void install_clicked(GtkButton *button, gpointer data)
 		args = g_strdupv((char *[]){ "install", (char *)name, NULL });
 	text = g_strdup_printf("%s comes from %s%s. %s", title, source_label(source ? source : "core"),
 			       source && strcmp(source, "core") ? ", in its own wormhole" : "",
-			       needs_password() ? "Installing programs needs the administrator "
-			       "(root) password." : "It stays until the computer stops.");
+			       needs_password() ? "Installing programs needs your "
+			       "password." : "It stays until the computer stops.");
 	what = g_strdup_printf("Installing %s...", title);
 	done_text = g_strdup_printf("%s is installed: find it in the launcher.", title);
 	change("Install a program", text, "Install", FALSE, args, what, done_text);
@@ -469,8 +469,8 @@ static void remove_clicked(GtkButton *button, gpointer data)
 
 	(void)data;
 	text = g_strdup_printf("%s and the files it installed are removed; your own files stay.%s",
-			       title, needs_password() ? " This needs the administrator (root) "
-			       "password." : "");
+			       title, needs_password() ? " This needs your password."
+			       "" : "");
 	what = g_strdup_printf("Removing %s...", title);
 	done_text = g_strdup_printf("%s is removed.", title);
 	change("Remove a program", text, "Remove", TRUE,
@@ -805,7 +805,7 @@ static void update_all(GtkButton *button, gpointer data)
 	(void)button;
 	(void)data;
 	change("Install updates", needs_password() ?
-	       "Every update is installed at once. This needs the administrator (root) password."
+	       "Every update is installed at once. This needs your password."
 	       : "Every update is installed at once.", "Update",
 	       FALSE, g_strdupv((char *[]){ "upgrade", NULL }), "Installing updates...",
 	       "Everything is up to date.");

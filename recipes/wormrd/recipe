@@ -1,8 +1,8 @@
 name=wormrd
 version=0.1.0
-release=3
+release=4
 description="WormOS initramfs init"
-depends=(glibc)
+depends=(glibc zstd)
 localsrc=src/wormrd
 
 build() {

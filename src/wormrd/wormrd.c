@@ -22,6 +22,12 @@
  *     wormos.live                         live system: the system image on the
  *                                         WormOS ISO, copied into memory
  *
+ * An encrypted root (LUKS2, made by the installer) is opened as
+ * /dev/mapper/wormos-root when the root= filesystem is not found on any
+ * plain device: with /crypto_keyfile (the installed system's key, put in
+ * the initramfs by mkinitramfs, so GRUB alone asks for the passphrase)
+ * or, without it, by cryptsetup asking for the passphrase on the console.
+ *
  * Live mode needs no root=: wormrd finds the ISO by its volume ID, unpacks
  * wormos/system.img.zst (a btrfs image with no free space) into a tmpfs file
  * as large as three quarters of the memory, attaches it to a loop device
@@ -60,6 +66,9 @@ static const char *topdir = "/top";
 #define SOFT_SYSROOT  "/run/wormrd/sysroot"
 #define SOFT_TOPDIR   "/run/wormrd/top"
 #define SNAP_TOOL     "/usr/bin/snap"
+#define CRYPTSETUP    "/usr/bin/cryptsetup"
+#define KEYFILE       "/crypto_keyfile"
+#define CRYPT_NAME    "wormos-root"
 #define RESCUE_SHELL  "/bin/sh"
 #define ROOT_WAIT_MS  10000
 
@@ -255,10 +264,82 @@ static int scan_devices(const char *spec, char *out, size_t outlen)
 	return found;
 }
 
+/* Is there a LUKS header at the start of dev? */
+static int is_luks(const char *dev)
+{
+	unsigned char magic[6];
+	int fd = open(dev, O_RDONLY | O_CLOEXEC);
+	ssize_t n;
+
+	if (fd < 0)
+		return 0;
+	n = pread(fd, magic, sizeof(magic), 0);
+	close(fd);
+	return n == 6 && !memcmp(magic, "LUKS\xba\xbe", 6);
+}
+
+/* Run cryptsetup open on dev, with the key file when there is one. */
+static int luks_open_one(const char *dev, int keyfile)
+{
+	pid_t pid;
+	int status;
+
+	pid = fork();
+	if (pid == 0) {
+		if (keyfile)
+			execl(CRYPTSETUP, "cryptsetup", "open", "--key-file", KEYFILE, dev, CRYPT_NAME,
+			      (char *)NULL);
+		else
+			execl(CRYPTSETUP, "cryptsetup", "open", "--tries", "5", dev, CRYPT_NAME,
+			      (char *)NULL);
+		_exit(127);
+	}
+	if (pid < 0 || waitpid(pid, &status, 0) < 0)
+		return 0;
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
+/*
+ * The root filesystem may be inside an encrypted partition: open the first
+ * LUKS device found (the installer makes one). Returns whether one opened.
+ */
+static int luks_open(void)
+{
+	DIR *d;
+	struct dirent *e;
+	int opened = 0;
+
+	if (access(CRYPTSETUP, X_OK) < 0 || access("/dev/mapper/" CRYPT_NAME, F_OK) == 0)
+		return 0;
+	if (!(d = opendir("/sys/class/block")))
+		return 0;
+	mkdir("/run/cryptsetup", 0700);
+	while (!opened && (e = readdir(d))) {
+		char dev[PATH_MAX];
+
+		if (e->d_name[0] == '.')
+			continue;
+		snprintf(dev, sizeof(dev), "/dev/%s", e->d_name);
+		if (!is_luks(dev))
+			continue;
+		if (access(KEYFILE, R_OK) == 0 && luks_open_one(dev, 1)) {
+			opened = 1;
+			break;
+		}
+		fprintf(stderr, "\nWormOS: the disk is encrypted. Type its passphrase.\n");
+		opened = luks_open_one(dev, 0);
+		if (!opened)
+			fatal("the encrypted disk could not be opened");
+	}
+	closedir(d);
+	return opened;
+}
+
 /* Resolve root= to a device node, waiting for it to appear. */
 static void find_root(char *dev, size_t len)
 {
 	struct timespec delay = { 0, 100 * 1000000L };
+	int luks_tried = 0;
 
 	for (int waited = 0; waited < ROOT_WAIT_MS; waited += 100) {
 		if (opt_root[0] == '/') {
@@ -269,6 +350,12 @@ static void find_root(char *dev, size_t len)
 			}
 		} else if (scan_devices(opt_root, dev, len)) {
 			return;
+		}
+		/* Not on a plain device: perhaps inside an encrypted one. */
+		if (!luks_tried && waited >= 500) {
+			luks_tried = 1;
+			if (luks_open())
+				continue;
 		}
 		nanosleep(&delay, NULL);
 	}

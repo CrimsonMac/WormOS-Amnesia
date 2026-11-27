@@ -1,0 +1,5 @@
+# Wi-Fi: iwd, after the message bus (its interface) and only behind the
+# firewall, like the wired network.
+type = respawn
+exec = /usr/lib/worm/wifi
+safe = no

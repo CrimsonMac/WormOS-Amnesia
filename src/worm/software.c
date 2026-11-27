@@ -13,7 +13,8 @@
  *     software upgrade                     (password) wh upgrade
  *
  * Searching and refreshing only read signed package lists: no password.
- * Changes need root's password, read as one line from standard input,
+ * Changes need the caller's own password (an administrator confirming),
+ * read as one line from standard input,
  * except where root is locked and users may install (WormOS Amnesia:
  * /etc/wh/users-may-install), where they go through wh's own user helper
  * and its rules. Core package changes are made with --later: they are
@@ -76,7 +77,7 @@ static void need_password(void)
 	if (!fgets(password, sizeof(password), stdin))
 		password[0] = '\0';
 	password[strcspn(password, "\n")] = '\0';
-	if (!root_password_ok(password)) {
+	if (!admin_password_ok(password)) {
 		explicit_bzero(password, sizeof(password));
 		fail(3, "wrong password");
 	}

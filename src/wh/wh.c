@@ -28,10 +28,12 @@
 #include <sys/file.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/xattr.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "wh.h"
+#include "sig.h"
 
 #define STAGE_DIR    "/run/wh"
 #define STAGE_MNT    STAGE_DIR "/next"
@@ -47,6 +49,11 @@ const char *key_file;
 static const char *repo_override;
 static const char *opt_from;            /* --from SOURCE: core, debian, kali */
 static int opt_try, opt_later, opt_yes, opt_force;
+/* What the change did, for live_apply: packages added, and whether any
+ * was upgraded or removed. */
+#define MAX_NEW 128
+static char new_pkgs[MAX_NEW][NAME_MAX_LEN];
+static int n_new, changed_existing;
 static int direct;              /* --root given: no staging */
 static int live;                /* WH_LIVE_FLAG: changes go into the running system */
 static int staging;             /* a staged copy is mounted */
@@ -282,11 +289,156 @@ static int history_add(const char *action, const char *packages, int snapshot)
 	return id;
 }
 
+/* ---- applying pure additions to the running system ---- */
+
+/* Copy one entry of a package ("d PATH", "f PATH", "l PATH") from the
+ * staged root to the running one, with its owner, mode and capabilities. */
+static int live_copy(const char *type, const char *path)
+{
+	char src[PATH_MAX], dst[PATH_MAX], buf[1 << 16], link[PATH_MAX], cap[256];
+	struct stat st;
+	ssize_t n, caplen;
+	int in, out;
+
+	snprintf(src, sizeof(src), STAGE_MNT "/%s", path);
+	snprintf(dst, sizeof(dst), "/%s", path);
+	if (lstat(src, &st) < 0)
+		return -1;
+	if (*type == 'd') {
+		/* A new folder gets its owner; existing ones keep theirs. */
+		if (mkdir(dst, st.st_mode & 07777) == 0)
+			return chown(dst, st.st_uid, st.st_gid);
+		return errno == EEXIST ? 0 : -1;
+	}
+	if (*type == 'l') {
+		n = readlink(src, link, sizeof(link) - 1);
+		if (n < 0)
+			return -1;
+		link[n] = '\0';
+		if (symlink(link, dst) < 0)
+			return -1;
+		return lchown(dst, st.st_uid, st.st_gid);
+	}
+	if ((in = open(src, O_RDONLY | O_CLOEXEC)) < 0)
+		return -1;
+	out = open(dst, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (out < 0) {
+		close(in);
+		return -1;
+	}
+	while ((n = read(in, buf, sizeof(buf))) > 0)
+		if (write(out, buf, n) != n) {
+			n = -1;
+			break;
+		}
+	caplen = fgetxattr(in, "security.capability", cap, sizeof(cap));
+	close(in);
+	if (n < 0 || fchown(out, st.st_uid, st.st_gid) < 0 || fchmod(out, st.st_mode & 07777) < 0 ||
+	    (caplen > 0 && fsetxattr(out, "security.capability", cap, caplen, 0) < 0)) {
+		close(out);
+		return -1;
+	}
+	return close(out);
+}
+
+static int same_file(const char *path)
+{
+	char a[PATH_MAX], b[PATH_MAX];
+	uint8_t *x, *y;
+	size_t lx = 0, ly = 0;
+	int same;
+
+	snprintf(a, sizeof(a), STAGE_MNT "/%s", path);
+	snprintf(b, sizeof(b), "/%s", path);
+	x = read_all(a, &lx);
+	y = read_all(b, &ly);
+	same = x && y && lx == ly && !memcmp(x, y, lx);
+	free(x);
+	free(y);
+	return same;
+}
+
+/*
+ * After a change that only added packages (none upgraded or removed, no
+ * kernel, no new accounts) and none of whose files exists in the running
+ * system: copy those files into it, so the programs work at once, and run
+ * the hooks there. The staged system is still committed as usual and
+ * becomes the system at the next restart, holding the same files.
+ * Returns whether it applied the change.
+ */
+static int live_apply(void)
+{
+	char **paths[MAX_NEW];
+	int counts[MAX_NEW], ok = 1, copied = 0;
+
+	if (live || direct || opt_try || kernel_changed || changed_existing || !n_new)
+		return 0;
+	if (!same_file("etc/passwd") || !same_file("etc/group") || !same_file("etc/shadow"))
+		return 0;
+	for (int i = 0; i < n_new; i++) {
+		paths[i] = NULL;
+		counts[i] = 0;
+		if (db_files(new_pkgs[i], &paths[i], &counts[i]) < 0)
+			ok = 0;
+		for (int j = 0; ok && j < counts[i]; j++) {
+			char dst[PATH_MAX];
+			struct stat st;
+
+			snprintf(dst, sizeof(dst), "/%s", paths[i][j] + 2);
+			if (paths[i][j][0] != 'd' && lstat(dst, &st) == 0)
+				ok = 0;
+		}
+	}
+	if (ok) {
+		info("Only new files: adding them to the running system too.");
+		if (mount(NULL, "/", NULL, MS_REMOUNT | MS_BIND, NULL) < 0) {
+			warn("cannot make the running system writable: %s", strerror(errno));
+			ok = 0;
+		}
+	}
+	for (int i = 0; ok && i < n_new; i++) {
+		char db[PATH_MAX];
+
+		for (int j = 0; ok && j < counts[i]; j++) {
+			if (live_copy(paths[i][j], paths[i][j] + 2) < 0) {
+				warn("cannot add %s: %s", paths[i][j] + 2, strerror(errno));
+				ok = 0;
+			}
+			copied++;
+		}
+		/* And its record, so wh knows it is installed. */
+		snprintf(db, sizeof(db), WH_DB_DIR "/%s", new_pkgs[i]);
+		if (ok && (live_copy("d", db) < 0 ||
+			   live_copy("f", (snprintf(db, sizeof(db), WH_DB_DIR "/%s/files", new_pkgs[i]), db)) < 0 ||
+			   live_copy("f", (snprintf(db, sizeof(db), WH_DB_DIR "/%s/info", new_pkgs[i]), db)) < 0))
+			ok = 0;
+	}
+	if (copied) {
+		/* The caches the new files belong in, in the running system. */
+		set_root("/");
+		for (int i = 0; i < n_new; i++)
+			for (int j = 0; j < counts[i]; j++)
+				hook_touch(paths[i][j] + 2);
+		hooks_run();
+		sync();
+		if (mount(NULL, "/", NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL) < 0)
+			warn("cannot make the running system read-only again: %s", strerror(errno));
+	}
+	for (int i = 0; i < n_new; i++) {
+		for (int j = 0; j < counts[i]; j++)
+			free(paths[i][j]);
+		free(paths[i]);
+	}
+	if (copied && !ok)
+		warn("the running system has part of the change; the next restart applies all of it");
+	return ok && copied;
+}
+
 /* Finish a change: record it with snap and restart into it. */
 static void stage_commit(const char *action, const char *packages)
 {
 	char comment[COMMENT_LEN], out[64];
-	int before;
+	int before, applied;
 
 	/* Rebuild the caches the change affects, in the changed root. */
 	hooks_run();
@@ -301,6 +453,7 @@ static void stage_commit(const char *action, const char *packages)
 	/* Let go of the staged copy (no open directory may keep it busy). */
 	if (syncfs(root_fd) < 0)
 		die("cannot finish the staged system: %s", strerror(errno));
+	applied = live_apply();
 	set_root("/");
 	if (umount(STAGE_MNT) < 0)
 		die("cannot finish the staged system: %s", strerror(errno));
@@ -315,6 +468,11 @@ static void stage_commit(const char *action, const char *packages)
 
 	if (before)
 		info("The previous system is saved as snapshot %d ('wh undo' goes back).", before);
+	if (applied) {
+		info("Done: ready to use now, no restart needed (the next restart switches to "
+		     "the recorded system, which holds the same files).");
+		return;
+	}
 	if (opt_later) {
 		info("The change will be applied at the next restart.");
 		return;
@@ -326,6 +484,30 @@ static void stage_commit(const char *action, const char *packages)
 		info("Applying the change: restarting the system...");
 		kill(1, SIGHUP);
 	}
+}
+
+/*
+ * Before a change in a wormhole (applied right away, with no staged copy):
+ * a snapshot of the system, which holds the wormholes too, so wh undo and
+ * a rewind can take it back. Returns its number, 0 without one.
+ */
+static int wormhole_snapshot(const char *comment)
+{
+	static int taken;
+	char out[128] = "";
+	int id = 0;
+
+	if (live || direct)
+		return 0;
+	if (taken)
+		return taken;
+	if (run((char *[]){ "snap", "now", "--auto", "-c", (char *)comment, NULL }, out,
+		sizeof(out)) != 0 || sscanf(out, "Snapshot %d", &id) != 1) {
+		warn("no snapshot before the change: wh undo cannot take it back");
+		return 0;
+	}
+	taken = id;
+	return id;
 }
 
 /* Ask before a change that is applied right away. */
@@ -449,6 +631,10 @@ static void install_plan(struct plan *pl, char **files)
 		     pl->pkgs[i]->name, pl->pkgs[i]->version);
 		if (pkg_install(files[i], pl->pkgs[i]->name) < 0)
 			die("installing %s failed", pl->pkgs[i]->name);
+		if (upgrade || n_new == MAX_NEW)
+			changed_existing = 1;
+		else
+			snprintf(new_pkgs[n_new++], NAME_MAX_LEN, "%s", pl->pkgs[i]->name);
 		if (strcmp(pl->pkgs[i]->name, "linux") == 0)
 			kernel_changed = 1;
 	}
@@ -511,9 +697,16 @@ static int cmd_install(int argc, char **argv, int reinstall)
 			 argv[i], source, wormhole_exists(source) ? "." :
 			 ", which is set up first (a one-time download of its base system).");
 		confirm_now(what);
-		foreign_install(source, argv[i]);
 		snprintf(label, sizeof(label), "%s [%s]", argv[i], source);
-		history_add("install", label, 0);
+		{
+			char comment[300];
+			int before;
+
+			snprintf(comment, sizeof(comment), "wh install %s", label);
+			before = wormhole_snapshot(comment);
+			foreign_install(source, argv[i]);
+			history_add("install", label, before);
+		}
 		argv[i] = NULL;
 	}
 	for (int i = 1; i < argc; i++)
@@ -563,9 +756,16 @@ static int cmd_remove(int argc, char **argv)
 			continue;
 		snprintf(what, sizeof(what), "Remove %s (from %s)?", argv[i], source);
 		confirm_now(what);
-		foreign_remove(argv[i]);
 		snprintf(label, sizeof(label), "%s [%s]", argv[i], source);
-		history_add("remove", label, 0);
+		{
+			char comment[300];
+			int before;
+
+			snprintf(comment, sizeof(comment), "wh remove %s", label);
+			before = wormhole_snapshot(comment);
+			foreign_remove(argv[i]);
+			history_add("remove", label, before);
+		}
 		argv[i] = NULL;
 	}
 	{
@@ -610,6 +810,7 @@ static int cmd_remove(int argc, char **argv)
 	}
 
 	stage_begin();
+	changed_existing = 1;
 	for (int i = 1; i < argc; i++) {
 		info("Removing %s", argv[i]);
 		if (pkg_remove(argv[i]) < 0)

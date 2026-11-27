@@ -105,4 +105,9 @@
       <naturalScroll>yes</naturalScroll>
     </device>
   </libinput>
+  <!-- Windows from graphical blackholes always get WormOS's own title
+       bar, so a sandboxed program cannot pass for another one. -->
+  <windowRules>
+    <windowRule sandboxEngine="org.wormos.bh" serverDecoration="yes" />
+  </windowRules>
 </labwc_config>

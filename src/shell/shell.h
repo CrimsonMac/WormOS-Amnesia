@@ -29,7 +29,11 @@ struct status {
 	gboolean anon;          /* worm anon on */
 	gboolean network_cut;   /* worm panic or safe mode */
 	int tor_percent;        /* how far Tor has connected, -1: unknown or unreadable */
+	int battery;            /* percent charged, -1: no battery */
+	gboolean charging;      /* plugged in and charging (or full) */
+	gboolean full;
 	gboolean online;        /* a network device has a carrier */
+	gboolean wireless;      /* ... and it is a Wi-Fi adapter */
 	char address[64];       /* first IPv4 address, if any */
 };
 
@@ -61,6 +65,7 @@ void outputs_set_scale(double scale);  /* 0: automatic; saved for the user */
 
 /* status.c */
 void status_read(struct status *s);
+void status_battery(struct status *s);   /* just the battery */
 
 /* panel.c */
 void panels_init(GtkApplication *app);
@@ -71,6 +76,23 @@ void launcher_toggle(GtkApplication *app);
 
 /* notify.c */
 void notify_init(GtkApplication *app);
+
+/* wifi.c: Wi-Fi through iwd's D-Bus interface. */
+struct wifi_network {
+	char *path, *name, *type;   /* type: open, psk, 8021x, wep */
+	int bars;                   /* signal, 1 to 4 */
+	gboolean connected, known;
+};
+typedef void (*wifi_list_fn)(GPtrArray *networks, gpointer data);  /* takes ownership */
+typedef void (*wifi_done_fn)(const char *error, gpointer data);    /* NULL on success */
+gboolean wifi_init(void);             /* TRUE if there is a Wi-Fi adapter */
+gboolean wifi_powered(void);
+void wifi_set_powered(gboolean on);
+void wifi_scan(wifi_list_fn done, gpointer data);
+void wifi_connect(const char *network, const char *passphrase, wifi_done_fn done, gpointer data);
+void wifi_disconnect(void);
+char *wifi_connected_name(void);
+void wifi_network_free(gpointer p);
 
 /* volume.c */
 typedef void (*volume_changed_fn)(void);

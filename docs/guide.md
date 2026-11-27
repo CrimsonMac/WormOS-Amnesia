@@ -10,8 +10,12 @@ inside, [internals.md](internals.md).
 
 Download a release from the
 [release page](https://github.com/CrimsonMac/WormOS/releases/latest) and
-check it against `SHA256SUMS`. All of them start with UEFI or BIOS firmware (Secure Boot
-off).
+check it: from 1.17, `SHA256SUMS` is signed with the WormOS key, and
+[`scripts/verify-release.sh`](../scripts/verify-release.sh) checks the
+signature and the files with OpenSSL alone
+(`sh verify-release.sh DIR core.pem`, with
+[`keys/core.pem`](../keys/core.pem)). All of them start with UEFI or BIOS
+firmware (Secure Boot off).
 
 ### Editions
 
@@ -41,6 +45,13 @@ on top of this one.
   fills it. Restart without the ISO; WormOS asks for your name and
   passwords, as in the disk image below. The live system's snapshots and
   files are not carried over.
+
+  **Encrypt the disk** (an option in the installer) encrypts everything on
+  it, system, home folders and snapshots, with a passphrase (LUKS2). At
+  every start the boot menu asks for it once; the system then opens the
+  disk by itself with a key kept inside the encrypted disk. Without the
+  passphrase nobody can read the disk, and nobody can recover it for you.
+  (`install-system install DISK --encrypt` reads it from standard input.)
 
 - **The disk image for QEMU / virt-manager** (`wormos-1.14.1-x86_64.qcow2`): an
   installed system, ready to start. In virt-manager,
@@ -204,14 +215,29 @@ it, not because you need it:
   copy (Ctrl+C), cut (Ctrl+X), paste (Ctrl+V), move to the trash (Delete;
   in the trash, Delete removes for good), make a folder (Ctrl+Shift+N),
   show hidden files (Ctrl+H) or open a terminal there. Alt+Left goes
-  back, Alt+Up to the parent folder. Other programs open folders in it.
+  back, Alt+Up to the parent folder. Pictures show as thumbnails. Drag
+  files to another folder or onto a place in the sidebar to move them
+  (hold Ctrl to copy), or drop files from other programs into the window.
+  Other programs open folders in it. *Open in a blackhole* (right click)
+  opens a file you are not sure about in a sandbox (see Blackholes).
+- **Viewer** (`wormos-viewer`) shows pictures and PDF documents: + and −
+  zoom, 0 fits the window, Left and Right go through pages or through the
+  other pictures in the folder, R rotates, F11 is full screen. PDFs are only
+  drawn: links, forms and scripts in them do nothing.
+- **Text Editor** (`wormos-editor`) edits text files: Ctrl+S saves,
+  Ctrl+F finds, Ctrl+L goes to a line, undo and redo, word wrap. Closing
+  with unsaved changes asks first. Files, Viewer and Text Editor are the
+  default programs for folders, pictures and PDFs, and text
+  (`/etc/xdg/mimeapps.list`; your own `~/.config/mimeapps.list` wins).
 - **Software** (`wormos-software`): Explore lists popular programs and
   searches every source (WormOS's own packages, then Debian's and Kali's);
   Installed lists what is there; Updates looks for newer versions and
-  installs them all at once. Installing or removing asks for the root
-  password. Programs from Debian and Kali are ready in moments; WormOS
-  packages are added at the next restart (`wh --later`), so nothing closes
-  under you: the window says so and offers to restart. Administrators
+  installs them all at once. Installing or removing asks for your
+  password. Programs from Debian and Kali are ready in moments, and so are
+  WormOS packages that only add files (new programs); WormOS packages that
+  change what is there (updates, removals) are applied at the next restart
+  (`wh --later`), so nothing closes under you: the window says so and
+  offers to restart. Administrators
   also get a notification when WormOS has updates (a few minutes after
   logging in, then daily; a click opens Software's Updates; `touch
   ~/.config/wormos/no-update-notice` turns it off).
@@ -254,13 +280,34 @@ it, not because you need it:
 - Sound goes through [PipeWire](https://pipewire.org), which also serves
   programs written for PulseAudio or ALSA (including those installed from
   Debian or Kali). The speaker button in the panel sets the volume (scroll
-  on it, or use the volume keys); Settings > Sound picks the output and
-  input (`wpctl status` and `wpctl set-default ID` in a terminal).
+  on it, or use the volume keys) and picks the output (speakers,
+  headphones, HDMI) and the microphone; so does Settings > Sound
+  (`wpctl status` and `wpctl set-default ID` in a terminal).
+- **Wi-Fi**: the network button in the panel lists the networks in range
+  (strongest first); click one, type its passphrase if it has one, and
+  WormOS connects and remembers it (it reconnects by itself later). The
+  switch there turns Wi-Fi off and on. Every start uses a new random MAC
+  address for Wi-Fi (scans always use random ones), so networks cannot
+  recognise the computer, and DNS stays with WormOS's encrypted resolver,
+  not the network's. Wi-Fi starts only behind the firewall and follows
+  `worm panic`. In a terminal: `iwctl station wlan0 get-networks`,
+  `iwctl station wlan0 connect NAME` (enterprise networks too). Intel Wi-Fi
+  adapters work out of the box; others need their drivers, which are not
+  built yet.
+- **Bluetooth** (Settings > Bluetooth): switch it on, search for devices,
+  then Connect pairs, trusts and connects one (headphones, speakers,
+  mice and keyboards that pair without a code); Forget removes it.
+  Bluetooth audio goes through PipeWire like any other output. It starts
+  switched off at every start. In a terminal: `bluetoothctl`.
+- On a laptop the panel shows the battery's charge (and whether it is
+  charging), and warns once when it falls to 10%.
 - Ctrl+Alt+F2 switches to a second console (for logging in as root);
   Ctrl+Alt+F1 returns to the desktop.
-- Administration is done as root: `su -` in a terminal, the menu's root
-  terminal, or `sudo COMMAND` (it asks for the root password, as there is
-  no sudoers file: the root account is the administrator). Graphical
+- Administration: administrators (members of the group `wheel`, as the
+  user made at setup is) confirm with **their own password**: in the root
+  terminal, for `sudo COMMAND`, in Settings, Snapshots, Software and the
+  other programs that change the system. `su -` still asks for root's
+  password, which the setup also sets. Graphical
   programs open from the root terminal and from `sudo` (they keep the
   desktop's display), not from a plain `su -`; programs from wormholes run
   as well from your own terminal or the launcher.
@@ -374,7 +421,13 @@ snap auto on|off                    # snapshots before package changes
 How it works:
 
 - The disk is a single btrfs filesystem with the subvolumes `@` (the system,
-  mounted read-only), `@var` (logs and state), `@home` and `@snapshots`.
+  mounted read-only), `@var` (logs and state), `@home`, `@wormholes` and
+  `@snapshots`.
+- System snapshots include the wormholes (the Debian and Kali systems and
+  the programs installed there), so a rewind brings those back too, and
+  wh takes a snapshot before installing or removing a program from a
+  wormhole, which `wh undo` goes back to. Wormholes have no manifest: they
+  are convenience, not part of the verified system.
 - Snapshots are read-only btrfs snapshots stored in `@snapshots`, which the
   running system never mounts. `snap` mounts it in a private mount namespace
   only for the duration of a command.
@@ -411,6 +464,10 @@ wh upgrade
 wh history                # every change, with its snapshot
 wh undo                   # go back to before the last change
 ```
+
+A change that only adds files (a new program, with no package upgraded or
+removed) is also copied into the running system, so it works at once; the
+staged system, with the same files, takes over at the next restart.
 
 The package index is signed with Ed25519 and checked on every use; packages
 must match the SHA-256 the index lists, and an index older than the one
@@ -668,6 +725,7 @@ bh open lab               # again, in another terminal: a second session in it
 bh open lab -- ./x        # run one command inside
 bh open --net test        # with a network, for trying out a program
 bh open --vm lab          # a virtual machine: its own kernel
+bh open --gui lab -- mousepad /inbox/notes.txt   # programs with windows
 bh list                   # your blackholes, running or not, and how
 bh close lab              # stop it and delete everything in it
 ```
@@ -677,7 +735,29 @@ unprivileged user. They see the system's programs read-only, but not
 `/home`, `/root`, `/var`, the disks or the snapshots, nor the host's
 processes. There is no network except loopback unless you ask for one.
 Any number of blackholes can run at once, each with as many sessions as
-you open; a blackhole closes when its first session ends. The layers:
+you open; a blackhole closes when its first session ends.
+
+**Windows from a blackhole.** `bh open --gui` lets the programs inside open
+windows on the desktop, through a display of the blackhole's own that the
+compositor marks as sandboxed (Wayland's security context): those windows
+cannot take screenshots or record the screen, read the clipboard in the
+background or set it as a clipboard manager, list or control other
+windows, or type and move the pointer for you. They always get WormOS's
+own title bar. Copy and paste still work while you use the window, as in
+any program. With `--from debian` the programs come from the Debian
+wormhole's system (install them there first, with Software or
+`wh install`). Programs for Wayland work (GTK, Qt, most modern ones); X11
+programs do not, and there is no GPU inside, so drawing is by the CPU.
+`--gui` does not combine with `--vm`.
+
+**Open in a blackhole.** In Files, right click a file and choose *Open in
+a blackhole*: the file is copied into a new blackhole's `/inbox` and its
+usual program opens it there (from its wormhole when it comes from Debian
+or Kali), with no network and nothing of your files. When the program
+closes, the blackhole and the copy are deleted. Use it for downloads and
+attachments you are not sure about.
+
+The layers:
 
 - **Namespaces:** own users, mounts, processes, network, IPC and host name.
 - **Capabilities:** root inside keeps only those that act on the

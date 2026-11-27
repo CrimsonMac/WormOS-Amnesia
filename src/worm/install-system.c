@@ -8,6 +8,9 @@
  *     install-system list         the disks WormOS can go on, one per line:
  *                                 NAME BYTES REMOVABLE MODEL
  *     install-system install NAME erase disk NAME and install WormOS on it
+ *     install-system install NAME --encrypt
+ *                                 the same with the root encrypted (LUKS2);
+ *                                 the passphrase is read from standard input
  *
  * install prints its progress as lines "step TEXT" and "progress PERCENT",
  * then "done", or an error on standard error with a non-zero status.
@@ -21,6 +24,14 @@
  * and the root filesystem from wormos/system.img.zst, which is then grown to
  * fill its partition. The installed system starts with the first-boot
  * setup, like a fresh disk image.
+ *
+ * Encrypted, the root partition is LUKS2 with PBKDF2 (which GRUB can open:
+ * it asks for the passphrase at boot, reads the kernel and the initramfs
+ * from the encrypted disk, and the snapshot entries keep working) and a
+ * second key slot holding a random key, which goes into the new system as
+ * /etc/worm/luks.key and into its initramfs (mkinitramfs), so the disk is
+ * opened again there without asking. The system image is copied into the
+ * opened device, /dev/mapper/wormos-install.
  *
  * The root filesystem has the same UUID as the live system's (the boot
  * menu on the EFI partition names it). The kernel mounts such a copy
@@ -40,7 +51,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/mount.h>
+#include <sys/random.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -447,14 +460,97 @@ static void partition_path(const char *disk, int n, char *out, size_t len)
 		 "p" : "", n);
 }
 
-static int cmd_install(const char *name)
+/* Run argv with input (or NULL) as its standard input; its status. */
+static int run_with_input(char *const argv[], const char *input, size_t len)
+{
+	int p[2], status;
+	pid_t pid;
+
+	if (pipe2(p, O_CLOEXEC) < 0 || (pid = fork()) < 0)
+		fail("cannot run %s: %s", argv[0], strerror(errno));
+	if (pid == 0) {
+		dup2(p[0], 0);
+		execv(argv[0], argv);
+		_exit(127);
+	}
+	close(p[0]);
+	if (input && len && write(p[1], input, len) != (ssize_t)len)
+		fail("cannot pass the passphrase on: %s", strerror(errno));
+	close(p[1]);
+	if (waitpid(pid, &status, 0) < 0 || !WIFEXITED(status))
+		return 1;
+	return WEXITSTATUS(status);
+}
+
+#define CRYPTSETUP "/usr/bin/cryptsetup"
+#define CRYPT_NAME "wormos-install"
+
+/*
+ * Encrypt the root partition: LUKS2 with the passphrase, a second slot with
+ * a random key (kept in a memfd, given to cryptsetup by its /proc path),
+ * then open it. Returns the key's memfd.
+ */
+static int encrypt_root(const char *part, const char *passphrase)
+{
+	unsigned char key[64];
+	char keypath[64];
+	int keyfd;
+
+	if (getrandom(key, sizeof(key), 0) != (ssize_t)sizeof(key))
+		fail("no random numbers for the key: %s", strerror(errno));
+	if ((keyfd = memfd_create("luks-key", 0)) < 0 ||
+	    write(keyfd, key, sizeof(key)) != (ssize_t)sizeof(key))
+		fail("cannot hold the key: %s", strerror(errno));
+	explicit_bzero(key, sizeof(key));
+	snprintf(keypath, sizeof(keypath), "/proc/self/fd/%d", keyfd);
+
+	step("Encrypting the disk");
+	/* PBKDF2 and 512-byte sectors: what GRUB can open. */
+	if (run_with_input((char *[]){ CRYPTSETUP, "luksFormat", "--batch-mode", "--type", "luks2",
+				       "--pbkdf", "pbkdf2", "--iter-time", "1500", "--sector-size", "512",
+				       "--key-file", "-", (char *)part, NULL },
+			   passphrase, strlen(passphrase)) != 0)
+		fail("cannot encrypt %s", part);
+	if (run_with_input((char *[]){ CRYPTSETUP, "luksAddKey", "--batch-mode", "--pbkdf", "pbkdf2",
+				       "--iter-time", "100", "--key-file", "-", (char *)part, keypath,
+				       NULL }, passphrase, strlen(passphrase)) != 0)
+		fail("cannot add the system's key to %s", part);
+	if (run_with_input((char *[]){ CRYPTSETUP, "open", "--key-file", keypath, (char *)part,
+				       CRYPT_NAME, NULL }, NULL, 0) != 0)
+		fail("cannot open the encrypted disk");
+	return keyfd;
+}
+
+/* The key into the new system (root only), and its initramfs built again. */
+static void store_key(int keyfd)
+{
+	unsigned char key[64];
+	char path[PATH_MAX], root[256];
+	int out;
+
+	if (pread(keyfd, key, sizeof(key), 0) != (ssize_t)sizeof(key))
+		fail("cannot read the key back");
+	snprintf(root, sizeof(root), "%s/@", TARGET_DIR);
+	snprintf(path, sizeof(path), "%s/etc/worm", root);
+	mkdir(path, 0755);
+	snprintf(path, sizeof(path), "%s/etc/worm/luks.key", root);
+	if ((out = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0400)) < 0 ||
+	    write(out, key, sizeof(key)) != (ssize_t)sizeof(key) || fsync(out) < 0)
+		fail("cannot store the key in the new system: %s", strerror(errno));
+	close(out);
+	explicit_bzero(key, sizeof(key));
+	if (run_with_input((char *[]){ "/usr/lib/wormrd/mkinitramfs", root, NULL }, NULL, 0) != 0)
+		fail("cannot build the new system's initramfs");
+}
+
+static int cmd_install(const char *name, const char *passphrase)
 {
 	char dev[300], part[320];
 	struct btrfs_ioctl_vol_args grow = { 0 };
 	unsigned char head[MiB * SECTOR];
 	unsigned long long bytes;
-	uint64_t size, unused, root_sectors;
-	int fd, in, z, top, status;
+	uint64_t size, unused, root_sectors, target_off, target_len;
+	int fd, in, z, top, status, target, keyfd = -1;
 	pid_t pid;
 
 	if (strchr(name, '/') || !usable_disk(name, &bytes))
@@ -492,43 +588,79 @@ static int cmd_install(const char *name)
 	if (waitpid(pid, &status, 0) < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
 		fail("cannot unpack the EFI system partition");
 
+	partition_path(name, 2, part, sizeof(part));
+	if (passphrase) {
+		uint64_t mapped;
+
+		/* The kernel reads the new partition table first. */
+		if (fsync(fd) < 0)
+			fail("cannot write to the disk: %s", strerror(errno));
+		for (int i = 0; ioctl(fd, BLKRRPART) < 0; i++) {
+			if (i == 20)
+				fail("the kernel does not see the new partitions: %s", strerror(errno));
+			usleep(250000);
+		}
+		for (int i = 0; i < 100 && access(part, F_OK) < 0; i++)
+			usleep(50000);
+		keyfd = encrypt_root(part, passphrase);
+		if ((target = open("/dev/mapper/" CRYPT_NAME, O_RDWR | O_CLOEXEC)) < 0 ||
+		    ioctl(target, BLKGETSIZE64, &mapped) < 0)
+			fail("cannot open the encrypted disk: %s", strerror(errno));
+		target_off = 0;
+		target_len = mapped;
+	} else {
+		target = fd;
+		target_off = ROOT_START * SECTOR;
+		target_len = root_sectors * SECTOR;
+	}
+
 	step("Copying the system");
 	size = iso_number("system.size");
 	in = open_iso("system.img.zst", &unused);
 	z = unzstd(in, &pid);
 	close(in);
-	copy_to(z, fd, ROOT_START * SECTOR, root_sectors * SECTOR, size, 5, 90);
+	copy_to(z, target, target_off, target_len, size, 5, 90);
 	close(z);
 	if (waitpid(pid, &status, 0) < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
 		fail("the system image on the ISO is damaged");
 	umount2(ISO_DIR, MNT_DETACH);
 
 	step("Finishing");
-	if (fsync(fd) < 0)
+	if (fsync(target) < 0 || fsync(fd) < 0)
 		fail("cannot write to the disk: %s", strerror(errno));
-	/* The kernel reads the new partition table. */
-	for (int i = 0; ioctl(fd, BLKRRPART) < 0; i++) {
-		if (i == 20)
-			fail("the kernel does not see the new partitions: %s", strerror(errno));
-		usleep(250000);
+	if (passphrase) {
+		close(target);
+	} else {
+		/* The kernel reads the new partition table. */
+		for (int i = 0; ioctl(fd, BLKRRPART) < 0; i++) {
+			if (i == 20)
+				fail("the kernel does not see the new partitions: %s", strerror(errno));
+			usleep(250000);
+		}
 	}
 	close(fd);
 
 	/* Grow the root filesystem to fill its partition. */
-	partition_path(name, 2, part, sizeof(part));
 	for (int i = 0; i < 100 && access(part, F_OK) < 0; i++)
 		usleep(50000);
 	mkdir(TARGET_DIR, 0700);
-	if (mount(part, TARGET_DIR, "btrfs", MS_NOSUID | MS_NODEV, "subvolid=5") < 0)
+	if (mount(passphrase ? "/dev/mapper/" CRYPT_NAME : part, TARGET_DIR, "btrfs",
+		  MS_NOSUID | MS_NODEV, "subvolid=5") < 0)
 		fail("cannot mount the new system (%s): %s", part, strerror(errno));
 	snprintf(grow.name, sizeof(grow.name), "max");
 	if ((top = open(TARGET_DIR, O_RDONLY | O_DIRECTORY | O_CLOEXEC)) < 0 ||
 	    ioctl(top, BTRFS_IOC_RESIZE, &grow) < 0)
 		fail("cannot grow the new system's filesystem: %s", strerror(errno));
+	if (passphrase)
+		store_key(keyfd);
 	syncfs(top);
 	close(top);
 	if (umount(TARGET_DIR) < 0)
 		fail("cannot unmount the new system: %s", strerror(errno));
+	if (passphrase) {
+		close(keyfd);
+		run_with_input((char *[]){ CRYPTSETUP, "close", CRYPT_NAME, NULL }, NULL, 0);
+	}
 	sync();
 	printf("progress 100\ndone\n");
 	return 0;
@@ -548,7 +680,17 @@ int main(int argc, char **argv)
 	if (argc == 2 && !strcmp(argv[1], "list"))
 		return cmd_list();
 	if (argc == 3 && !strcmp(argv[1], "install"))
-		return cmd_install(argv[2]);
-	fprintf(stderr, "usage: install-system list | install DISK\n");
+		return cmd_install(argv[2], NULL);
+	if (argc == 4 && !strcmp(argv[1], "install") && !strcmp(argv[3], "--encrypt")) {
+		static char passphrase[1024];
+
+		if (!fgets(passphrase, sizeof(passphrase), stdin))
+			passphrase[0] = '\0';
+		passphrase[strcspn(passphrase, "\n")] = '\0';
+		if (strlen(passphrase) < 8)
+			fail("the passphrase needs at least 8 characters");
+		return cmd_install(argv[2], passphrase);
+	}
+	fprintf(stderr, "usage: install-system list | install DISK [--encrypt]\n");
 	return 2;
 }

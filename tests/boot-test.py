@@ -379,6 +379,42 @@ STATUS_CHECKS = [
      r"(.|\n)*Kernel\s+lockdown integrity(.|\n)*io_uring off"),
 ]
 
+# Wi-Fi and Bluetooth. Two simulated radios (mac80211_hwsim): iwd runs an
+# access point with a passphrase on one, the other connects to it and gets
+# an address from it, with a random MAC address.
+WIRELESS_CHECKS = [
+    ("Wi-Fi daemon running behind the firewall", "pidof iwd", r"^\d+$"),
+    ("regulatory database shipped and signed",
+     "ls /usr/lib/firmware/regulatory.db /usr/lib/firmware/regulatory.db.p7s | wc -l", r"^2$"),
+    ("simulated radios appear",
+     "modprobe mac80211_hwsim radios=2 && for i in $(seq 20); do "
+     "[ $(ls -d /sys/class/net/wlan* 2>/dev/null | wc -l) -ge 2 ] && break; sleep 1; done; "
+     "ls -d /sys/class/net/wlan* | wc -l", r"^2$"),
+    ("iwd sees both", "for i in $(seq 20); do iwctl device list 2>/dev/null | grep -c station "
+     "| grep -q 2 && break; sleep 1; done; iwctl device list | grep -c station", r"^2$"),
+    ("an access point with a passphrase", "worm fw allow 67/udp > /dev/null; "
+     "iwctl device wlan1 set-property Mode ap && sleep 1 && "
+     "iwctl ap wlan1 start WormTest worm-hole-42 && sleep 2 && iwctl ap wlan1 show | grep -c Started",
+     r"^1$"),
+    ("the other radio finds it and connects with the passphrase",
+     "iwctl station wlan0 scan; sleep 4; "
+     "iwctl --passphrase worm-hole-42 station wlan0 connect WormTest; sleep 6; "
+     "iwctl station wlan0 show | grep -E 'State|Connected network'",
+     r"State\s+connected(.|\n)*Connected network\s+WormTest"),
+    ("Wi-Fi gets an address by DHCP", "for i in $(seq 20); do ip -4 addr show wlan0 | grep -q inet "
+     "&& break; sleep 1; done; ip -4 addr show wlan0 | grep -c inet", r"^1$"),
+    ("Wi-Fi uses a random MAC address",
+     "a=$(cat /sys/class/net/wlan0/address); p=$(ethtool -P wlan0 | awk '{print $3}'); "
+     "[ \"$a\" != \"$p\" ] && echo random", r"^random$"),
+    ("known network remembered for the next time", "ls /var/lib/iwd", r"WormTest\.psk"),
+    ("radios removed", "worm fw deny 67/udp > /dev/null; iwctl station wlan0 disconnect; "
+     "rmmod mac80211_hwsim; ls -d /sys/class/net/wlan* "
+     "2>/dev/null | wc -l", r"^0$"),
+    ("Bluetooth daemon running", "pidof bluetoothd", r"^\d+$"),
+    ("Bluetooth answers without an adapter", "bluetoothctl show 2>&1 | head -1",
+     r"No default controller available"),
+]
+
 # Anonymous mode (worm anon). Tor cannot connect here; what matters is
 # that nothing leaves the machine directly. {repo} is the repository URL.
 ANON_CHECKS = [
@@ -448,8 +484,8 @@ SAFE_CHECKS = [
 ]
 
 # The helper behind the Snapshots program (run last: it adds snapshots).
-# Root counts as an administrator; the development image's root password
-# is empty, so an empty line is the right password.
+# Root counts as an administrator and confirms with its own password; the
+# development image's is empty, so an empty line is the right password.
 H = "/usr/lib/worm/snapshots"
 LAST = f"{H} list | tail -n 1"
 I = "/usr/lib/worm/install"
@@ -477,6 +513,10 @@ HELPER_CHECKS = [
      f"{LAST} | cut -f 7", r"wrong password(.|\n)*^Renamed$"),
     ("deletes with the password", f"echo | {H} delete $({LAST} | cut -f 1) && "
      f"{H} list | grep -c Renamed", r"^Deleted snapshot \d+\n0$"),
+    ("elevate is setuid root", "stat -c '%U %a' /usr/lib/worm/elevate", r"^root 4755$"),
+    ("elevate refuses users who are not administrators",
+     "su tester -c '/usr/lib/worm/elevate' < /dev/null 2>&1; echo rc=$?",
+     r"Only administrators(.|\n)*^rc=1$"),
     ("install helper is setuid root", f"stat -c '%U %a' {I}", r"^root 4755$"),
     ("install helper only for administrators",
      f"su tester -c 'echo | {I} tor-browser-runtime'; echo rc=$?",
@@ -712,6 +752,13 @@ LIVE_INSTALL_CHECKS = [
     ("back to normal", "mount -o remount,bind,rw / && cp /tmp/repo.saved /etc/wh/repo && "
      "rm /etc/wh/live /etc/wh/users-may-install && mount -o remount,bind,ro / && "
      "su tester -c 'wh install cmatrix' 2>&1", r"managed by root"),
+    # On WormOS itself, a change that only adds files is used at once too
+    # (the staged system, with the same files, follows at the next restart).
+    ("new programs work without a restart",
+     "u=$(cut -d. -f1 /proc/uptime); wh --repo {repo} -y install hexedit 2>&1 | tail -1; "
+     "command -v hexedit; [ $(cut -d. -f1 /proc/uptime) -ge $u ] && echo same-boot",
+     r"ready to use now(.|\n)*^/usr/bin/hexedit\n(.|\n)*same-boot"),
+    ("and the running system is read-only again", "touch /usr/y 2>&1", r"Read-only file system"),
 ]
 
 AFTER_UNDO_CHECKS = [
@@ -827,7 +874,7 @@ def main():
     total = (len(CHECKS) + len(KERNEL_CHECKS) + len(DNS_CHECKS) + len(FIREWALL_CHECKS) +
              len(STATUS_CHECKS) + len(panic_checks) + len(SAFE_CHECKS) + 2 +
              len(HELPER_CHECKS) + len(TOOL_CHECKS) + 4 +
-             len(anon_checks) + 2 +
+             len(anon_checks) + 2 + len(WIRELESS_CHECKS) +
              len(FIREWALL_OPEN_CHECKS) + len(FIREWALL_CLOSE_CHECKS) +
              len(FIREWALL_AFTER_CHECKS) + 3 + len(BLACKHOLE_CHECKS) + len(bh_net_checks) + len(WHC_CHECKS) + len(KIT_CHECKS) + len(TIME_CHECKS) + len(PASSWD_CHECKS) +
              len(SNAPSHOT_CHECKS) +
@@ -888,6 +935,7 @@ def main():
             run_checks(con, PASSWD_CHECKS)
             run_checks(con, TIME_CHECKS)
             run_checks(con, STATUS_CHECKS)
+            run_checks(con, WIRELESS_CHECKS)
             run_checks(con, anon_checks)
             check("nothing reached the network directly in anonymous mode",
                   "/anon-leak-check" not in REQUESTS, REQUESTS[-5:])

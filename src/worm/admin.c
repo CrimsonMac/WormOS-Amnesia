@@ -2,6 +2,7 @@
 
 #define _GNU_SOURCE
 #include <grp.h>
+#include <pwd.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -30,4 +31,11 @@ int caller_is_admin(void)
 int root_password_ok(const char *password)
 {
 	return password_ok("root", password);
+}
+
+int admin_password_ok(const char *password)
+{
+	struct passwd *pw = getpwuid(getuid());
+
+	return pw && password_ok(pw->pw_name, password);
 }

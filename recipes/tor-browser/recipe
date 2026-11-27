@@ -1,6 +1,6 @@
 name=tor-browser
 version=0.1.0
-release=2
+release=3
 description="Tor Browser launcher: sets it up on the first run, then starts it"
 depends=(glibc gtk4 worm curl gnupg libarchive hicolor-icon-theme)
 localsrc=src/torbrowser

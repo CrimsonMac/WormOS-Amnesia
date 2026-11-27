@@ -93,7 +93,7 @@ static void need_password(void)
 		password[0] = '\0';
 	n = strcspn(password, "\n");
 	password[n] = '\0';
-	if (!root_password_ok(password)) {
+	if (!admin_password_ok(password)) {
 		explicit_bzero(password, sizeof(password));
 		fail(3, "wrong password");
 	}

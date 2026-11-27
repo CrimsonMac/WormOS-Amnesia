@@ -1,8 +1,8 @@
 # WormOS build entry points. See docs/building.md for details.
 
 # In build order: later packages build against earlier ones.
-PACKAGES := base-files busybox worminit wormrd snap \
-	zlib zstd openssl ca-certificates curl monocypher \
+PACKAGES := base-files busybox worminit snap \
+	zlib zstd wormrd openssl ca-certificates curl monocypher \
 	libgpg-error npth libassuan libksba libgcrypt gnupg wormhole-keyrings \
 	libmnl libnftnl nftables libxcrypt tzdata wh worm passt kvmtool bh expat unbound libevent tor \
 	libpcap tcpdump dbus \
@@ -12,17 +12,18 @@ PACKAGES := base-files busybox worminit wormrd snap \
 	libpng freetype fribidi fontconfig pcre2 glib harfbuzz libxml2 cairo pango \
 	libepoxy xorgproto xcb-proto libxau xtrans libxcb xcb-util-wm libx11 libxext libxfixes \
 	libxrender libxrandr libxkbfile xkbcomp libfontenc libxfont2 libxcvt libxshmfence xwayland \
-	font-inter font-hack wlroots labwc tllist fcft foot grim swaybg wlr-randr xcompose clip \
+	font-inter font-hack wlroots labwc tllist fcft foot grim swaybg wlr-randr xcompose clip bh-wayland \
 	libjpeg-turbo libtiff shared-mime-info gdk-pixbuf graphene gtk4 \
 	gtk4-layer-shell dconf hicolor-icon-theme adwaita-icon-theme wormos-gtk-theme \
-	alsa-lib libsndfile pipewire lua wireplumber worm-shell wormos-snapshots wormos-settings wormos-software wormos-welcome wormos-files \
+	ncurses readline sbc bluez alsa-lib libsndfile pipewire lua wireplumber worm-shell wormos-snapshots wormos-settings wormos-software wormos-welcome wormos-files \
+	poppler wormos-viewer wormos-editor \
 	atk gtk3 tor-browser-runtime tor-browser \
-	ncurses zsh-autosuggestions zsh-syntax-highlighting zsh \
-	xz bzip2 readline bash less nano vim htop tmux file tree ncdu jq lsof strace \
+	zsh-autosuggestions zsh-syntax-highlighting zsh \
+	xz bzip2 wireless-regdb linux-firmware-wireless iwd bash less nano vim htop tmux file tree ncdu jq lsof strace \
 	wireguard-tools sqlite libarchive git openssh rsync python nmap binutils \
 	grep sed gawk findutils diffutils patch coreutils wget zip 7zip iproute2 ethtool \
 	pciutils libusb usbutils dosfstools whois traceroute mtr iperf3 socat \
-	gmp mpfr gdb e2fsprogs exfatprogs mc btop fastfetch lz4 pigz pv yara ssdeep \
+	gmp mpfr gdb e2fsprogs popt json-c device-mapper cryptsetup exfatprogs mc btop fastfetch lz4 pigz pv yara ssdeep \
 	smartmontools hdparm dmidecode bc screen mtools hexedit links aria2 ngrep \
 	macchanger torsocks proxychains-ng cmatrix nethogs ffmpeg sqlmap tool-menus \
 	tor-browser-bundle licenses \

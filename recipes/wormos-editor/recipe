@@ -1,0 +1,13 @@
+name=wormos-editor
+version=0.1.0
+description="Text Editor: plain text files"
+depends=(glibc gtk4 adwaita-icon-theme)
+localsrc=src/editor
+
+build() {
+	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}

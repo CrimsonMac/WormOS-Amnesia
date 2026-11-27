@@ -2,7 +2,7 @@
 Type=Application
 Name=Root Terminal
 GenericName=Administration
-Comment=A terminal for administration (asks for the root password)
+Comment=A terminal for administration (asks for your password)
 Exec=foot --title "Root terminal" /usr/lib/worm/root-terminal
 Icon=wormos-root-terminal
 Categories=System;TerminalEmulator;

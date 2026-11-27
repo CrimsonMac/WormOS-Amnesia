@@ -37,5 +37,8 @@ SECRET=${WORMOS_SIGNING_KEY:-$HOME/.config/wormos/core.key}
 printf 'version = %s\n' "$VERSION" > "$DEST/amnesia.latest"
 "$BUILD/host/wsign" sign "$SECRET" "$DEST/amnesia.latest"
 (cd "$DEST" && sha256sum "$NAME.iso" > SHA256SUMS)
+# Signed like WormOS's (scripts/verify-release.sh checks it with OpenSSL).
+"$BUILD/host/wsign" sign "$SECRET" "$DEST/SHA256SUMS"
+"$WORMOS_ROOT/scripts/verify-release.sh" "$DEST" > /dev/null || die "SHA256SUMS.sig does not verify"
 msg "WormOS Amnesia $VERSION ready in $DEST:"
 ls -lh "$DEST"

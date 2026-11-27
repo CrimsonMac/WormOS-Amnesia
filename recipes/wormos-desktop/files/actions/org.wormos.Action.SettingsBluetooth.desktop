@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Bluetooth
+Comment=Switch Bluetooth on, connect headphones, speakers, keyboards and mice
+Exec=wormos-settings --page bluetooth
+Icon=bluetooth-active-symbolic
+NoDisplay=true
+X-WormOS-Action=true
+Keywords=bluetooth;headphones;speaker;headset;pair;mouse;keyboard;

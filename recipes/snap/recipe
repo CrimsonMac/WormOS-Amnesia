@@ -1,6 +1,6 @@
 name=snap
 version=0.1.0
-release=4
+release=5
 description="WormOS snapshot tool"
 depends=(glibc)
 localsrc=src/snap

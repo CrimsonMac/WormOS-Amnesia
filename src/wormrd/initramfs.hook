@@ -1,0 +1,11 @@
+# Build the initramfs again when anything in it changes: wormrd, the
+# programs it runs, the libraries (glibc and the rest) or the key of an
+# encrypted root. On the staged system, so it boots with the new one.
+path = usr/lib/wormrd
+path = usr/bin/busybox
+path = usr/bin/snap
+path = usr/bin/zstd
+path = usr/bin/cryptsetup
+path = usr/lib
+path = etc/worm/luks.key
+exec = /usr/lib/wormrd/mkinitramfs /

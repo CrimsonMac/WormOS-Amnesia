@@ -9,7 +9,7 @@
  * libraries) offer to install them. Only packages that an installed
  * package lists in /usr/share/worm/installable (an empty file named after
  * each) are allowed, only from the core repository, and only for root or
- * members of the group wheel who give root's password, read as one line
+ * members of the group wheel who give their own password, read as one line
  * from standard input. The system restarts once the package is installed,
  * as after any core package change.
  */
@@ -59,7 +59,7 @@ static void need_password(void)
 		password[0] = '\0';
 	n = strcspn(password, "\n");
 	password[n] = '\0';
-	if (!root_password_ok(password)) {
+	if (!admin_password_ok(password)) {
 		explicit_bzero(password, sizeof(password));
 		fail(3, "wrong password");
 	}

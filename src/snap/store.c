@@ -322,6 +322,9 @@ int store_create(int scope, const char *type, const char *comment)
 		}
 	}
 
+	if ((scope & SCOPE_SYSTEM) && wormholes_snapshot(tmpdir) < 0)
+		warn("the snapshot leaves out some wormholes");
+
 	memset(&s, 0, sizeof(s));
 	n = store_list(&list);
 	for (int bit = SCOPE_SYSTEM; bit <= SCOPE_HOME; bit <<= 1) {
@@ -372,6 +375,7 @@ int store_create(int scope, const char *type, const char *comment)
 	return id;
 
 fail:
+	wormholes_delete(tmpdir);
 	subvol_delete(tmpdir, SNAP_SYSTEM);
 	subvol_delete(tmpdir, SNAP_HOME);
 	{
@@ -388,12 +392,140 @@ fail:
 	return -1;
 }
 
+/* ---- wormholes ---- */
+
+/*
+ * The wormholes (Debian, Kali...) go with every system snapshot, so a
+ * rewind or wh undo brings back the programs installed there too. Each is
+ * a subvolume of its own inside @wormholes, which a snapshot of @wormholes
+ * would leave out: each is snapshotted (read-only) into DIR/wormholes.
+ * They have no manifest: wormholes are convenience, not verified state.
+ */
+static int is_subvol(const char *path)
+{
+	struct stat st;
+
+	return stat(path, &st) == 0 && S_ISDIR(st.st_mode) && st.st_ino == 256;
+}
+
+int wormholes_snapshot(const char *dir)
+{
+	char src[PATH_MAX], dst[PATH_MAX], sub[PATH_MAX];
+	struct dirent *e;
+	DIR *d;
+	int ret = 0;
+
+	path_join(src, sizeof(src), top, SUBVOL_WORMHOLES);
+	if (!(d = opendir(src)))
+		return 0;
+	path_join(dst, sizeof(dst), dir, SNAP_WORMHOLES);
+	if (mkdir(dst, 0700) < 0) {
+		closedir(d);
+		return -1;
+	}
+	while ((e = readdir(d))) {
+		if (e->d_name[0] == '.')
+			continue;
+		path_join(sub, sizeof(sub), src, e->d_name);
+		if (is_subvol(sub) && subvol_snapshot(sub, dst, e->d_name, 1) < 0) {
+			warn("cannot snapshot the %s wormhole: %s", e->d_name, strerror(errno));
+			ret = -1;
+		}
+	}
+	closedir(d);
+	return ret;
+}
+
+void wormholes_delete(const char *dir)
+{
+	char path[PATH_MAX], sub[PATH_MAX];
+	struct dirent *e;
+	DIR *d;
+
+	path_join(path, sizeof(path), dir, SNAP_WORMHOLES);
+	if (!(d = opendir(path)))
+		return;
+	while ((e = readdir(d))) {
+		if (e->d_name[0] == '.')
+			continue;
+		path_join(sub, sizeof(sub), path, e->d_name);
+		if (is_subvol(sub) && subvol_delete(path, e->d_name) < 0)
+			warn("cannot delete %s: %s", sub, strerror(errno));
+	}
+	closedir(d);
+	rmdir(path);
+}
+
+/*
+ * Rewind the wormholes to snapshot id's, if it has them (snapshots from
+ * before wormholes were kept have not: then they stay as they are). The
+ * current ones are moved aside and deleted (the snapshot taken before the
+ * rewind holds them), and the snapshot's come back writable.
+ */
+int wormholes_restore(int id)
+{
+	char snapdir[PATH_MAX], saved[PATH_MAX], live[PATH_MAX], sub[PATH_MAX], old[80], aside[PATH_MAX];
+	struct dirent *e;
+	DIR *d;
+	int ret = 0;
+
+	store_entry_path(snapdir, sizeof(snapdir), id, 0);
+	path_join(saved, sizeof(saved), snapdir, SNAP_WORMHOLES);
+	path_join(live, sizeof(live), top, SUBVOL_WORMHOLES);
+	if (access(saved, F_OK) < 0 || access(live, F_OK) < 0)
+		return 0;
+	/* The current wormholes out of the way. */
+	if ((d = opendir(live))) {
+		while ((e = readdir(d))) {
+			if (e->d_name[0] == '.')
+				continue;
+			path_join(sub, sizeof(sub), live, e->d_name);
+			if (!is_subvol(sub))
+				continue;
+			snprintf(old, sizeof(old), ".%.60s.old", e->d_name);
+			path_join(aside, sizeof(aside), live, old);
+			if (is_subvol(aside))
+				subvol_delete(live, old);
+			if (rename(sub, aside) < 0) {
+				warn("cannot move the %s wormhole aside: %s", e->d_name, strerror(errno));
+				ret = -1;
+			}
+		}
+		closedir(d);
+	}
+	/* The snapshot's back, writable. */
+	if ((d = opendir(saved))) {
+		while ((e = readdir(d))) {
+			if (e->d_name[0] == '.')
+				continue;
+			path_join(sub, sizeof(sub), saved, e->d_name);
+			if (is_subvol(sub) && subvol_snapshot(sub, live, e->d_name, 0) < 0) {
+				warn("cannot restore the %s wormhole: %s", e->d_name, strerror(errno));
+				ret = -1;
+			}
+		}
+		closedir(d);
+	}
+	/* What was moved aside goes (unless a program still has it open). */
+	if ((d = opendir(live))) {
+		while ((e = readdir(d))) {
+			size_t n = strlen(e->d_name);
+
+			if (e->d_name[0] == '.' && n > 5 && !strcmp(e->d_name + n - 4, ".old"))
+				subvol_delete(live, e->d_name);
+		}
+		closedir(d);
+	}
+	return ret;
+}
+
 /* Delete a snapshot directory (complete or not). */
 static int delete_dir(const char *dir)
 {
 	char path[PATH_MAX];
 	struct stat st;
 
+	wormholes_delete(dir);
 	for (int bit = SCOPE_SYSTEM; bit <= SCOPE_HOME; bit <<= 1) {
 		path_join(path, sizeof(path), dir, scope_dir(bit));
 		if (stat(path, &st) == 0 && subvol_delete(dir, scope_dir(bit)) < 0) {

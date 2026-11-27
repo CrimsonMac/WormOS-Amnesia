@@ -12,7 +12,11 @@ With --live-only it checks the live system and the installation, but not
 the installed disk: for a release ISO, whose installed system starts with
 the first-boot setup and has no root login before it.
 
-Usage: tests/iso-test.py [ISO] [--live-only] [--timeout SECONDS]
+With --encrypt the installation is encrypted (LUKS2): every boot from the
+disk types the passphrase at GRUB's prompt on the serial console, and the
+root must come from the opened encrypted device.
+
+Usage: tests/iso-test.py [ISO] [--live-only] [--encrypt] [--timeout SECONDS]
 """
 
 import argparse
@@ -82,13 +86,32 @@ INSTALLED_CHECKS = [
      "/usr/lib/worm/install-system list 2>&1", r"only be installed from the live system"),
 ]
 
+PASSPHRASE = "wormhole tunnel 42"
+
+ENCRYPTED_CHECKS = [
+    ("root from the encrypted disk", "readlink /dev/wormos-root; cat /sys/block/dm-0/dm/name",
+     r"^/dev/dm-0\nwormos-root$"),
+    ("LUKS2 with PBKDF2, which GRUB opens",
+     "cryptsetup luksDump /dev/vda2 | grep -c -e 'Version: *2' -e 'PBKDF: *pbkdf2'", r"^[3-9]$"),
+    ("the system's key is root's alone", "stat -c '%a %U' /etc/worm/luks.key /boot/initramfs.img",
+     r"^400 root\n600 root$"),
+    ("the initramfs opens the disk with it",
+     "zstd -dc /boot/initramfs.img | cpio -it 2>/dev/null | grep -c -e '^crypto_keyfile$' "
+     "-e '^usr/bin/cryptsetup$'", r"^2$"),
+]
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("iso", nargs="?", default=os.path.join(ROOT, "out", "wormos.iso"))
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--live-only", action="store_true")
+    parser.add_argument("--encrypt", action="store_true")
     args = parser.parse_args()
+    installed_checks = INSTALLED_CHECKS
+    if args.encrypt:
+        installed_checks = [c for c in INSTALLED_CHECKS if c[0] != "root from the disk"]
+        installed_checks += ENCRYPTED_CHECKS
 
     tmp = tempfile.mkdtemp(prefix="wormos-iso-")
     disk = os.path.join(tmp, "disk.qcow2")
@@ -96,7 +119,7 @@ def main():
     passed = failures = 0
     total = len(LIVE_CHECKS) + 1 + len(INSTALL_CHECKS) + 1
     if not args.live_only:
-        total += 2 * len(INSTALLED_CHECKS) + 1
+        total += 2 * len(installed_checks) + 1
 
     def check(name, ok, out=""):
         nonlocal passed, failures
@@ -119,6 +142,12 @@ def main():
                                 stderr=subprocess.STDOUT, env=env)
         con = boot_test.Console(proc, log)
         start = time.time()
+        if args.encrypt and not iso:
+            # GRUB asks before it can read the kernel; the initramfs then
+            # opens the disk with the system's key.
+            con.expect("passphrase", args.timeout)
+            time.sleep(1)
+            con.send(PASSPHRASE + "\n")
         con.expect("login:", args.timeout)
         con.send("root\n")
         con.expect("# ", 60)
@@ -145,7 +174,11 @@ def main():
         try:
             proc, con = boot(log, args.iso, label="ISO, UEFI")
             run(con, LIVE_CHECKS)
-            out = con.run("/usr/lib/worm/install-system install vda 2>&1 | tail -n 3", 900)
+            if args.encrypt:
+                out = con.run(f"echo '{PASSPHRASE}' | /usr/lib/worm/install-system install vda "
+                              "--encrypt 2>&1 | tail -n 3", 900)
+            else:
+                out = con.run("/usr/lib/worm/install-system install vda 2>&1 | tail -n 3", 900)
             check("installed onto the disk", re.search(r"^done$", out, re.M), out)
             run(con, INSTALL_CHECKS)
             power_off(proc, con)
@@ -154,11 +187,11 @@ def main():
                 return finish()
 
             proc, con = boot(log, None, label="installed disk, UEFI")
-            run(con, INSTALLED_CHECKS)
+            run(con, installed_checks)
             power_off(proc, con)
 
             proc, con = boot(log, None, bios=True, label="installed disk, BIOS")
-            run(con, INSTALLED_CHECKS)
+            run(con, installed_checks)
             power_off(proc, con)
 
             proc, con = boot(log, args.iso, bios=True, label="ISO, BIOS")

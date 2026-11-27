@@ -1,0 +1,28 @@
+name=bluez
+version=5.88
+description="Bluetooth daemon (bluetoothd) and its command line client bluetoothctl"
+depends=(glibc glib dbus readline)
+source=(https://mirrors.edge.kernel.org/pub/linux/bluetooth/bluez-$version.tar.xz)
+sha256=(6952c39eb5f8b0ee712cc50ab3bcff03be17c410dd97ca640f4849d9a1653ba3)
+
+build() {
+	# No OBEX (file transfer: needs libical), printers, mesh, MIDI or udev
+	# tools; the library and headers are for PipeWire's Bluetooth audio.
+	./configure --host="$TARGET" --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+		--libexecdir=/usr/lib --enable-library --disable-obex --disable-cups \
+		--disable-systemd --disable-manpages --disable-udev --disable-tools \
+		--disable-mesh --disable-midi --disable-test --disable-testing \
+		--with-dbusconfdir=/usr/share --with-udevdir=/usr/lib/udev
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -f "$pkgdir"/usr/lib/*.la
+	rm -rf "$pkgdir/usr/share/dbus-1/system-services" "$pkgdir/usr/share/dbus-1/services"
+	install -Dm644 "$recipedir/files/42-bluetooth" "$pkgdir/etc/worm/services/42-bluetooth"
+	install -Dm644 "$recipedir/files/wheel.conf" \
+		"$pkgdir/usr/share/dbus-1/system.d/bluetooth-wheel.conf"
+	install -Dm644 "$recipedir/files/main.conf" "$pkgdir/etc/bluetooth/main.conf"
+	install -dm700 "$pkgdir/var/lib/bluetooth"
+}

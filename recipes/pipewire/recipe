@@ -1,7 +1,8 @@
 name=pipewire
 version=1.6.11
+release=2
 description="Sound server: PipeWire with its PulseAudio and ALSA compatibility"
-depends=(glibc alsa-lib eudev dbus libsndfile)
+depends=(glibc alsa-lib eudev dbus libsndfile sbc bluez)
 # Upstream publishes no signature: checksum pinned from the release download.
 source=(https://gitlab.freedesktop.org/pipewire/pipewire/-/archive/$version/pipewire-$version.tar.gz)
 sha256=(f3f70c4af173cc93d05070a9d412efe3ef5889bdf4ac32298e2c0d9ae1350559)
@@ -16,7 +17,13 @@ build() {
 		-Dsystemd-system-service=disabled -Dsystemd-user-service=disabled \
 		-Dselinux=disabled -Dpipewire-alsa=enabled -Dpipewire-jack=disabled \
 		-Dpipewire-v4l2=disabled -Djack-devel=false -Dalsa=enabled \
-		-Daudiomixer=enabled -Daudioconvert=enabled -Dbluez5=disabled \
+		-Daudiomixer=enabled -Daudioconvert=enabled -Dbluez5=enabled \
+		-Dbluez5-backend-hsp-native=enabled -Dbluez5-backend-hfp-native=enabled \
+		-Dbluez5-backend-native-mm=disabled -Dbluez5-backend-ofono=disabled \
+		-Dbluez5-backend-hsphfpd=disabled -Dbluez5-codec-aptx=disabled \
+		-Dbluez5-codec-ldac=disabled -Dbluez5-codec-ldac-dec=disabled -Dbluez5-codec-aac=disabled \
+		-Dbluez5-codec-lc3plus=disabled -Dbluez5-codec-opus=disabled -Dbluez5-codec-lc3=disabled \
+		-Dbluez5-codec-g722=disabled \
 		-Dcontrol=enabled -Daudiotestsrc=enabled -Dffmpeg=disabled -Djack=disabled \
 		-Dsupport=enabled -Devl=disabled -Dtest=disabled -Dv4l2=disabled \
 		-Ddbus=enabled -Dlibcamera=disabled -Dvideoconvert=disabled \

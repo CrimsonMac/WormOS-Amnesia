@@ -7,7 +7,7 @@
  * updates itself; on btrfs the copy shares the data (copy_file_range).
  * Without the bundle, the first run installs the system libraries it needs
  * (the core package tor-browser-runtime, through the setuid helper
- * /usr/lib/worm/install with root's password; the system restarts), then
+ * /usr/lib/worm/install with the administrator's own password; the system restarts), then
  * downloads the current release from torproject.org, checks its signature
  * against the Tor Browser Developers' key shipped with this package, and
  * unpacks it. After that it only starts the browser.
@@ -657,7 +657,7 @@ static void activate(GtkApplication *app, gpointer data)
 		gtk_password_entry_set_show_peek_icon(GTK_PASSWORD_ENTRY(password), TRUE);
 		gtk_editable_set_width_chars(GTK_EDITABLE(password), 28);
 		gtk_widget_set_halign(password, GTK_ALIGN_CENTER);
-		g_object_set(password, "placeholder-text", "Root password", NULL);
+		g_object_set(password, "placeholder-text", "Your password", NULL);
 		g_signal_connect(password, "activate", G_CALLBACK(install_clicked), NULL);
 		gtk_box_append(GTK_BOX(runtime), password);
 		install_error = gtk_label_new("");

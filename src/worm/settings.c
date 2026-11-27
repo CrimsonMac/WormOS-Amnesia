@@ -3,7 +3,7 @@
  *
  * Installed setuid root as /usr/lib/worm/settings. The caller must be root
  * or in the group wheel. Reading runs right away; changes to the system
- * need root's password too, read as one line from standard input:
+ * need the caller's own password too (an administrator confirming), read as one line from standard input:
  *
  *     firewall                 worm fw status
  *     anon-status              worm anon status
@@ -21,7 +21,7 @@
  *     panic / panic-off        (password*) worm panic [off]
  *
  * (*) On a system without root (/etc/worm/no-root, WormOS Amnesia) nobody
- * could ever give root's password, and these change nothing that is not
+ * could ever confirm, and these change nothing that is not
  * safe for the session's own user: they run without one.
  * Every argument is checked, the environment is cleared, and worm runs as
  * root with an argument list built here.
@@ -68,14 +68,14 @@ static void need_password(void)
 	if (!fgets(password, sizeof(password), stdin))
 		password[0] = '\0';
 	password[strcspn(password, "\n")] = '\0';
-	if (!root_password_ok(password)) {
+	if (!admin_password_ok(password)) {
 		explicit_bzero(password, sizeof(password));
 		fail(3, "wrong password");
 	}
 	explicit_bzero(password, sizeof(password));
 }
 
-/* Root's password, unless the system has no root at all. */
+/* The caller's password, unless the system has no root at all. */
 static void need_password_unless_no_root(void)
 {
 	if (access(NO_ROOT, F_OK) != 0)

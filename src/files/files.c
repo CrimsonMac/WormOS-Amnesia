@@ -42,6 +42,7 @@ static GList *clip_files;
 static gboolean clip_cut;
 
 static void navigate(struct win *w, GFile *folder, gboolean record);
+static GdkContentProvider *drag_prepare(GtkDragSource *source, double x, double y, gpointer data);
 
 /* ---- helpers ---- */
 
@@ -164,7 +165,110 @@ static void setup_item(GtkSignalListItemFactory *f, GtkListItem *item, gpointer 
 	gtk_box_append(GTK_BOX(box), image);
 	gtk_box_append(GTK_BOX(box), label);
 	g_object_set_data(G_OBJECT(box), "list-item", item);
+	{
+		GtkDragSource *drag = gtk_drag_source_new();
+
+		gtk_drag_source_set_actions(drag, GDK_ACTION_COPY | GDK_ACTION_MOVE);
+		g_signal_connect(drag, "prepare", G_CALLBACK(drag_prepare), data);
+		gtk_widget_add_controller(box, GTK_EVENT_CONTROLLER(drag));
+	}
 	gtk_list_item_set_child(item, box);
+}
+
+/* ---- thumbnails of pictures ---- */
+
+#define THUMB_SIZE 112
+#define THUMB_MAX_BYTES (40 << 20)
+
+static GHashTable *thumbs;      /* "path:mtime" -> GdkTexture */
+
+struct thumb_job {
+	GtkWidget *image;       /* weak: the cell may be gone */
+	GtkListItem *item;
+	GFileInfo *info;
+	char *path, *key;
+};
+
+static void thumb_job_free(struct thumb_job *j)
+{
+	g_clear_weak_pointer(&j->image);
+	g_object_unref(j->info);
+	g_free(j->path);
+	g_free(j->key);
+	g_free(j);
+}
+
+/* In a worker thread: the picture, scaled down. */
+static void thumb_load(GTask *task, gpointer source, gpointer data, GCancellable *cancel)
+{
+	struct thumb_job *j = data;
+	GdkPixbuf *pb = gdk_pixbuf_new_from_file_at_scale(j->path, THUMB_SIZE, THUMB_SIZE, TRUE, NULL);
+
+	(void)source; (void)cancel;
+	if (pb) {
+		GdkPixbuf *oriented = gdk_pixbuf_apply_embedded_orientation(pb);
+
+		g_object_unref(pb);
+		g_task_return_pointer(task, oriented, g_object_unref);
+	} else {
+		g_task_return_pointer(task, NULL, NULL);
+	}
+}
+
+static void thumb_loaded(GObject *source, GAsyncResult *res, gpointer data)
+{
+	struct thumb_job *j = data;
+	GdkPixbuf *pb = g_task_propagate_pointer(G_TASK(res), NULL);
+
+	(void)source;
+	if (pb) {
+		GBytes *bytes = gdk_pixbuf_read_pixel_bytes(pb);
+		GdkTexture *texture = gdk_memory_texture_new(gdk_pixbuf_get_width(pb),
+			gdk_pixbuf_get_height(pb), gdk_pixbuf_get_has_alpha(pb) ?
+			GDK_MEMORY_R8G8B8A8 : GDK_MEMORY_R8G8B8, bytes, gdk_pixbuf_get_rowstride(pb));
+
+		g_hash_table_insert(thumbs, g_strdup(j->key), texture);
+		/* Still the same file in that cell? */
+		if (j->image && gtk_list_item_get_item(j->item) == j->info)
+			gtk_image_set_from_paintable(GTK_IMAGE(j->image), GDK_PAINTABLE(texture));
+		g_bytes_unref(bytes);
+		g_object_unref(pb);
+	}
+	thumb_job_free(j);
+}
+
+static void thumbnail(GtkListItem *item, GtkWidget *image, GFileInfo *info)
+{
+	const char *type = g_file_info_get_content_type(info);
+	GFile *file = G_FILE(g_file_info_get_attribute_object(info, "standard::file"));
+	char *path, *key;
+	GdkTexture *cached;
+	struct thumb_job *j;
+	GTask *task;
+
+	if (!type || !g_str_has_prefix(type, "image/") || g_file_info_get_size(info) > THUMB_MAX_BYTES ||
+	    !(path = g_file_get_path(file)))
+		return;
+	if (!thumbs)
+		thumbs = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_object_unref);
+	key = g_strdup_printf("%s:%" G_GUINT64_FORMAT, path,
+			      g_file_info_get_attribute_uint64(info, G_FILE_ATTRIBUTE_TIME_MODIFIED));
+	if ((cached = g_hash_table_lookup(thumbs, key))) {
+		gtk_image_set_from_paintable(GTK_IMAGE(image), GDK_PAINTABLE(cached));
+		g_free(key);
+		g_free(path);
+		return;
+	}
+	j = g_new0(struct thumb_job, 1);
+	g_set_weak_pointer(&j->image, image);
+	j->item = item;
+	j->info = g_object_ref(info);
+	j->path = path;
+	j->key = key;
+	task = g_task_new(NULL, NULL, thumb_loaded, j);
+	g_task_set_task_data(task, j, NULL);
+	g_task_run_in_thread(task, thumb_load);
+	g_object_unref(task);
 }
 
 static void bind_item(GtkSignalListItemFactory *f, GtkListItem *item, gpointer data)
@@ -181,6 +285,7 @@ static void bind_item(GtkSignalListItemFactory *f, GtkListItem *item, gpointer d
 		gtk_image_set_from_gicon(GTK_IMAGE(image), icon);
 	else
 		gtk_image_set_from_icon_name(GTK_IMAGE(image), "text-x-generic");
+	thumbnail(item, image, info);
 	gtk_label_set_text(GTK_LABEL(label), g_file_info_get_display_name(info));
 	size = g_file_info_get_file_type(info) == G_FILE_TYPE_DIRECTORY ? g_strdup("Folder") :
 	       g_format_size(g_file_info_get_size(info));
@@ -404,6 +509,105 @@ static void act_open(GSimpleAction *a, GVariant *p, gpointer data)
 	g_list_free_full(files, g_object_unref);
 }
 
+/*
+ * The program a file would open with, as a command for a blackhole: its
+ * name, and the wormhole it comes from ("" for WormOS's own programs).
+ */
+static char *blackhole_program(GFile *file, char *source, size_t len)
+{
+	GFileInfo *info = g_file_query_info(file, G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE, 0, NULL, NULL);
+	const char *type = info ? g_file_info_get_content_type(info) : NULL;
+	GAppInfo *app = type ? g_app_info_get_default_for_type(type, FALSE) : NULL;
+	char **argv = NULL, *prog = NULL, *path;
+	int i = 0;
+
+	source[0] = '\0';
+	if (app && g_shell_parse_argv(g_app_info_get_commandline(app), NULL, &argv, NULL)) {
+		/* "env VAR=value program %f": the program after env's settings. */
+		if (argv[0] && !strcmp(argv[0], "env"))
+			for (i = 1; argv[i] && strchr(argv[i], '=') && argv[i][0] != '/'; i++)
+				;
+		if (argv[i])
+			prog = g_path_get_basename(argv[i]);
+	}
+	g_strfreev(argv);
+	g_clear_object(&app);
+	g_clear_object(&info);
+	if (!prog)
+		return NULL;
+	/* Programs from wormholes are wh's wrappers in /usr/local/bin. */
+	if ((path = g_find_program_in_path(prog)) && g_str_has_prefix(path, "/usr/local/bin/")) {
+		char *text = NULL;
+
+		if (g_file_get_contents(path, &text, NULL, NULL)) {
+			const char *mark = strstr(text, "# Exported by wh from the ");
+
+			if (!mark || sscanf(mark, "# Exported by wh from the %31s wormhole", source) != 1 ||
+			    strspn(source, "abcdefghijklmnopqrstuvwxyz0123456789-") != strlen(source)) {
+				g_clear_pointer(&prog, g_free);
+				source[0] = '\0';
+			}
+		}
+		g_free(text);
+	}
+	(void)len;
+	g_free(path);
+	return prog;
+}
+
+/*
+ * Open in a blackhole: the file goes into a new blackhole's /inbox and its
+ * program opens it there, with windows on the desktop (bh open --gui) but
+ * no network, nothing of home and the system read-only. The blackhole is
+ * closed (and its copy deleted) when the program exits.
+ */
+static void act_blackhole(GSimpleAction *a, GVariant *p, gpointer data)
+{
+	static const char script[] =
+		"bh put \"$1\" \"$2\" > /dev/null || exit 1; "
+		"bh open --gui ${5:+--from \"$5\"} \"$1\" -- \"$4\" \"/inbox/$3\"; "
+		"bh close \"$1\" > /dev/null 2>&1";
+	struct win *w = data;
+	GList *files = selected_files(w);
+	static int count;
+
+	(void)a; (void)p;
+	for (GList *l = files; l; l = l->next) {
+		char source[32], name[40], *prog, *path = g_file_get_path(l->data), *base;
+		GError *error = NULL;
+
+		if (!path || g_file_query_file_type(l->data, 0, NULL) != G_FILE_TYPE_REGULAR) {
+			message(w, "Only files go into a blackhole, not folders.");
+			g_free(path);
+			continue;
+		}
+		if (!(prog = blackhole_program(l->data, source, sizeof(source)))) {
+			message(w, "No program for this kind of file can open it in a blackhole: "
+				"install one with Software.");
+			g_free(path);
+			continue;
+		}
+		snprintf(name, sizeof(name), "file%d-%d", (int)getpid() % 100000, ++count);
+		base = g_path_get_basename(path);
+		if (!g_spawn_async(NULL, (char *[]){ "sh", "-c", (char *)script, "sh", name, path, base,
+						     prog, source, NULL },
+				   NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &error)) {
+			error_message(w, "Cannot open a blackhole", error);
+			g_error_free(error);
+		} else {
+			char *text = g_strdup_printf("Opening %s with %s in a blackhole: no network, "
+						     "nothing of your files.", base, prog);
+
+			message(w, text);
+			g_free(text);
+		}
+		g_free(base);
+		g_free(prog);
+		g_free(path);
+	}
+	g_list_free_full(files, g_object_unref);
+}
+
 static void act_trash(GSimpleAction *a, GVariant *p, gpointer data)
 {
 	struct win *w = data;
@@ -468,6 +672,7 @@ static void act_cut(GSimpleAction *a, GVariant *p, gpointer d) { (void)a; (void)
 /* Copying and moving run in cp and mv, one file after another. */
 struct paste {
 	struct win *w;
+	GFile *dest;            /* the folder they go into */
 	GList *files, *next;
 	gboolean cut;
 	int done;
@@ -492,10 +697,10 @@ static void paste_next(struct paste *p)
 		GSubprocess *proc;
 
 		p->next = p->next->next;
-		dest = free_name(p->w->folder, name);
+		dest = free_name(p->dest, name);
 		to = g_file_get_path(dest);
 		g_free(name);
-		if (!from || !to || g_file_has_prefix(p->w->folder, src)) {
+		if (!from || !to || g_file_equal(p->dest, src) || g_file_has_prefix(p->dest, src)) {
 			g_free(from);
 			g_free(to);
 			g_object_unref(dest);
@@ -524,6 +729,7 @@ static void paste_next(struct paste *p)
 		clip_files = NULL;
 	}
 	g_list_free_full(p->files, g_object_unref);
+	g_object_unref(p->dest);
 	g_free(p);
 }
 
@@ -539,11 +745,91 @@ static void act_paste(GSimpleAction *a, GVariant *v, gpointer data)
 	}
 	p = g_new0(struct paste, 1);
 	p->w = w;
+	p->dest = g_object_ref(w->folder);
 	p->files = g_list_copy_deep(clip_files, (GCopyFunc)(void (*)(void))g_object_ref, NULL);
 	p->next = p->files;
 	p->cut = clip_cut;
 	message(w, p->cut ? "Moving..." : "Copying...");
 	paste_next(p);
+}
+
+/* Files dropped into dest: moved when that is the drag's action, else copied. */
+static void drop_files(struct win *w, GFile *dest, const GValue *value, gboolean move)
+{
+	GSList *files = gdk_file_list_get_files(g_value_get_boxed(value));
+	struct paste *p;
+
+	if (!files)
+		return;
+	p = g_new0(struct paste, 1);
+	p->w = w;
+	p->dest = g_object_ref(dest);
+	for (GSList *l = files; l; l = l->next) {
+		GFile *parent = g_file_get_parent(l->data);
+
+		/* Dropped where it already is: nothing to do. */
+		if (!parent || !g_file_equal(parent, dest))
+			p->files = g_list_append(p->files, g_object_ref(l->data));
+		g_clear_object(&parent);
+	}
+	g_slist_free(files);
+	p->next = p->files;
+	p->cut = move;
+	message(w, move ? "Moving..." : "Copying...");
+	paste_next(p);
+}
+
+static gboolean grid_dropped(GtkDropTarget *t, const GValue *value, double x, double y, gpointer data)
+{
+	struct win *w = data;
+
+	(void)x; (void)y;
+	drop_files(w, w->folder, value, gtk_drop_target_get_current_drop(t) &&
+		   gdk_drop_get_actions(gtk_drop_target_get_current_drop(t)) & GDK_ACTION_MOVE);
+	return TRUE;
+}
+
+static gboolean place_dropped(GtkDropTarget *t, const GValue *value, double x, double y, gpointer data)
+{
+	GtkWidget *row = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(t));
+	GFile *dest = g_object_get_data(G_OBJECT(row), "file");
+
+	(void)x; (void)y;
+	if (!dest)
+		return FALSE;
+	drop_files(data, dest, value, gdk_drop_get_actions(gtk_drop_target_get_current_drop(t)) &
+		   GDK_ACTION_MOVE);
+	return TRUE;
+}
+
+/* Dragging items out: the selected files (with the one under the pointer). */
+static GdkContentProvider *drag_prepare(GtkDragSource *source, double x, double y, gpointer data)
+{
+	struct win *w = data;
+	GtkWidget *box = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(source));
+	GtkListItem *item = g_object_get_data(G_OBJECT(box), "list-item");
+	GSList *list = NULL;
+	GList *files;
+	GdkFileList *file_list;
+	GdkContentProvider *provider;
+
+	(void)x; (void)y;
+	if (item && !gtk_list_item_get_selected(item))
+		gtk_selection_model_select_item(GTK_SELECTION_MODEL(w->selection),
+						gtk_list_item_get_position(item), TRUE);
+	files = selected_files(w);
+	for (GList *l = files; l; l = l->next)
+		list = g_slist_append(list, l->data);
+	if (!list) {
+		g_list_free_full(files, g_object_unref);
+		return NULL;
+	}
+	file_list = gdk_file_list_new_from_list(list);
+	provider = gdk_content_provider_new_typed(GDK_TYPE_FILE_LIST, file_list);
+	g_boxed_free(GDK_TYPE_FILE_LIST, file_list);
+	g_slist_free(list);
+	g_list_free_full(files, g_object_unref);
+	return provider;
 }
 
 /* A small dialog with one entry: rename and new folder. */
@@ -731,6 +1017,7 @@ static void act_search(GSimpleAction *a, GVariant *p, gpointer data)
 
 static const GActionEntry actions[] = {
 	{ .name = "open", .activate = act_open },
+	{ .name = "blackhole", .activate = act_blackhole },
 	{ .name = "trash", .activate = act_trash },
 	{ .name = "copy", .activate = act_copy },
 	{ .name = "cut", .activate = act_cut },
@@ -783,6 +1070,7 @@ static void right_click(GtkGestureClick *g, int n, double x, double y, gpointer 
 	section = g_menu_new();
 	if (on_item) {
 		g_menu_append(section, "Open", "win.open");
+		g_menu_append(section, "Open in a blackhole", "win.blackhole");
 		g_menu_append(section, "Rename…", "win.rename");
 		g_menu_append_section(menu, NULL, G_MENU_MODEL(section));
 		g_object_unref(section);
@@ -831,6 +1119,13 @@ static void place_add(struct win *w, const char *icon, const char *name, GFile *
 	gtk_box_append(GTK_BOX(row), gtk_label_new(name));
 	gtk_list_box_append(GTK_LIST_BOX(w->places), row);
 	g_object_set_data_full(G_OBJECT(gtk_widget_get_parent(row)), "file", file, g_object_unref);
+	{
+		GtkDropTarget *drop = gtk_drop_target_new(GDK_TYPE_FILE_LIST,
+							  GDK_ACTION_COPY | GDK_ACTION_MOVE);
+
+		g_signal_connect(drop, "drop", G_CALLBACK(place_dropped), w);
+		gtk_widget_add_controller(gtk_widget_get_parent(row), GTK_EVENT_CONTROLLER(drop));
+	}
 }
 
 static void place_user_dir(struct win *w, GUserDirectory which, const char *icon,
@@ -1012,7 +1307,7 @@ static void new_window(GtkApplication *app, GFile *folder)
 	w->sorted = gtk_sort_list_model_new(G_LIST_MODEL(w->filtered), GTK_SORTER(sorter));
 	w->selection = gtk_multi_selection_new(G_LIST_MODEL(w->sorted));
 	factory = GTK_SIGNAL_LIST_ITEM_FACTORY(gtk_signal_list_item_factory_new());
-	g_signal_connect(factory, "setup", G_CALLBACK(setup_item), NULL);
+	g_signal_connect(factory, "setup", G_CALLBACK(setup_item), w);
 	g_signal_connect(factory, "bind", G_CALLBACK(bind_item), NULL);
 	w->grid = gtk_grid_view_new(GTK_SELECTION_MODEL(w->selection), GTK_LIST_ITEM_FACTORY(factory));
 	gtk_grid_view_set_max_columns(GTK_GRID_VIEW(w->grid), 24);
@@ -1025,6 +1320,13 @@ static void new_window(GtkApplication *app, GFile *folder)
 	gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(click), GDK_BUTTON_SECONDARY);
 	g_signal_connect(click, "pressed", G_CALLBACK(right_click), w);
 	gtk_widget_add_controller(w->grid, GTK_EVENT_CONTROLLER(click));
+	{
+		GtkDropTarget *drop = gtk_drop_target_new(GDK_TYPE_FILE_LIST,
+							  GDK_ACTION_COPY | GDK_ACTION_MOVE);
+
+		g_signal_connect(drop, "drop", G_CALLBACK(grid_dropped), w);
+		gtk_widget_add_controller(w->grid, GTK_EVENT_CONTROLLER(drop));
+	}
 	keys = gtk_event_controller_key_new();
 	gtk_event_controller_set_propagation_phase(keys, GTK_PHASE_CAPTURE);
 	g_signal_connect(keys, "key-pressed", G_CALLBACK(key_pressed), w);

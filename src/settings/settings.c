@@ -277,7 +277,7 @@ static GtkWidget *button_new(const char *label, GCallback clicked, gpointer data
 	return b;
 }
 
-/* ---- root's password, for system changes ---- */
+/* ---- the administrator's password, for system changes ---- */
 
 typedef void (*admin_done_fn)(gboolean ok, gpointer data);
 
@@ -378,7 +378,7 @@ static void admin_cancel(GtkWidget *w, gpointer data)
 	admin_free(a);
 }
 
-/* Run a helper; with password, ask for root's password first. */
+/* Run a helper; with password, ask for the administrator's password first. */
 static void admin(const char *what, gboolean password, admin_done_fn done, gpointer data,
 		  const char *first, ...)
 {
@@ -424,7 +424,7 @@ static void admin(const char *what, gboolean password, admin_done_fn done, gpoin
 	gtk_label_set_wrap(GTK_LABEL(label), TRUE);
 	gtk_label_set_max_width_chars(GTK_LABEL(label), 40);
 	gtk_box_append(GTK_BOX(box), label);
-	label = gtk_label_new("Enter the root password to change the system.");
+	label = gtk_label_new("Enter your password to change the system.");
 	gtk_widget_add_css_class(label, "dim-label");
 	gtk_box_append(GTK_BOX(box), label);
 	a->entry = gtk_password_entry_new();
@@ -1201,6 +1201,183 @@ static void build_notifications(void)
 	row_new(group, "Do not disturb", "Only urgent notifications show. Also in the panel's "
 		"quick settings.", switch_new(shell_bool("notifications", "do-not-disturb", FALSE),
 					      G_CALLBACK(shell_switch), (gpointer)dnd_key), NULL);
+}
+
+/* ==== Bluetooth ==== */
+
+/*
+ * Through bluetoothctl (bluetoothd's client): the adapter's power, a search
+ * for devices nearby, and connecting, disconnecting and forgetting them.
+ * Pairing uses the NoInputNoOutput agent ("just works", as headphones,
+ * speakers and most mice pair); devices that show a code to type need
+ * bluetoothctl in a terminal.
+ */
+static GtkWidget *bt_switch, *bt_devices, *bt_status, *bt_search;
+static gboolean bt_filling;
+
+static void bt_fill(void);
+
+static gboolean bt_powered(gboolean *present)
+{
+	char *out = capture((const char *const[]){ "bluetoothctl", "show", NULL });
+	gboolean on = out && strstr(out, "Powered: yes");
+
+	*present = out && strstr(out, "Controller ");
+	g_free(out);
+	return on;
+}
+
+static void bt_done(GObject *source, GAsyncResult *res, gpointer data)
+{
+	char *out = NULL;
+	const char *what = data;
+
+	g_subprocess_communicate_utf8_finish(G_SUBPROCESS(source), res, &out, NULL, NULL);
+	if (out && (strstr(out, "Failed") || strstr(out, "not available") || strstr(out, "Error")))
+		gtk_label_set_text(GTK_LABEL(bt_status), "That did not work: is the device on and close?");
+	else if (what)
+		gtk_label_set_text(GTK_LABEL(bt_status), what);
+	g_free(out);
+	gtk_widget_set_sensitive(bt_search, TRUE);
+	bt_fill();
+}
+
+/* Run bluetoothctl with args; say done_text (static) when it worked. */
+static void bt_run(const char *const *args, const char *busy, const char *done_text)
+{
+	GPtrArray *argv = g_ptr_array_new();
+	GSubprocess *proc;
+
+	g_ptr_array_add(argv, "bluetoothctl");
+	g_ptr_array_add(argv, "--agent");
+	g_ptr_array_add(argv, "NoInputNoOutput");
+	for (int i = 0; args[i]; i++)
+		g_ptr_array_add(argv, (gpointer)args[i]);
+	g_ptr_array_add(argv, NULL);
+	proc = g_subprocess_newv((const char *const *)argv->pdata, G_SUBPROCESS_FLAGS_STDOUT_PIPE |
+				 G_SUBPROCESS_FLAGS_STDERR_MERGE, NULL);
+	g_ptr_array_free(argv, TRUE);
+	if (!proc)
+		return;
+	gtk_label_set_text(GTK_LABEL(bt_status), busy);
+	g_subprocess_communicate_utf8_async(proc, NULL, NULL, bt_done, (gpointer)done_text);
+	g_object_unref(proc);
+}
+
+static void bt_power(GObject *sw, GParamSpec *p, gpointer data)
+{
+	(void)p; (void)data;
+	if (bt_filling)
+		return;
+	bt_run((const char *const[]){ "power", gtk_switch_get_active(GTK_SWITCH(sw)) ? "on" : "off",
+				      NULL }, "Switching...", NULL);
+}
+
+static void bt_search_clicked(GtkButton *b, gpointer data)
+{
+	(void)b; (void)data;
+	gtk_widget_set_sensitive(bt_search, FALSE);
+	bt_run((const char *const[]){ "--timeout", "12", "scan", "on", NULL },
+	       "Looking for devices nearby (12 seconds); make yours discoverable...",
+	       "Done looking. Click Connect on a device to pair with it.");
+}
+
+static void bt_device_action(GtkButton *b, gpointer data)
+{
+	const char *mac = g_object_get_data(G_OBJECT(b), "mac");
+	const char *action = data;
+
+	if (!strcmp(action, "connect")) {
+		/* Pair (if needed), trust (so it reconnects by itself), connect. */
+		char *script = g_strdup_printf("bluetoothctl --agent NoInputNoOutput pair %s; "
+					       "bluetoothctl trust %s; bluetoothctl connect %s", mac, mac, mac);
+		GSubprocess *proc = g_subprocess_new(G_SUBPROCESS_FLAGS_STDOUT_PIPE |
+						     G_SUBPROCESS_FLAGS_STDERR_MERGE, NULL,
+						     "sh", "-c", script, NULL);
+
+		g_free(script);
+		if (proc) {
+			gtk_label_set_text(GTK_LABEL(bt_status), "Connecting...");
+			g_subprocess_communicate_utf8_async(proc, NULL, NULL, bt_done, "Connected.");
+			g_object_unref(proc);
+		}
+	} else if (!strcmp(action, "disconnect")) {
+		bt_run((const char *const[]){ "disconnect", mac, NULL }, "Disconnecting...", "Disconnected.");
+	} else {
+		bt_run((const char *const[]){ "remove", mac, NULL }, "Forgetting...", "Forgotten.");
+	}
+}
+
+/* "Device AA:BB:CC:DD:EE:FF Name" lines; Paired/Connected from filters. */
+static void bt_fill(void)
+{
+	char *all = capture((const char *const[]){ "bluetoothctl", "devices", NULL });
+	char *paired = capture((const char *const[]){ "bluetoothctl", "devices", "Paired", NULL });
+	char *conn = capture((const char *const[]){ "bluetoothctl", "devices", "Connected", NULL });
+	GtkWidget *child;
+	gboolean present, on = bt_powered(&present);
+	int n = 0;
+
+	bt_filling = TRUE;
+	gtk_switch_set_active(GTK_SWITCH(bt_switch), on);
+	gtk_widget_set_sensitive(bt_switch, present);
+	gtk_widget_set_sensitive(bt_search, present && on);
+	bt_filling = FALSE;
+	while ((child = gtk_widget_get_first_child(bt_devices)))
+		gtk_list_box_remove(GTK_LIST_BOX(bt_devices), child);
+	for (char **lines = g_strsplit(all ? all : "", "\n", -1), **l = lines; *l || (g_strfreev(lines), 0); l++) {
+		char mac[18];
+		const char *name;
+		gboolean is_paired, is_conn;
+		GtkWidget *box, *b;
+
+		if (sscanf(*l, "Device %17s", mac) != 1 || strlen(*l) < 24)
+			continue;
+		name = strlen(*l) > 25 ? *l + 25 : "";
+		is_paired = paired && strstr(paired, mac);
+		is_conn = conn && strstr(conn, mac);
+		box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+		b = gtk_button_new_with_label(is_conn ? "Disconnect" : "Connect");
+		g_object_set_data_full(G_OBJECT(b), "mac", g_strdup(mac), g_free);
+		g_signal_connect(b, "clicked", G_CALLBACK(bt_device_action),
+				 is_conn ? "disconnect" : "connect");
+		gtk_box_append(GTK_BOX(box), b);
+		if (is_paired) {
+			b = gtk_button_new_with_label("Forget");
+			g_object_set_data_full(G_OBJECT(b), "mac", g_strdup(mac), g_free);
+			g_signal_connect(b, "clicked", G_CALLBACK(bt_device_action), "remove");
+			gtk_box_append(GTK_BOX(box), b);
+		}
+		row_new(bt_devices, *name ? name : mac, is_conn ? "Connected" : is_paired ? "Paired" : mac,
+			box, NULL);
+		n++;
+	}
+	if (!n)
+		row_new(bt_devices, present ? (on ? "No devices yet: search for them" :
+					       "Switch Bluetooth on to use devices") :
+			"No Bluetooth adapter", NULL, NULL, NULL);
+	g_free(all);
+	g_free(paired);
+	g_free(conn);
+}
+
+static void build_bluetooth(void)
+{
+	GtkWidget *page = page_new("bluetooth", "Bluetooth", "bluetooth-active-symbolic", NULL);
+	GtkWidget *group = group_new(page, NULL, "Bluetooth starts switched off at every start.");
+
+	bt_switch = switch_new(FALSE, G_CALLBACK(bt_power), NULL);
+	row_new(group, "Bluetooth", "Headphones, speakers, keyboards, mice", bt_switch, NULL);
+	bt_search = button_new("Search for devices", G_CALLBACK(bt_search_clicked), NULL);
+	bt_devices = group_new(page, "Devices", NULL);
+	bt_status = gtk_label_new("");
+	gtk_label_set_wrap(GTK_LABEL(bt_status), TRUE);
+	gtk_label_set_xalign(GTK_LABEL(bt_status), 0);
+	gtk_widget_add_css_class(bt_status, "dim-label");
+	gtk_widget_set_halign(bt_search, GTK_ALIGN_START);
+	gtk_box_append(GTK_BOX(page), bt_search);
+	gtk_box_append(GTK_BOX(page), bt_status);
+	bt_fill();
 }
 
 /* ==== Date and time ==== */
@@ -2031,6 +2208,7 @@ static void build(GtkApplication *app)
 	build_mouse();
 	build_sound();
 	build_notifications();
+	build_bluetooth();
 	build_time();
 	build_privacy();
 	/* Real hardware has nothing to show there. */

@@ -85,7 +85,8 @@ msg "Creating the boot loaders and the EFI system partition"
 grub-mkimage -O x86_64-efi -p /EFI/BOOT -o "$TMP/BOOTX64.EFI" \
 	part_gpt fat btrfs zstd normal linux search search_fs_uuid \
 	configfile echo test ls cat sleep reboot halt \
-	serial terminal all_video efi_gop font gfxterm
+	serial terminal all_video efi_gop font gfxterm \
+	cryptodisk luks2 gcry_rijndael gcry_sha256 gcry_sha512 pbkdf2
 
 # GRUB for BIOS finds the ESP by its volume ID and reads the same grub.cfg.
 cat > "$TMP/bios.cfg" <<EOF
@@ -96,7 +97,8 @@ EOF
 grub-mkimage -O i386-pc -c "$TMP/bios.cfg" -p /EFI/BOOT -o "$TMP/core.img" \
 	biosdisk part_gpt fat btrfs zstd normal linux search search_fs_uuid \
 	configfile echo test ls cat sleep reboot halt \
-	serial terminal all_video vbe vga font gfxterm
+	serial terminal all_video vbe vga font gfxterm \
+	cryptodisk luks2 gcry_rijndael gcry_sha256 gcry_sha512 pbkdf2
 
 cat > "$TMP/grub.cfg" <<EOF
 serial --unit=0 --speed=115200
@@ -106,7 +108,13 @@ terminal_output console serial
 set timeout=3
 set default=0
 
-search --no-floppy --fs-uuid --set=root $FS_UUID
+# An encrypted install (the installer's LUKS2 with PBKDF2, which GRUB can
+# open): the system's filesystem appears once the disk is unlocked.
+if ! search --no-floppy --fs-uuid --set=root $FS_UUID; then
+	echo "WormOS: the disk is encrypted."
+	cryptomount -a
+	search --no-floppy --fs-uuid --set=root $FS_UUID
+fi
 set wormos_cmdline="$KERNEL_CMDLINE"
 export wormos_cmdline
 

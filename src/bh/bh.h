@@ -37,6 +37,7 @@ struct opts {
 	int net;                /* network through pasta */
 	int lan;                /* ... including the local network */
 	int vm;                 /* a virtual machine with its own kernel */
+	int gui;                /* windows on the desktop, sandboxed (bh-wayland) */
 	char from[NAME_MAX_BH + 1]; /* a wormhole's /usr and /etc instead of the host's */
 	unsigned long long memory;  /* bytes; 0 for the default */
 	unsigned pids;          /* 0 for the default */

@@ -7,6 +7,9 @@
  * "worm-shell --do-not-disturb on|off|toggle" quiets notifications.
  */
 
+#include <stdio.h>
+#include <string.h>
+
 #include "shell.h"
 
 static void load_css(void)
@@ -71,12 +74,26 @@ int main(int argc, char **argv)
 		{ "do-not-disturb", 0, 0, G_OPTION_ARG_STRING, NULL,
 		  "Show only urgent notifications", "on|off|toggle" },
 		{ "quit", 0, 0, G_OPTION_ARG_NONE, NULL, "Stop the running shell", NULL },
+		{ "battery", 0, 0, G_OPTION_ARG_NONE, NULL, "Show the battery's charge and exit", NULL },
 		{ NULL, 0, 0, 0, NULL, NULL, NULL },
 	};
 	GtkApplication *app = gtk_application_new(SHELL_APP_ID,
 						  G_APPLICATION_HANDLES_COMMAND_LINE);
 	int status;
 
+	/* --battery: what the panel would show, without a running shell. */
+	if (argc == 2 && !strcmp(argv[1], "--battery")) {
+		struct status s;
+
+		status_battery(&s);
+		if (s.battery < 0)
+			puts("No battery");
+		else
+			printf("Battery: %d%%%s\n", s.battery, s.full ? ", full" :
+			       s.charging ? ", charging" : "");
+		g_object_unref(app);
+		return 0;
+	}
 	g_application_add_main_option_entries(G_APPLICATION(app), entries);
 	g_signal_connect(app, "startup", G_CALLBACK(startup), NULL);
 	g_signal_connect(app, "command-line", G_CALLBACK(command_line), NULL);

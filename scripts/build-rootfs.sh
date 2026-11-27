@@ -32,7 +32,7 @@ fi
 VARIANT=${WORMOS_VARIANT:-standard}
 SYSTEM=(base-files glibc gcc-libs busybox worminit wormrd snap wh worm linux
 	zstd curl gnupg wormhole-keyrings libmnl libnftnl nftables bh expat unbound
-	kmod eudev seatd linux-firmware dbus wormos-login licenses tzdata
+	kmod eudev seatd linux-firmware dbus wormos-login licenses tzdata cryptsetup
 	wormos-desktop labwc wlroots mesa foot swaybg grim wlr-randr xcompose font-inter font-hack
 	nano)
 # The standard edition's programs come with wormos-standard, which

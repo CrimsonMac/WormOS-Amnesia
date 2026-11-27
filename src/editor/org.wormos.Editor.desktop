@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Text Editor
+GenericName=Text editor
+Comment=Write and change text files
+Exec=wormos-editor %F
+Icon=accessories-text-editor
+Categories=Utility;TextEditor;
+Keywords=text;editor;notes;txt;write;config;
+MimeType=text/plain;text/markdown;text/x-log;text/csv;text/x-csrc;text/x-chdr;text/x-c++src;text/x-python;text/x-shellscript;application/x-shellscript;text/x-makefile;application/json;application/xml;text/xml;application/toml;application/x-yaml;text/x-ini;
+StartupNotify=true

@@ -1484,6 +1484,124 @@ in [building.md](building.md); what each feature does for the user, in the
   default action (watched with `gdbus monitor` for an hour) runs
   `wormos-software --updates`. Skipped on live systems (`/etc/wh/live`,
   `/run/wormos/live`) and with `~/.config/wormos/no-update-notice`.
+- `bh open --gui` (`opts.gui`): bh starts `/usr/lib/bh/wayland`
+  (package bh-wayland, `src/bh-wayland`, built after Wayland) with
+  `DIR/wayland-0` and the blackhole's name; it creates a listening socket
+  there (mode 0666: root of the blackhole is another user outside; the
+  directory keeps others out) and hands it to the compositor with
+  `wp_security_context_manager_v1.create_listener` (engine
+  `org.wormos.bh`, app ID the name, instance ID bh's PID), prints "ready"
+  and holds the close fd until its standard input closes (bh's end, when
+  the first session exits). box_init binds the socket at `/run/wayland-0`;
+  programs get `WAYLAND_DISPLAY=/run/wayland-0`, `XDG_RUNTIME_DIR=/run/user`
+  and toolkit settings for Wayland without a GPU or session bus
+  (`GSK_RENDERER=cairo`, `GSETTINGS_BACKEND=memory`). labwc offers
+  sandboxed clients only its allow-list of plain protocols; rc.xml forces
+  server-side decorations for `sandboxEngine="org.wormos.bh"`.
+- Files: thumbnails of pictures (up to 40 MB) are loaded in a GTask thread
+  with `gdk_pixbuf_new_from_file_at_scale` (112 px, EXIF orientation
+  applied), turned into a GdkMemoryTexture in the main thread and cached
+  by path and modification time for the program's life. Each item is a
+  GtkDragSource (a GdkFileList of the selection); the grid and each place
+  in the sidebar are GtkDropTargets; a drop moves when the drag allows
+  moving, else copies, through the same cp/mv queue as paste.
+- `wormos-viewer` (`src/viewer`): GdkTexture (downloaded once into a cairo
+  ARGB32 surface) or `poppler_document_new_from_gfile` +
+  `poppler_page_render` into a GtkDrawingArea; never acts on links, forms
+  or JavaScript. Poppler (`recipes/poppler`) is built with only the core,
+  cairo and the GLib interface (no utilities, Qt, curl, NSS, GPGME,
+  OpenJPEG, LCMS). `wormos-editor` (`src/editor`): GtkTextView with undo,
+  GtkSearchBar find, `g_file_replace_contents` (temporary file, rename).
+  wormos-desktop ships `/etc/xdg/mimeapps.list` with them as defaults.
+- Wi-Fi: iwd 3.12 (`recipes/iwd`, ell bundled) as the `41-wifi` service
+  (`/usr/lib/worm/wifi`: after the bus, only with the firewall loaded and
+  the network not cut). `/etc/iwd/main.conf`: its own DHCP
+  (`EnableNetworkConfiguration`), `AddressRandomization=once` with the full
+  range (net-privacy leaves Wi-Fi devices to it), `NameResolvingService=none`
+  (unbound stays the resolver). Kernel: cfg80211/mac80211, iwlwifi
+  (dvm, mvm, mld) and mac80211_hwsim as modules, the regulatory database
+  checked against the kernel's built-in keys (`wireless-regdb`), AF_ALG
+  and key types for iwd. `linux-firmware-wireless` ships the newest API
+  version of each iwlwifi firmware (at the top of the firmware folder, as
+  the driver looks for them) and Intel's Bluetooth firmware, zstd. The
+  panel (`src/shell/wifi.c`) uses iwd's D-Bus interface (wheel may):
+  the first Station, `GetOrderedNetworks`, `Network.Connect`, and an agent
+  (`RegisterAgent`) that answers `RequestPassphrase` with the passphrase
+  typed for that network, once. The boot test runs an iwd access point on
+  one hwsim radio and connects the other.
+- Bluetooth: BlueZ 5.88 (`recipes/bluez`: no OBEX, CUPS, mesh, MIDI or udev
+  tools; library and headers for PipeWire) as `42-bluetooth`;
+  `/etc/bluetooth/main.conf` has `AutoEnable=false`; a D-Bus policy lets
+  wheel use it. PipeWire is built with its bluez5 plugin (SBC, native
+  HSP/HFP backends; `recipes/sbc`). Settings > Bluetooth drives
+  `bluetoothctl` (power, a 12-second scan, pair + trust + connect with the
+  NoInputNoOutput agent, disconnect, remove).
+- Panel: the sound menu lists `wpctl status`'s audio sinks and sources as
+  radio buttons (`wpctl set-default`) each time it opens. The battery
+  (`status_battery`): every `/sys/class/power_supply/*` with type Battery
+  and a scope other than Device, averaged; hidden without one; a critical
+  notification once at 10% while discharging. `worm-shell --battery`
+  prints what it reads (`WORM_SHELL_POWER_SUPPLY` points it at another
+  folder, for tests).
+- Files' *Open in a blackhole*: the default application for the file's
+  content type (GIO), the program from its Exec (after `env VAR=value`);
+  a wh wrapper in `/usr/local/bin` names its wormhole ("Exported by wh
+  from the debian wormhole"), which becomes `--from`. It runs
+  `bh put NAME FILE`, `bh open --gui [--from SOURCE] NAME -- PROGRAM
+  /inbox/BASENAME`, then `bh close NAME` (NAME `fileN-M`).
+- Administrators confirm with their own password: `admin_password_ok()`
+  (admin.c) checks the caller's (root's own for root) and replaces the root
+  password in the settings, snapshots, install and software helpers.
+  `/usr/lib/worm/elevate` (setuid, wheel only, refused with
+  `/etc/worm/no-root`) asks for it on `/dev/tty` without echo (three tries;
+  root needs none), logs to authpriv, and runs only
+  `/usr/lib/worm/root-shell ARGS` as root in a login-like environment; the
+  root terminal and `sudo` use it instead of `su -`.
+- Releases: `scripts/release.sh` signs `SHA256SUMS` with wsign (the index
+  key) as `SHA256SUMS.sig`; `scripts/verify-release.sh` checks it with
+  `openssl pkeyutl -verify -rawin` against `keys/core.pem` (the same key in
+  PEM) and the files with `sha256sum -c`; release-tests.yml uses it.
+- Encrypted installs (`install-system install DISK --encrypt`, passphrase
+  on standard input; the installer's *Encrypt the disk*): partition 2 is
+  LUKS2 (`--pbkdf pbkdf2 --sector-size 512`, which GRUB's luks2 module
+  opens) with a second key slot holding 64 random bytes (a memfd, given
+  to cryptsetup as `/proc/self/fd/N`); the system image is written into
+  `/dev/mapper/wormos-install` and grown, the key stored as
+  `/@/etc/worm/luks.key` (0400) and the target's initramfs rebuilt with
+  it. The disk image's GRUB (both loaders) carries cryptodisk, luks2,
+  pbkdf2 and the ciphers; grub.cfg runs `cryptomount -a` when the system's
+  filesystem UUID is not found. wormrd, not finding root= on a plain
+  device after 0.5 s, opens the first LUKS device as
+  `/dev/mapper/wormos-root` with `/crypto_keyfile`, or lets cryptsetup ask
+  on the console. Kernel: dm-crypt, XTS and AES-NI built in. cryptsetup
+  2.8.9 (OpenSSL, internal Argon2, no blkid/udev), device-mapper from LVM2
+  (no udev: the library makes the nodes), json-c, popt; libuuid from
+  e2fsprogs. `tests/iso-test.py --encrypt` types the passphrase at GRUB.
+- The initramfs is built by `/usr/lib/wormrd/mkinitramfs ROOT` (wormrd's
+  package: newc cpio written directly, zstd through libzstd, libraries
+  found from DT_NEEDED in ROOT, `etc/worm/luks.key` as `/crypto_keyfile`,
+  mode 0600), both at image build (`scripts/build-initramfs.sh` runs it
+  through the root's loader) and on installed systems as the wh hook
+  `initramfs.hook` (paths: wormrd, busybox, snap, zstd, cryptsetup,
+  usr/lib, the key), so upgrades of anything in it rebuild it in the
+  staged root.
+- Pure additions (`live_apply()` in wh.c): when a staged change only
+  installed new packages (`install_plan` records them; any upgrade or
+  removal, a kernel change or `--try` rules it out), none of their files
+  exists in the running system, and the account files are unchanged, wh
+  bind-remounts `/` writable, copies their files (owner, mode, file
+  capabilities) and database records from the staged root, runs the
+  hooks on `/` for those paths, and remounts read-only. The staged system
+  is committed as usual (snapshot, history) and becomes `@` at the next
+  restart; no restart is asked for, also with `--later`.
+- Wormholes in snapshots: `store_create` snapshots each subvolume in
+  `@wormholes` (read-only) into `@snapshots/ID/wormholes/` with every
+  system snapshot (no manifest); `boot_rewind` of the system scope moves
+  the current ones aside, restores the snapshot's writable and deletes the
+  old ones (`wormholes_restore`; snapshots without the folder leave the
+  wormholes as they are); deleting a snapshot deletes them. wh takes a
+  snapshot (`snap now --auto`) before the first wormhole install or
+  removal of a command and records it in the history for `wh undo`.
 - Every setuid helper, `worm` and `snap` start with `umask(022)`: a
   helper hands the caller's umask on to what it runs as root, so a user
   with `umask 000` would otherwise get root's files (Tor's bridges file,

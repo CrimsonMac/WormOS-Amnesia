@@ -19,6 +19,7 @@
 #define CSS      "/usr/share/wormos/installer/installer.css"
 
 static GtkWidget *window, *stack, *disk_list, *install_button, *list_note;
+static GtkWidget *encrypt_check, *pass1, *pass2, *pass_box, *pass_note;
 static GtkWidget *progress_bar, *step_label, *error_label, *done_button;
 static char chosen[96], chosen_desc[256];
 static GString *errors;
@@ -209,8 +210,27 @@ static void start_install(void)
 	gtk_widget_set_visible(error_label, FALSE);
 	gtk_widget_set_visible(done_button, FALSE);
 	g_string_truncate(errors, 0);
-	proc = g_subprocess_new(G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
-				&err, HELPER, "install", chosen, NULL);
+	if (gtk_check_button_get_active(GTK_CHECK_BUTTON(encrypt_check))) {
+		/* The passphrase goes to the helper's input, never its arguments. */
+		char *line = g_strconcat(gtk_editable_get_text(GTK_EDITABLE(pass1)), "\n", NULL);
+		GOutputStream *in;
+
+		proc = g_subprocess_new(G_SUBPROCESS_FLAGS_STDIN_PIPE | G_SUBPROCESS_FLAGS_STDOUT_PIPE |
+					G_SUBPROCESS_FLAGS_STDERR_PIPE, &err, HELPER, "install", chosen,
+					"--encrypt", NULL);
+		if (proc) {
+			in = g_subprocess_get_stdin_pipe(proc);
+			g_output_stream_write_all(in, line, strlen(line), NULL, NULL, NULL);
+			g_output_stream_close(in, NULL, NULL);
+		}
+		explicit_bzero(line, strlen(line));
+		g_free(line);
+		gtk_editable_set_text(GTK_EDITABLE(pass1), "");
+		gtk_editable_set_text(GTK_EDITABLE(pass2), "");
+	} else {
+		proc = g_subprocess_new(G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
+					&err, HELPER, "install", chosen, NULL);
+	}
 	if (!proc) {
 		show_error(err->message);
 		g_error_free(err);
@@ -239,6 +259,20 @@ static void install_clicked(GtkButton *b, gpointer data)
 
 	(void)b;
 	(void)data;
+	if (gtk_check_button_get_active(GTK_CHECK_BUTTON(encrypt_check))) {
+		const char *a = gtk_editable_get_text(GTK_EDITABLE(pass1));
+		const char *c = gtk_editable_get_text(GTK_EDITABLE(pass2));
+
+		if (strlen(a) < 8) {
+			gtk_label_set_text(GTK_LABEL(pass_note), "The passphrase needs at least 8 characters.");
+			return;
+		}
+		if (strcmp(a, c)) {
+			gtk_label_set_text(GTK_LABEL(pass_note), "The two passphrases are not the same.");
+			return;
+		}
+		gtk_label_set_text(GTK_LABEL(pass_note), "");
+	}
 	dialog = gtk_alert_dialog_new("Erase this disk?");
 	gtk_alert_dialog_set_detail(dialog, detail);
 	gtk_alert_dialog_set_buttons(dialog, buttons);
@@ -271,6 +305,17 @@ static void refresh_clicked(GtkButton *b, gpointer data)
 	fill_disks();
 }
 
+static void encrypt_toggled(GtkCheckButton *b, gpointer data)
+{
+	gboolean on = gtk_check_button_get_active(b);
+
+	(void)data;
+	gtk_widget_set_visible(pass_box, on);
+	gtk_label_set_text(GTK_LABEL(pass_note), on ?
+			   "Everything on the disk is encrypted. Without the passphrase nobody can "
+			   "read it, and nobody can recover it for you: keep it safe." : "");
+}
+
 /* ---- the window ---- */
 
 static GtkWidget *choose_page(void)
@@ -291,6 +336,25 @@ static GtkWidget *choose_page(void)
 	gtk_box_append(GTK_BOX(box), scroll);
 	list_note = label("", "dim-label");
 	gtk_box_append(GTK_BOX(box), list_note);
+
+	/* Encryption: the whole system and home folders, opened at boot. */
+	encrypt_check = gtk_check_button_new_with_label("Encrypt the disk (asks for a passphrase at every start)");
+	g_signal_connect(encrypt_check, "toggled", G_CALLBACK(encrypt_toggled), NULL);
+	gtk_box_append(GTK_BOX(box), encrypt_check);
+	pass_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+	pass1 = gtk_password_entry_new();
+	pass2 = gtk_password_entry_new();
+	gtk_password_entry_set_show_peek_icon(GTK_PASSWORD_ENTRY(pass1), TRUE);
+	g_object_set(pass1, "placeholder-text", "Passphrase", NULL);
+	g_object_set(pass2, "placeholder-text", "The same again", NULL);
+	gtk_widget_set_hexpand(pass1, TRUE);
+	gtk_widget_set_hexpand(pass2, TRUE);
+	gtk_box_append(GTK_BOX(pass_box), pass1);
+	gtk_box_append(GTK_BOX(pass_box), pass2);
+	gtk_widget_set_visible(pass_box, FALSE);
+	gtk_box_append(GTK_BOX(box), pass_box);
+	pass_note = label("", "dim-label");
+	gtk_box_append(GTK_BOX(box), pass_note);
 
 	buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
 	gtk_widget_set_halign(buttons, GTK_ALIGN_END);

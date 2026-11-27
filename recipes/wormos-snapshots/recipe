@@ -1,5 +1,6 @@
 name=wormos-snapshots
 version=0.1.0
+release=2
 description="Snapshots: the timeline of system and home snapshots"
 depends=(glibc gtk4 worm snap hicolor-icon-theme)
 localsrc=src/snapshots

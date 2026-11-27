@@ -1,0 +1,15 @@
+#!/bin/sh
+# The Wi-Fi service: iwd, started only when the firewall is loaded (as the
+# wired network is) and while the network is not cut (worm panic, safe
+# mode). It idles where there is no Wi-Fi adapter, so a USB one plugged in
+# later works.
+if [ -e /run/worm/network-cut ]; then
+	sleep 30
+	exit 1
+fi
+if ! nft list chain inet worm input > /dev/null 2>&1; then
+	echo "wifi: the firewall is not active; not starting Wi-Fi" >&2
+	sleep 10
+	exit 1
+fi
+exec /usr/lib/iwd/iwd

@@ -1,0 +1,14 @@
+name=bh-wayland
+version=0.1.0
+description="Sandboxed windows for blackholes (bh open --gui)"
+depends=(glibc wayland bh)
+localsrc=src/bh-wayland
+
+build() {
+	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" \
+		WAYLAND_SCANNER="$NATIVE/bin/wayland-scanner"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}

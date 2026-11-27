@@ -1,5 +1,5 @@
 #!/bin/sh
-# Root's side of the root terminal, run by su: the desktop's display and a
+# Root's side of the root terminal, run by elevate: the desktop's display and a
 # runtime folder of root's own (nothing it writes lands in the user's),
 # then root's login shell. A command given runs first, in FOLDER when
 # given; the shell stays, unless ONCE is set (then the command's status

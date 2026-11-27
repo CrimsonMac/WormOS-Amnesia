@@ -1,0 +1,16 @@
+name=sbc
+version=2.2
+description="SBC audio codec (Bluetooth headphones and speakers)"
+depends=(glibc)
+source=(https://mirrors.edge.kernel.org/pub/linux/bluetooth/sbc-$version.tar.xz)
+sha256=(a1ada76ef35e5af9c2fbd063754dc9e37a8d989417c6eb1ecebb089b1383ae9e)
+
+build() {
+	./configure --host="$TARGET" --prefix=/usr --disable-static --disable-tester --disable-tools
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	rm -f "$pkgdir"/usr/lib/*.la
+}

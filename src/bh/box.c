@@ -260,6 +260,22 @@ static void run_program(const struct box *b, const struct opts *o,
 	setenv("TERM", req->term[0] ? req->term : "linux", 1);
 	setenv("PS1", ps1, 1);
 	setenv("BLACKHOLE", b->name, 1);
+	if (o->gui) {
+		/* Windows go to the sandboxed display; no GPU, no session bus. */
+		mkdir("/run/user", 0700);
+		setenv("XDG_RUNTIME_DIR", "/run/user", 1);
+		setenv("WAYLAND_DISPLAY", "/run/wayland-0", 1);
+		setenv("GDK_BACKEND", "wayland", 1);
+		setenv("QT_QPA_PLATFORM", "wayland", 1);
+		setenv("MOZ_ENABLE_WAYLAND", "1", 1);
+		setenv("GSK_RENDERER", "cairo", 1);
+		setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
+		setenv("GTK_A11Y", "none", 1);
+		setenv("NO_AT_BRIDGE", "1", 1);
+		setenv("GSETTINGS_BACKEND", "memory", 1);
+		setenv("XCURSOR_THEME", "Adwaita", 1);
+		setenv("XCURSOR_SIZE", "24", 1);
+	}
 	if (o->vm) {
 		/* The monitor keeps its files in $HOME/.lkvm: the jail's tmpfs. */
 		setenv("HOME", "/tmp", 1);
@@ -506,6 +522,14 @@ box_init(const struct box *b, const struct opts *o, int owner, int listener)
 	if (ns_bind(root, usr, "/usr", MS_RDONLY) < 0 || ns_bind(root, etc, "/etc", MS_RDONLY) < 0)
 		fail("mount the system");
 	write_resolv(root, o->net);
+	if (o->gui) {
+		char display[300];
+
+		/* The sandboxed display bh-wayland made (bh open --gui). */
+		snprintf(display, sizeof(display), "%s/wayland-0", b->dir);
+		if (ns_bind(root, display, "/run/wayland-0", 0) < 0)
+			fail("mount the display");
+	}
 	if (ns_bind(root, inbox, "/inbox", 0) < 0)
 		fail("mount the inbox");
 	if (o->vm) {

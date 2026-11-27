@@ -1,0 +1,29 @@
+name=poppler
+version=26.11.0
+description="PDF rendering library (the GLib interface, for the Document viewer)"
+depends=(glibc gcc-libs freetype fontconfig cairo glib libjpeg-turbo libpng zlib)
+source=(https://poppler.freedesktop.org/poppler-$version.tar.xz)
+sha256=(41c32680160addf5a8dd7a830e4869c01e9f6bee1abb91e44fabd1ba9d7828fb)
+
+build() {
+	# Only what the viewer needs: the core with cairo output and the GLib
+	# interface. No command line tools, Qt, C++ wrapper, network (curl),
+	# signature backends (NSS, GPGME), JPEG 2000 or colour management.
+	cmake -S . -B build -G Ninja -DCMAKE_SYSTEM_NAME=Linux \
+		-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
+		-DCMAKE_FIND_ROOT_PATH="$SYSROOT" -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+		-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib \
+		-DENABLE_UTILS=OFF -DENABLE_CPP=OFF -DENABLE_GLIB=ON -DENABLE_QT5=OFF -DENABLE_QT6=OFF \
+		-DENABLE_GOBJECT_INTROSPECTION=OFF -DENABLE_GTK_DOC=OFF -DENABLE_BOOST=OFF \
+		-DENABLE_BROTLI=OFF -DENABLE_LIBOPENJPEG=OFF -DENABLE_LCMS=OFF -DENABLE_LIBCURL=OFF \
+		-DENABLE_LIBTIFF=OFF -DENABLE_NSS3=OFF -DENABLE_GPGME=OFF -DENABLE_HARFBUZZ=OFF \
+		-DBUILD_GTK_TESTS=OFF -DBUILD_QT5_TESTS=OFF -DBUILD_QT6_TESTS=OFF -DBUILD_CPP_TESTS=OFF \
+		-DBUILD_MANUAL_TESTS=OFF -DRUN_GPERF_IF_PRESENT=OFF -DTESTDATADIR=/nonexistent
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+	rm -rf "$pkgdir/usr/lib/cmake" "$pkgdir/usr/share"
+}

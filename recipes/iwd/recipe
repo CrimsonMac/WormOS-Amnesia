@@ -1,0 +1,24 @@
+name=iwd
+version=3.12
+description="Wi-Fi daemon (iwd) and its command line client iwctl"
+depends=(glibc readline wireless-regdb dbus)
+source=(https://mirrors.edge.kernel.org/pub/linux/network/wireless/iwd-$version.tar.xz)
+sha256=(d89a5e45c7180170e19be828f9e944a768c593758094fc57a358d0e7c4cb1a49)
+
+build() {
+	# The ell library comes with iwd's release archive.
+	./configure --host="$TARGET" --prefix=/usr --sysconfdir=/etc --localstatedir=/var \
+		--libexecdir=/usr/lib/iwd --disable-systemd-service --disable-manual-pages \
+		--disable-monitor --with-dbus-datadir=/usr/share --with-dbus-busdir=/usr/share/dbus-1/system-services
+	make
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+	# Nothing starts iwd on demand: the 41-wifi service runs it.
+	rm -rf "$pkgdir/usr/share/dbus-1/system-services"
+	install -Dm644 "$recipedir/files/main.conf" "$pkgdir/etc/iwd/main.conf"
+	install -Dm644 "$recipedir/files/41-wifi" "$pkgdir/etc/worm/services/41-wifi"
+	install -Dm755 "$recipedir/files/wifi" "$pkgdir/usr/lib/worm/wifi"
+	install -dm700 "$pkgdir/var/lib/iwd"
+}

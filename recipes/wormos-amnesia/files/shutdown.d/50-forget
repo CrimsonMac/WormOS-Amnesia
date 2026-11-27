@@ -7,7 +7,7 @@
 
 # The session's files: homes, temporary files, Tor's state, logs.
 for dir in /home /tmp /var/tmp /var/lib/tor /var/log /var/cache /root /var/roothome \
-	/var/lib/blackholes /var/lib/wormholes; do
+	/var/lib/blackholes /var/lib/wormholes /var/lib/iwd /var/lib/bluetooth; do
 	[ -d "$dir" ] && find "$dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null
 done
 rm -rf /run/user /run/wormlogin /run/tor 2>/dev/null

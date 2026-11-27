@@ -15,11 +15,13 @@
 #define SUBVOL_HOME      "@home"
 #define SUBVOL_STORE     "@snapshots"
 #define SUBVOL_NEXT      "@.next"         /* staged system change */
+#define SUBVOL_WORMHOLES "@wormholes"     /* one subvolume per wormhole inside */
 
 /* Inside each snapshot directory @snapshots/<id>/. */
 #define SNAP_SYSTEM      "system"
 #define SNAP_HOME        "home"
 #define SNAP_INFO        "info"
+#define SNAP_WORMHOLES   "wormholes"      /* the wormholes, with system snapshots */
 
 /* Files at the top of the store. */
 #define STORE_LOCK       ".lock"
@@ -83,6 +85,10 @@ int store_create(int scope, const char *type, const char *comment);
 int store_delete(int id);
 void store_cleanup(void);
 void subvol_delete_old(const char *subvol);
+/* Wormholes (each a subvolume in @wormholes) alongside system snapshots. */
+int wormholes_snapshot(const char *dir);
+void wormholes_delete(const char *dir);
+int wormholes_restore(int id);
 int store_write_info(const struct snapshot *s);
 int store_mark_suspect(int id);
 void store_entry_path(char *out, size_t len, int id, int scope);

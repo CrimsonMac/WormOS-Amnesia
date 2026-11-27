@@ -5,7 +5,7 @@
  * snap does from the command line: take a snapshot, comment, pin, show
  * what changed, bring back a file, rewind and delete. Everything goes
  * through /usr/lib/worm/snapshots (setuid root, for the group wheel),
- * which asks for root's password before anything that removes protection
+ * which asks for your password (an administrator's) before anything that removes protection
  * or changes the system; this program only passes the password on.
  */
 
@@ -207,7 +207,7 @@ static void ask_cancelled(GtkButton *button, gpointer data)
 }
 
 /*
- * Ask for root's password, then run args. With scope_arg >= 0 the dialog
+ * Ask for the administrator's password, then run args. With scope_arg >= 0 the dialog
  * also offers the scope (for rewinding a snapshot that holds both).
  */
 static void ask_password(const char *title, const char *text, const char *button_text,
@@ -249,7 +249,7 @@ static void ask_password(const char *title, const char *text, const char *button
 
 	a->entry = gtk_password_entry_new();
 	gtk_password_entry_set_show_peek_icon(GTK_PASSWORD_ENTRY(a->entry), TRUE);
-	g_object_set(a->entry, "placeholder-text", "Root password", "activates-default", TRUE,
+	g_object_set(a->entry, "placeholder-text", "Your password", "activates-default", TRUE,
 		     NULL);
 	g_signal_connect(a->entry, "activate", G_CALLBACK(ask_confirmed), a);
 	gtk_box_append(GTK_BOX(box), a->entry);
@@ -479,8 +479,8 @@ static void pin_clicked(GtkButton *button, gpointer data)
 		char *msg = g_strdup_printf("Unpinned snapshot %d.", selected->id);
 
 		ask_password("Unpin this snapshot?",
-			     "Unpinned snapshots can be pruned. Removing protection needs the "
-			     "root password.", "Unpin", FALSE,
+			     "Unpinned snapshots can be pruned. Removing protection needs your "
+			     "password.", "Unpin", FALSE,
 			     g_strdupv((char *[]){ "unpin", id, NULL }), -1, msg);
 		g_free(msg);
 	}

@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,6 +80,12 @@ static void read_network(struct status *s)
 		    !device_online(i->ifa_name))
 			continue;
 		s->online = TRUE;
+		{
+			char path[300];
+
+			snprintf(path, sizeof(path), "/sys/class/net/%s/wireless", i->ifa_name);
+			s->wireless = s->wireless || access(path, F_OK) == 0;
+		}
 		if (i->ifa_addr && i->ifa_addr->sa_family == AF_INET && !s->address[0])
 			inet_ntop(AF_INET, &((struct sockaddr_in *)i->ifa_addr)->sin_addr,
 				  s->address, sizeof(s->address));
@@ -105,6 +112,61 @@ static int read_tor_percent(void)
 	return percent < 0 ? 0 : percent;
 }
 
+/*
+ * Batteries (laptops; never in a VM unless it emulates one): the average
+ * charge of every system battery in /sys/class/power_supply (another
+ * folder with WORM_SHELL_POWER_SUPPLY, for tests), -1 without one.
+ */
+static char *read_line(const char *dir, const char *name, char *buf, size_t len)
+{
+	char path[PATH_MAX];
+	FILE *f;
+
+	buf[0] = '\0';
+	snprintf(path, sizeof(path), "%s/%s", dir, name);
+	if ((f = fopen(path, "re"))) {
+		if (fgets(buf, (int)len, f))
+			buf[strcspn(buf, "\n")] = '\0';
+		fclose(f);
+	}
+	return buf;
+}
+
+void status_battery(struct status *s)
+{
+	const char *root = getenv("WORM_SHELL_POWER_SUPPLY");
+	GDir *d = g_dir_open(root && *root ? root : "/sys/class/power_supply", 0, NULL);
+	const char *name;
+	int total = 0, count = 0, charging = 0, full = 0;
+
+	s->battery = -1;
+	s->charging = s->full = FALSE;
+	while (d && (name = g_dir_read_name(d))) {
+		char *dir = g_build_filename(root && *root ? root : "/sys/class/power_supply", name, NULL);
+		char buf[64];
+
+		/* Mice and keyboards report batteries too (scope Device). */
+		if (!strcmp(read_line(dir, "type", buf, sizeof(buf)), "Battery") &&
+		    strcmp(read_line(dir, "scope", buf, sizeof(buf)), "Device") &&
+		    read_line(dir, "capacity", buf, sizeof(buf))[0]) {
+			total += atoi(buf);
+			count++;
+			read_line(dir, "status", buf, sizeof(buf));
+			charging += !strcmp(buf, "Charging") || !strcmp(buf, "Full") ||
+				    !strcmp(buf, "Not charging");
+			full += !strcmp(buf, "Full");
+		}
+		g_free(dir);
+	}
+	if (d)
+		g_dir_close(d);
+	if (count) {
+		s->battery = total / count;
+		s->charging = charging == count;
+		s->full = full == count;
+	}
+}
+
 void status_read(struct status *s)
 {
 	memset(s, 0, sizeof(*s));
@@ -112,6 +174,7 @@ void status_read(struct status *s)
 	s->anon = access("/etc/worm/anon", F_OK) == 0;
 	s->network_cut = access("/run/worm/network-cut", F_OK) == 0;
 	s->tor_percent = s->anon ? read_tor_percent() : -1;
+	status_battery(s);
 	read_network(s);
 }
 

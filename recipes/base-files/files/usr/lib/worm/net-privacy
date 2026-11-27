@@ -28,6 +28,9 @@ for dev in /sys/class/net/*; do
 	[ -w "/proc/sys/net/ipv6/conf/$name/use_tempaddr" ] &&
 		echo 2 > "/proc/sys/net/ipv6/conf/$name/use_tempaddr"
 	[ -n "$keep_address" ] && continue
+	# Wi-Fi: iwd gives each start a random address (and scans with random
+	# ones), so it is left to iwd.
+	[ -d "$dev/wireless" ] || [ -e "$dev/phy80211" ] && continue
 	# vmxnet3 cards keep receiving only for their original address, in
 	# QEMU as well as in VMware.
 	case $(readlink "$dev/device/driver") in

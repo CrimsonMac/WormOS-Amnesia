@@ -1,0 +1,4 @@
+# Bluetooth: bluetoothd, after the message bus. It idles without an adapter.
+type = respawn
+exec = exec /usr/lib/bluetooth/bluetoothd --nodetach
+safe = no

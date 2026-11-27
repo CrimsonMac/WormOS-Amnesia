@@ -14,6 +14,10 @@ iso=$(ls "$dir"/wormos-*-amnesia-x86_64.iso 2>/dev/null | head -1)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
+# From 1.17 the checksums are signed.
+if [ -f "$dir/SHA256SUMS.sig" ]; then
+	"$(dirname "$0")/verify-release.sh" "$dir" > /dev/null || die "SHA256SUMS.sig does not verify"
+fi
 (cd "$dir" && sha256sum -c --quiet --ignore-missing SHA256SUMS) || die "SHA256SUMS does not match"
 
 eval "$(sed -n '/^\(name\|version\|source\|sha256\)=/p' "$WORMOS_ROOT/recipes/monocypher/recipe")"

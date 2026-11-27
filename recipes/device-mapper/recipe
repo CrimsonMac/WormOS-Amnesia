@@ -1,0 +1,22 @@
+name=device-mapper
+version=2.03.44
+description="Device mapper library and dmsetup, from LVM2 (for disk encryption)"
+depends=(glibc)
+source=(https://sourceware.org/pub/lvm2/LVM2.$version.tgz)
+sha256=(42f829927d2d459f5733fcdb38a5bf2455a8b84072193092450a9c69d6596eca)
+
+build() {
+	# Only the device mapper: no LVM tools, no udev (the library makes the
+	# /dev/mapper nodes itself, also in the initramfs).
+	./configure --host="$TARGET" --prefix=/usr --sbindir=/usr/bin --libdir=/usr/lib \
+		--disable-udev_sync --disable-udev_rules --disable-selinux --disable-readline \
+		--enable-pkgconfig --disable-dmeventd --with-thin=none --with-cache=none \
+		--disable-blkid_wiping --disable-nls
+	make device-mapper
+}
+
+package() {
+	make DESTDIR="$pkgdir" install_device-mapper
+	rm -rf "$pkgdir/usr/share" "$pkgdir/etc"
+	chmod u+w "$pkgdir"/usr/lib/*.so* "$pkgdir"/usr/bin/* 2>/dev/null || true
+}

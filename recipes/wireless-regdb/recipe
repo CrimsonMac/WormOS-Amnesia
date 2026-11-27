@@ -1,0 +1,17 @@
+name=wireless-regdb
+version=2026.09.03
+description="Wireless regulatory database (where each Wi-Fi channel may be used)"
+depends=()
+source=(https://mirrors.edge.kernel.org/pub/software/network/wireless-regdb/wireless-regdb-$version.tar.xz)
+sha256=(b22e0901227b820cd1c280abe681a15b773a5103a5e10dc442e94ebb34cbf58d)
+
+build() {
+	:
+}
+
+package() {
+	# Signed by the maintainer; the kernel checks it with its built-in key
+	# (CFG80211_REQUIRE_SIGNED_REGDB).
+	install -Dm644 -t "$pkgdir/usr/lib/firmware" regulatory.db regulatory.db.p7s
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/wireless-regdb/LICENSE"
+}

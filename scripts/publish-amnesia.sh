@@ -30,6 +30,6 @@ git -C "$WORMOS_ROOT" ls-remote --exit-code --tags origin "v$VERSION" > /dev/nul
 (cd "$DEST" && sha256sum -c --quiet SHA256SUMS) || die "SHA256SUMS does not match"
 
 gh release create "v$VERSION" -R "$AMNESIA_REPO" --title "WormOS Amnesia $VERSION" \
-	--notes-file "$NOTES" "$iso" "$DEST/SHA256SUMS" "$DEST/amnesia.update" "$DEST/amnesia.update.sig" \
+	--notes-file "$NOTES" "$iso" "$DEST/SHA256SUMS" "$DEST/SHA256SUMS.sig" "$DEST/amnesia.update" "$DEST/amnesia.update.sig" \
 	"$DEST/amnesia.latest" "$DEST/amnesia.latest.sig"
 msg "Published: https://github.com/$AMNESIA_REPO/releases/tag/v$VERSION"

@@ -6,7 +6,7 @@
 #   wormos-VERSION-x86_64.qcow2       ready-made disk for QEMU, virt-manager
 #   wormos-VERSION-barebones-x86_64.iso  the operating system alone
 #   wormos-VERSION-amnesia-x86_64.iso    live only, forgets everything, Tor
-#   SHA256SUMS
+#   SHA256SUMS, SHA256SUMS.sig  checksums, signed with the WormOS key
 #
 # VARIANTS (default "barebones amnesia") picks the extra editions.
 #
@@ -47,5 +47,10 @@ for variant in ${VARIANTS-barebones amnesia}; do
 done
 
 (cd "$DEST" && sha256sum *.iso "$NAME.qcow2" > SHA256SUMS)
+# Signed with the key that signs the package index (keys/core.pub, .pem):
+# scripts/verify-release.sh checks it, with OpenSSL alone.
+[ -x "$BUILD/host/wsign" ] || die "no wsign (make repo builds it)"
+"$BUILD/host/wsign" sign "${WORMOS_SIGNING_KEY:-$HOME/.config/wormos/core.key}" "$DEST/SHA256SUMS"
+"$WORMOS_ROOT/scripts/verify-release.sh" "$DEST" > /dev/null || die "SHA256SUMS.sig does not verify"
 msg "Release $VERSION ready in $DEST:"
 ls -lh "$DEST"

@@ -1,7 +1,7 @@
 #!/bin/sh
-# sudo on WormOS: runs a command as root after asking for the root
-# password (the root account is the administrator; there is no sudoers
-# file). Graphical programs keep the desktop, as in the root terminal, and
+# sudo on WormOS: runs a command as root after administrators (the group
+# wheel) confirm with their own password, through the root terminal's
+# helper (there is no sudoers file). Graphical programs keep the desktop, as in the root terminal, and
 # the command runs in the current folder.
 # Usage: sudo [-E] [-H] [-k] [-S] [--] COMMAND [ARGS...]
 while [ $# -gt 0 ]; do
@@ -14,7 +14,7 @@ while [ $# -gt 0 ]; do
 	-i|-s) shift; [ $# -eq 0 ] && exec /usr/lib/worm/root-terminal --cd "$PWD" ;;
 	-v|-k|-K) exit 0 ;;
 	-h|--help)
-		echo "usage: sudo COMMAND [ARGS...]: run COMMAND as root (asks for the root password)"
+		echo "usage: sudo COMMAND [ARGS...]: run COMMAND as root (asks for your password)"
 		exit 0 ;;
 	-*) shift ;;
 	*) break ;;

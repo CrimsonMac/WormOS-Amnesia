@@ -604,7 +604,7 @@ def main():
     total = (len(DEVICE_CHECKS) + 1 + len(AFTER_SETUP_CHECKS) + 3 + len(SESSION_CHECKS) +
              len(TYPING_CHECKS) + len(SHORTCUT_CHECKS) + len(BUDGET_CHECKS) +
              len(RESIZES) + len(WELCOME_CHECKS) + len(GTK_CHECKS) + len(SOUND_CHECKS) +
-             len(SHELL_CHECKS) + len(CLIPBOARD_CHECKS) + 51)
+             len(SHELL_CHECKS) + len(CLIPBOARD_CHECKS) + 60)
     if gtk_check is None:
         total -= len(GTK_CHECKS) + 3
 
@@ -1087,6 +1087,56 @@ def main():
             out = con.run(f"echo wrong | su {USER} -c '/usr/lib/worm/software install tree' "
                           "> /dev/null 2>&1; echo rc=$?")
             check("Software's helper wants root's password for changes", out == "rc=3", out)
+            # Viewer and Text Editor, the default programs for pictures,
+            # PDFs and text.
+            for prog, arg in (("wormos-viewer", "/usr/share/backgrounds/wormos.png"),
+                              ("wormos-editor", "/etc/os-release")):
+                put_file(con, f"{prog} {arg}\necho exited with status $?\n".encode(), f"/tmp/run-{prog}")
+                con.run(f"su {USER} -c '/tmp/in-session sh /tmp/run-{prog} > /tmp/{prog}.log 2>&1 &'")
+                out = wait_for(con, f"pidof {prog}", r"^\d+$", 60)
+                check(f"{prog} started", re.search(r"^\d+$", out, re.M) is not None,
+                      con.run(f"cat /tmp/{prog}.log"))
+                time.sleep(4)
+                screen(prog)
+                check(f"no warnings from {prog}",
+                      con.run(f"grep -i -e critical -e warning /tmp/{prog}.log{noise} | grep -c .")
+                      == "0", con.run(f"cat /tmp/{prog}.log"))
+                con.run(f"kill $(pidof {prog})")
+            check("Files, Viewer and Text Editor are the default programs",
+                  con.run("grep -c -e '^inode/directory=org.wormos.Files' -e '^application/pdf=org.wormos.Viewer' "
+                          "-e '^text/plain=org.wormos.Editor' /etc/xdg/mimeapps.list") == "3")
+            # A program with windows in a blackhole (Files' Open in a blackhole).
+            con.run(f"echo 'from a blackhole' > /tmp/note.txt; chmod 644 /tmp/note.txt")
+            session("bh put gtest /tmp/note.txt")
+            session("sh -c \"bh open --gui gtest -- wormos-editor /inbox/note.txt > /tmp/bhgui.log 2>&1 &\"")
+            out = wait_for(con, "pidof wormos-editor", r"^\d+$", 60)
+            pid = out.split()[0] if re.search(r"^\d+", out) else ""
+            time.sleep(5)
+            env = con.run(f"tr '\\0' '\\n' < /proc/{pid}/environ | grep ^WAYLAND_DISPLAY=; "
+                          f"pidof wormos-editor | wc -w") if pid else out
+            check("a program in a graphical blackhole opens on the desktop",
+                  env == "WAYLAND_DISPLAY=/run/wayland-0\n1", env + con.run("cat /tmp/bhgui.log"))
+            screen("bh-gui")
+            outside = session("wlr-randr 2>&1 | head -1")
+            inside = session("bh open --gui gtest2 -- wlr-randr 2>&1 | head -3")
+            check("windows from blackholes cannot use privileged protocols",
+                  outside and "support" not in outside and "support" in inside,
+                  f"outside {outside!r}, inside {inside!r}")
+            con.run("kill $(pidof wormos-editor)")
+            time.sleep(2)
+            session("bh close gtest; bh close gtest2")
+            out = con.run("worm-shell --battery; mkdir -p /tmp/ps/BAT0 /tmp/ps/mouse; "
+                          "echo Battery > /tmp/ps/BAT0/type; echo 37 > /tmp/ps/BAT0/capacity; "
+                          "echo Discharging > /tmp/ps/BAT0/status; echo Battery > /tmp/ps/mouse/type; "
+                          "echo Device > /tmp/ps/mouse/scope; echo 90 > /tmp/ps/mouse/capacity; "
+                          "WORM_SHELL_POWER_SUPPLY=/tmp/ps worm-shell --battery")
+            check("the panel finds batteries (none in a VM; not a mouse's)",
+                  out == "No battery\nBattery: 37%", out)
+            snap_id = con.run("/usr/lib/worm/snapshots list | tail -n 1 | cut -f 1")
+            con.run(f"/usr/lib/worm/snapshots pin {snap_id}")
+            out = con.run(f"echo '{USER_PASSWORD}' | su {USER} -c '/usr/lib/worm/snapshots unpin {snap_id}' "
+                          "> /dev/null 2>&1; echo rc=$?; /usr/lib/worm/snapshots list | tail -n 1 | cut -f 5")
+            check("administrators confirm with their own password", out == "rc=0\n0", out)
             mon.key("meta_l-slash")
             out = wait_for(con, "pidof wormos-welcome", r"^\d+$", 60)
             check("Super+/ shows the keyboard shortcuts", re.search(r"^\d+$", out, re.M) is not None,

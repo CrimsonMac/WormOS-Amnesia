@@ -1,0 +1,24 @@
+# Default programs for common files, until the user picks others
+# (~/.config/mimeapps.list wins). Programs installed later from Debian or
+# Kali are offered too, but these stay the default.
+[Default Applications]
+inode/directory=org.wormos.Files.desktop
+application/pdf=org.wormos.Viewer.desktop
+image/png=org.wormos.Viewer.desktop
+image/jpeg=org.wormos.Viewer.desktop
+image/gif=org.wormos.Viewer.desktop
+image/webp=org.wormos.Viewer.desktop
+image/tiff=org.wormos.Viewer.desktop
+image/bmp=org.wormos.Viewer.desktop
+image/svg+xml=org.wormos.Viewer.desktop
+image/avif=org.wormos.Viewer.desktop
+text/plain=org.wormos.Editor.desktop
+text/markdown=org.wormos.Editor.desktop
+text/x-log=org.wormos.Editor.desktop
+text/csv=org.wormos.Editor.desktop
+application/json=org.wormos.Editor.desktop
+application/xml=org.wormos.Editor.desktop
+text/xml=org.wormos.Editor.desktop
+application/x-shellscript=org.wormos.Editor.desktop
+text/x-python=org.wormos.Editor.desktop
+text/x-csrc=org.wormos.Editor.desktop

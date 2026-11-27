@@ -79,6 +79,9 @@ int boot_rewind(int id, int scope)
 	for (int bit = SCOPE_SYSTEM; bit <= SCOPE_HOME; bit <<= 1)
 		if ((scope & bit) && replace_subvol(id, bit) < 0)
 			ret = -1;
+	/* The wormholes go back with the system. */
+	if ((scope & SCOPE_SYSTEM) && wormholes_restore(id) < 0)
+		ret = -1;
 	sync();
 	if (ret == 0)
 		fprintf(stderr, "snap: rewound %s to snapshot %d\n",

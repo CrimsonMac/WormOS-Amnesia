@@ -12,6 +12,9 @@
  *     --net            a network through pasta (not the local network)
  *     --lan            with --net, the local network too
  *     --vm             a virtual machine with its own kernel (KVM)
+ *     --gui            programs may open windows on the desktop, marked as
+ *                      sandboxed: no screenshots, no clipboard managers, no
+ *                      control of other windows (BH_LIBDIR/wayland)
  *     --from SOURCE    the system of a wormhole (debian, kali) instead of
  *                      the host's
  *     --memory SIZE    memory limit (K, M, G); with --vm the guest's memory
@@ -326,7 +329,7 @@ static void write_mode(const struct box *b, const struct opts *o)
 	if (!(f = fopen(path, "wxe")))
 		return;
 	fprintf(f, "%s%s%s%s%s\n", o->vm ? "vm " : "", o->net ? (o->lan ? "net+lan " : "net ") : "",
-		o->from[0] ? "from=" : "", o->from, "");
+		o->gui ? "gui " : "", o->from[0] ? "from=" : "", o->from);
 	fclose(f);
 }
 
@@ -349,8 +352,44 @@ static void read_mode(const struct box *b, char *out, size_t len)
 	fclose(f);
 }
 
+/*
+ * --gui: the blackhole's own Wayland display (BH_LIBDIR/wayland, which asks
+ * the compositor for a sandboxed listening socket at DIR/wayland-0). Returns
+ * the helper's input: closing it ends the display.
+ */
+static int start_display(const struct box *b, pid_t *pid)
+{
+	int in[2], out[2];
+	char socket_path[PATH_MAX], line[32] = "";
+	ssize_t n;
+
+	snprintf(socket_path, sizeof(socket_path), "%s/wayland-0", b->dir);
+	if (pipe2(in, O_CLOEXEC) < 0 || pipe2(out, O_CLOEXEC) < 0)
+		die("pipe: %s", strerror(errno));
+	if ((*pid = fork()) < 0)
+		die("fork: %s", strerror(errno));
+	if (*pid == 0) {
+		dup2(in[0], 0);
+		dup2(out[1], 1);
+		execl(BH_LIBDIR "/wayland", "bh-wayland", socket_path, b->name, (char *)NULL);
+		fprintf(stderr, "bh: --gui needs %s (the bh-wayland package)\n", BH_LIBDIR "/wayland");
+		_exit(127);
+	}
+	close(in[0]);
+	close(out[1]);
+	n = read(out[0], line, sizeof(line) - 1);
+	close(out[0]);
+	if (n <= 0 || strncmp(line, "ready", 5)) {
+		waitpid(*pid, NULL, 0);
+		die("cannot give the blackhole a display%s", "");
+	}
+	return in[1];
+}
+
 static int cmd_open(const char *name, const struct opts *o, int given, char *const argv[])
 {
+	pid_t display_pid = 0;
+	int display = -1;
 	char path[PATH_MAX], tmp[NAME_MAX_BH + 1];
 	struct box b;
 	int fd, running, code;
@@ -379,16 +418,22 @@ static int cmd_open(const char *name, const struct opts *o, int given, char *con
 		fclose(f);
 	}
 	write_mode(&b, o);
+	if (o->gui)
+		display = start_display(&b, &display_pid);
 	if (!argv)
 		fprintf(stderr, "Entering blackhole %s%s: %s, the system is read-only, "
 			"files from 'bh put' are in /inbox.\n%s\n", b.name,
 			o->vm ? " (virtual machine)" : "",
-			!o->net ? "no network" : o->lan ? "network including the local one" :
-			"network (not the local one)",
+			!o->net ? (o->gui ? "no network, windows on the desktop" : "no network") :
+			o->lan ? "network including the local one" : "network (not the local one)",
 			o->vm ? "Exit the shell to leave; Ctrl+A X stops the machine." :
 			"Exit the shell to leave. 'bh open NAME' in another terminal joins it.");
 
 	code = box_run(&b, o, argv);
+	if (display >= 0) {
+		close(display);
+		waitpid(display_pid, NULL, 0);
+	}
 
 	unlink(path);
 	snprintf(path, sizeof(path), "%s/mode", b.dir);
@@ -534,7 +579,7 @@ static int cmd_close(const char *name)
 
 static void usage(FILE *out)
 {
-	fputs("usage: bh open [--net [--lan]] [--vm] [--from SOURCE] [--memory SIZE]\n"
+	fputs("usage: bh open [--net [--lan]] [--vm] [--gui] [--from SOURCE] [--memory SIZE]\n"
 	      "               [--pids N] [--cpus N] [NAME] [-- COMMAND [ARGS...]]\n"
 	      "       bh put NAME FILE...\n"
 	      "       bh list\n"
@@ -583,6 +628,8 @@ static void finish_opts(struct opts *o)
 
 	if (o->lan && !o->net)
 		die("--lan goes with --net");
+	if (o->gui && o->vm)
+		die("--gui does not go with --vm");
 	if (o->from[0]) {
 		char path[PATH_MAX];
 
@@ -646,6 +693,8 @@ int main(int argc, char **argv)
 				o.lan = 1;
 			else if (!strcmp(opt, "vm"))
 				o.vm = 1;
+			else if (!strcmp(opt, "gui"))
+				o.gui = 1;
 			else if (i + 1 < argc && !strcmp(opt, "from"))
 				snprintf(o.from, sizeof(o.from), "%s", argv[++i]);
 			else if (i + 1 < argc && !strcmp(opt, "memory"))

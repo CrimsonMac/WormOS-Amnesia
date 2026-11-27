@@ -1,5 +1,6 @@
 name=wormos-software
 version=0.1.0
+release=2
 description="Software: find, install, remove and update programs"
 depends=(glibc gtk4 worm wh hicolor-icon-theme)
 localsrc=src/software

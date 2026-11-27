@@ -1,0 +1,13 @@
+name=wormos-viewer
+version=0.1.0
+description="Viewer: pictures and PDF documents"
+depends=(glibc gtk4 poppler adwaita-icon-theme)
+localsrc=src/viewer
+
+build() {
+	make CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+package() {
+	make DESTDIR="$pkgdir" install
+}
