@@ -148,8 +148,10 @@ AMNESIA_CHECKS = [
     # does not tell one Amnesia computer from another.
     ("looks the same on every computer",
      "hostname; date +%Z; cat /sys/class/net/eth0/address; "
-     "tr '\\0' ' ' < /proc/$(pidof udhcpc)/cmdline; echo; grep -c SendHostname=true /etc/iwd/main.conf",
-     r"^wormos\nUTC\n(?!52:54:00:12:34:56)[0-9a-f:]{17}\nudhcpc -f -S -i eth0 -V  -s \S+ \n0$"),
+     # (the live user of a release cannot see root's processes)
+     "p=$(pidof udhcpc); if [ -n \"$p\" ]; then tr '\\0' ' ' < /proc/$p/cmdline; else printf hidden; fi; "
+     "echo; grep -c SendHostname=true /etc/iwd/main.conf",
+     r"^wormos\nUTC\n(?!52:54:00:12:34:56)[0-9a-f:]{17}\n(udhcpc -f -S -i eth0 -V  -s \S+ |hidden)\n0$"),
     ("Super+Shift+Escape shuts down at once",
      "grep -c 'key=\"W-S-Escape\".*/usr/lib/worm/power off' /etc/xdg/amnesia/labwc/rc.xml; "
      "grep -c 'quick-action new-circuits' /etc/xdg/amnesia/labwc/menu.xml", r"^1\n1$"),
