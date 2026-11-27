@@ -76,7 +76,7 @@ static int parse_range(const char *s, const char *proto, struct port *p)
 
 	if (strcmp(proto, "tcp") && strcmp(proto, "udp"))
 		return -1;
-	strcpy(p->proto, proto);
+	snprintf(p->proto, sizeof(p->proto), "%s", proto);
 	if (!dash)
 		return parse_number(s, end, &p->lo) < 0 ? -1 : (p->hi = p->lo, 0);
 	if (parse_number(s, dash, &p->lo) < 0 || parse_number(dash + 1, end, &p->hi) < 0 ||
@@ -92,7 +92,7 @@ static int parse_arg(const char *arg, struct port *p)
 
 	if (strlen(arg) >= sizeof(buf))
 		return -1;
-	strcpy(buf, arg);
+	snprintf(buf, sizeof(buf), "%s", arg);
 	if ((slash = strchr(buf, '/')))
 		*slash = '\0';
 	return parse_range(buf, slash ? slash + 1 : "tcp", p);

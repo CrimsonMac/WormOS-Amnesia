@@ -43,6 +43,9 @@
 
 #include "wh.h"
 
+/* Room for a rewritten tool entry: 64 KiB of entry plus our lines. */
+#define TOOL_OUT (65536 + 4096)
+
 #define SOURCES_CONF   "/etc/wh/sources"
 #define WORMHOLES      "/var/lib/wormholes"
 #define FOREIGN_DB     "/var/lib/wh/foreign"
@@ -815,15 +818,15 @@ int wormhole_setup(const char *name)
 	{
 		size_t len = 0;
 
-		len += snprintf(text + len, sizeof(text) - len,
-				"# Set up by wh. Signed with the keyring wh verified.\n");
+		len = bufadd(text, sizeof(text), len,
+			     "# Set up by wh. Signed with the keyring wh verified.\n");
 		for (int i = 0; i < s->napt; i++) {
 			char type[16], rest[512];
 
 			if (sscanf(s->apt[i], "%15s %511[^\n]", type, rest) == 2)
-				len += snprintf(text + len, sizeof(text) - len,
-						"%s [signed-by=/etc/apt/keyrings/wormhole.pgp] %s\n",
-						type, rest);
+				len = bufadd(text, sizeof(text), len,
+					     "%s [signed-by=/etc/apt/keyrings/wormhole.pgp] %s\n",
+					     type, rest);
 		}
 		write_text(dir, "etc/apt/sources.list", text, 0644);
 	}
@@ -1025,7 +1028,8 @@ static int word_is_exported(const char *cmd, char *const *cmds, int ncmds)
  */
 static char *host_entry(const char *text, char *const *cmds, int ncmds, size_t *len)
 {
-	char *out = malloc(strlen(text) + 256), *copy = strdup(text), *line, *save;
+	size_t size = strlen(text) + 256;
+	char *out = malloc(size), *copy = strdup(text), *line, *save;
 	int main_group = 0, has_exec = 0;
 	size_t n = 0;
 
@@ -1035,7 +1039,7 @@ static char *host_entry(const char *text, char *const *cmds, int ncmds, size_t *
 		if (line[0] == '[') {
 			main_group = strcmp(line, "[Desktop Entry]") == 0;
 			if (main_group)
-				n += sprintf(out + n, "%s\n", line);
+				n = bufadd(out, size, n, "%s\n", line);
 			continue;
 		}
 		if (!main_group || !strncmp(line, "Actions=", 8) ||
@@ -1063,20 +1067,20 @@ static char *host_entry(const char *text, char *const *cmds, int ncmds, size_t *
 				snprintf(name, sizeof(name), "%.*s", (int)(end - base), base);
 				if (!word_is_exported(name, cmds, ncmds))
 					break;
-				n += sprintf(out + n, "Exec=%.*s%s%s\n", (int)(start - (line + 5)), line + 5,
-					     name, *end && quote ? end + 1 : end);
+				n = bufadd(out, size, n, "Exec=%.*s%s%s\n", (int)(start - (line + 5)),
+					   line + 5, name, *end && quote ? end + 1 : end);
 			}
 			has_exec = 1;
 			continue;
 		}
-		n += sprintf(out + n, "%s\n", line);
+		n = bufadd(out, size, n, "%s\n", line);
 	}
 	free(copy);
 	if (!has_exec || line) {        /* no Exec, or a program not exported */
 		free(out);
 		return NULL;
 	}
-	n += sprintf(out + n, "X-WormOS-Wormhole=true\n");
+	n = bufadd(out, size, n, "X-WormOS-Wormhole=true\n");
 	*len = n;
 	return out;
 }
@@ -1257,7 +1261,7 @@ static void tool_exec(const char *exec, char *const *cmds, int ncmds, const char
 
 		for (w = strtok_r(cmd, " ", &wsave); w; w = strtok_r(NULL, " ", &wsave))
 			if (w[0] != '%' && k + strlen(w) + 2 < sizeof(kept))
-				k += sprintf(kept + k, "%s%s", k ? " " : "", w);
+				k = bufadd(kept, sizeof(kept), k, "%s%s", k ? " " : "", w);
 		snprintf(cmd, sizeof(cmd), "%s", kept);
 	}
 	run = cmd;
@@ -1332,7 +1336,7 @@ static int export_tool_menu(const char *source, const char *pkgs, char *const *c
 		if (!(f = fopen(path, "re")))
 			continue;
 		text = malloc(65536);
-		out = malloc(65536 + 4096);
+		out = malloc(TOOL_OUT);
 		if (!text || !out)
 			die("out of memory");
 		len = fread(text, 1, 65535, f);
@@ -1343,20 +1347,20 @@ static int export_tool_menu(const char *source, const char *pkgs, char *const *c
 			if (line[0] == '[') {
 				main_group = !strcmp(line, "[Desktop Entry]");
 				if (main_group)
-					n += sprintf(out + n, "%s\n", line);
+					n = bufadd(out, TOOL_OUT, n, "%s\n", line);
 				continue;
 			}
 			if (!main_group || !strncmp(line, "Exec=", 5) || !strncmp(line, "TryExec=", 8) ||
 			    !strncmp(line, "Actions=", 8) || !strncmp(line, "Terminal=", 9) ||
 			    !strncmp(line, "DBusActivatable=", 16) || n + strlen(line) + 8 > 65536)
 				continue;
-			n += sprintf(out + n, "%s\n", line);
+			n = bufadd(out, TOOL_OUT, n, "%s\n", line);
 		}
 		section = tool_section(categories);
-		n += sprintf(out + n, "Exec=%s\nTerminal=%s\nX-WormOS-Wormhole=true\n", exec,
-			     terminal ? "true" : "false");
+		n = bufadd(out, TOOL_OUT, n, "Exec=%s\nTerminal=%s\nX-WormOS-Wormhole=true\n", exec,
+			   terminal ? "true" : "false");
 		if (section)
-			n += snprintf(out + n, 512, "X-WormOS-Section=%s\n", section);
+			n = bufadd(out, TOOL_OUT, n, "X-WormOS-Section=%s\n", section);
 		free(section);
 		free(text);
 		snprintf(dest, sizeof(dest), EXPORT_SHARE "/applications/%s", e->d_name);
@@ -1428,12 +1432,12 @@ static int export_generic_entry(const char *source, const char *pkg, const char 
 	if (ncmds == 0 || strspn(pkg, "abcdefghijklmnopqrstuvwxyz0123456789+.-:") != strlen(pkg))
 		return 0;
 	for (int i = 0; i < ncmds && l + strlen(cmds[i]) + 3 < sizeof(list); i++)
-		l += snprintf(list + l, sizeof(list) - l, "%s%s", i ? ", " : "", cmds[i]);
-	n += snprintf(text + n, sizeof(text) - n,
+		l = bufadd(list, sizeof(list), l, "%s%s", i ? ", " : "", cmds[i]);
+	n = bufadd(text, sizeof(text), n,
 		      "[Desktop Entry]\nType=Application\nName=%s\n", pkg);
 	if (summary[0])
-		n += snprintf(text + n, sizeof(text) - n, "Comment=%s\n", summary);
-	n += snprintf(text + n, sizeof(text) - n,
+		n = bufadd(text, sizeof(text), n, "Comment=%s\n", summary);
+	n = bufadd(text, sizeof(text), n,
 		      "Keywords=%s;\n"
 		      "Exec=" EXEC_IN_SHELL " --about %s\n"
 		      "Terminal=true\nIcon=utilities-terminal\nCategories=Utility;ConsoleOnly;\n"

@@ -215,7 +215,7 @@ void runtime_complete(const char *source)
 			    word_in(want, p))
 				continue;
 			if (wlen + strlen(p) + 2 < sizeof(want))
-				wlen += snprintf(want + wlen, sizeof(want) - wlen, "%s%s", wlen ? " " : "", p);
+				wlen = bufadd(want, sizeof(want), wlen, "%s%s", wlen ? " " : "", p);
 		}
 	}
 	fclose(rules);

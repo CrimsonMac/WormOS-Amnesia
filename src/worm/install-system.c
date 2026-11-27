@@ -259,7 +259,7 @@ static void entry(unsigned char *e, const char *type, uint64_t first, uint64_t l
 	random_guid(e + 16);
 	put64(e + 32, first);
 	put64(e + 40, last);
-	for (int i = 0; name[i] && i < 36; i++)
+	for (int i = 0; i < 36 && name[i]; i++)
 		put16(e + 56 + 2 * i, (unsigned char)name[i]);
 }
 

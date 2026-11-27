@@ -96,6 +96,8 @@ static char *root_shell(const char *root, char *live, const char *staged)
 		return live;
 	shell++;
 	n -= shell - new_line;
+	if (n >= PATH_MAX)
+		return live;
 	snprintf(path, sizeof(path), "%s/%.*s", root, (int)n, shell);
 	if (stat(path, &st) < 0 || !S_ISREG(st.st_mode) || !(st.st_mode & 0111) ||
 	    !strncmp(shell, "/bin/sh", n))
@@ -105,7 +107,7 @@ static char *root_shell(const char *root, char *live, const char *staged)
 		return live;
 	memcpy(out, live, end - live - 7);
 	memcpy(out + (end - live - 7), shell, n);
-	strcpy(out + (end - live - 7) + n, end);
+	memcpy(out + (end - live - 7) + n, end, strlen(end) + 1);
 	free(live);
 	return out;
 }

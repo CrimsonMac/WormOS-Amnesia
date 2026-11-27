@@ -55,7 +55,9 @@ def winpath(path):
 def listen():
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(("0.0.0.0", 0))
+    # Loopback only: WSL 2 forwards localhost ports to Windows, and the
+    # VM's console must not be reachable from the network.
+    s.bind(("127.0.0.1", 0))
     s.listen(1)
     s.settimeout(120)
     return s

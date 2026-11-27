@@ -154,7 +154,20 @@ GitHub Actions runs, on every push and pull request (`.github/workflows/ci.yml`)
 `codeql.yml` runs CodeQL's security queries over the C programs and the
 Python test harness on pushes, pull requests and every week (results under
 Security, Code scanning; `CI_IN_PLACE=1` builds in the checkout so the
-results point at the real files).
+results point at the real files, while third-party sources are unpacked
+outside it and not reported).
+
+Triage: string and buffer findings are fixed in the code (appends go
+through bounds-checked helpers such as wh's `bufadd`, never `sprintf` or
+`strcat`). Some queries assume every path, file and program name from the
+command line or a file is an attacker's. For WormOS's tools that only holds
+in the setuid helpers (`/usr/lib/worm/*`, `/usr/lib/wh/user`,
+`/usr/lib/bh/limits`), which check names against allowlists, clear the
+environment and set their own umask. Elsewhere the caller already has the
+rights the finding is about. Those findings are reviewed and dismissed
+with a written reason: path injection, process names, files created under
+the caller's umask, checks then uses in folders only root or the owner can
+write, and user names in the system log.
 
 A full build takes hours, so images are not built there. Instead, on every
 release and every week, `release-tests.yml` boots the published images in

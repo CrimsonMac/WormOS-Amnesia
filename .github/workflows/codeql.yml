@@ -50,8 +50,8 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.language == 'c-cpp' && 'manual' || 'none' }}
           queries: security-extended
-          # Third-party sources unpacked by the build (Monocypher, GTK
-          # layer shell) are not WormOS's code.
+          # Third-party sources are unpacked outside the checkout
+          # (scripts/ci-build.sh); paths-ignore covers the Python side.
           config: |
             paths-ignore:
               - build

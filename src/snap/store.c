@@ -244,19 +244,23 @@ int store_list(struct snapshot **out)
 static int write_info(const char *dir, const struct snapshot *s)
 {
 	char path[PATH_MAX], buf[COMMENT_MAX + 4 * SHA256_HEX + 128];
-	int n;
+	size_t n;
 
 	path_join(path, sizeof(path), dir, SNAP_INFO);
-	n = snprintf(buf, sizeof(buf),
+	n = (size_t)snprintf(buf, sizeof(buf),
 		     "date = %lld\ntype = %s\npinned = %s\ncomment = %s\n",
 		     (long long)s->date, s->type, s->pinned ? "yes" : "no",
 		     s->comment);
+	if (n >= sizeof(buf))
+		return -1;
 	if (s->suspect)
-		n += snprintf(buf + n, sizeof(buf) - n, "suspect = yes\n");
-	for (int i = 0; i < 2; i++)
+		n += (size_t)snprintf(buf + n, sizeof(buf) - n, "suspect = yes\n");
+	for (int i = 0; i < 2 && n < sizeof(buf); i++)
 		if (s->sum[i][0])
-			n += snprintf(buf + n, sizeof(buf) - n, "%s-sum = %s\n",
-				      i ? SNAP_HOME : SNAP_SYSTEM, s->sum[i]);
+			n += (size_t)snprintf(buf + n, sizeof(buf) - n, "%s-sum = %s\n",
+					      i ? SNAP_HOME : SNAP_SYSTEM, s->sum[i]);
+	if (n >= sizeof(buf))
+		return -1;
 	return write_file(path, buf);
 }
 
@@ -355,7 +359,7 @@ int store_create(int scope, const char *type, const char *comment)
 	s.date = time(NULL);
 	snprintf(s.type, sizeof(s.type), "%s", type);
 	/* Comments are stored on one line. */
-	for (size_t i = 0; comment && comment[i] && i < sizeof(s.comment) - 1; i++)
+	for (size_t i = 0; comment && i < sizeof(s.comment) - 1 && comment[i]; i++)
 		s.comment[i] = iscntrl((unsigned char)comment[i]) ? ' ' : comment[i];
 
 	if (write_info(tmpdir, &s) < 0) {

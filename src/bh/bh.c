@@ -99,16 +99,20 @@ static void user_dir(char *out, size_t len)
 {
 	uid_t uid = getuid();
 	struct stat st;
+	int fd;
 
 	if (uid == 0 && mkdir(BH_DIR, 0755) == 0)
 		chmod(BH_DIR, 01777);
 	snprintf(out, len, "%s/%u", BH_DIR, uid);
 	if (mkdir(out, 0700) < 0 && errno != EEXIST)
 		die("cannot create %s: %s", out, strerror(errno));
-	if (lstat(out, &st) < 0 || !S_ISDIR(st.st_mode) || st.st_uid != uid)
+	/* Checked and changed through one descriptor: never a link. */
+	if ((fd = open(out, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)) < 0 ||
+	    fstat(fd, &st) < 0 || st.st_uid != uid)
 		die("%s does not belong to you; remove it", out);
-	if (chmod(out, uid == 0 ? 0711 : 0700) < 0)
+	if (fchmod(fd, uid == 0 ? 0711 : 0700) < 0)
 		die("cannot set the mode of %s: %s", out, strerror(errno));
+	close(fd);
 }
 
 static void box_path(struct box *b, const char *name)
@@ -530,7 +534,7 @@ static int cmd_list(void)
 			continue;
 		fd = box_lock(&b, 0, &running);
 		close(fd);
-		strftime(created, sizeof(created), "%Y-%m-%d %H:%M", localtime(&t));
+		strftime(created, sizeof(created), "%Y-%m-%d %H:%M", localtime_r(&t, &(struct tm){ 0 }));
 		if (running)
 			read_mode(&b, mode, sizeof(mode));
 		else

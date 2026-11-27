@@ -134,14 +134,21 @@ static void handle(char **f, int n)
 		argv[a] = NULL;
 		spawn(argv, folder);
 	} else if (!strcmp(verb, "root")) {
-		char cmd[8192] = "whc ";
+		char cmd[8192];
+		size_t len;
 
-		strcat(cmd, wormhole);
-		if (n == 3)
-			strcat(cmd, " sh -c 'command -v bash >/dev/null && exec bash -l; exec sh -l'");
+		len = (size_t)snprintf(cmd, sizeof(cmd), "whc %s%s", wormhole, n == 3 ?
+			" sh -c 'command -v bash >/dev/null && exec bash -l; exec sh -l'" : "");
+		if (len >= sizeof(cmd))
+			return;
 		for (int i = 3; i < n; i++) {
-			strcat(cmd, " ");
+			/* Quoting at most quadruples it: no cut-off arguments. */
+			if (len + 4 * strlen(f[i]) + 4 >= sizeof(cmd))
+				return;
+			cmd[len++] = ' ';
+			cmd[len] = '\0';
 			sh_quote(cmd, sizeof(cmd), f[i]);
+			len = strlen(cmd);
 		}
 		spawn((char *[]){ "foot", "--title", "Root terminal", "/usr/lib/worm/root-terminal",
 				  "--cd", (char *)folder, cmd, NULL }, folder);

@@ -525,8 +525,13 @@ static void run_session(const char *name)
 	snprintf(runtime, sizeof(runtime), "/run/user/%u", (unsigned)pw->pw_uid);
 	mkdir("/run/user", 0755);
 	if (mkdir(runtime, 0700) == 0 || errno == EEXIST) {
-		if (chown(runtime, pw->pw_uid, pw->pw_gid) < 0 || chmod(runtime, 0700) < 0)
+		/* The folder itself, never what a link there points to. */
+		int dfd = open(runtime, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+
+		if (dfd < 0 || fchown(dfd, pw->pw_uid, pw->pw_gid) < 0 || fchmod(dfd, 0700) < 0)
 			say("cannot prepare %s", runtime);
+		if (dfd >= 0)
+			close(dfd);
 	}
 
 	pid = fork();

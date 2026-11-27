@@ -182,14 +182,13 @@ static void add_share(struct vm *vm, const char *tag, const char *type)
 	if (!tag[0] || strlen(tag) > 64 || strspn(tag, "abcdefghijklmnopqrstuvwxyz"
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-") != strlen(tag) || tag[0] == '.')
 		return;
-	if (strlen(vm->shares) + strlen(tag) + 2 >= sizeof(vm->shares))
+	size_t ls = strlen(vm->shares), lt = strlen(vm->share_types);
+
+	if (ls + strlen(tag) + 2 >= sizeof(vm->shares) ||
+	    lt + strlen(type) + 2 >= sizeof(vm->share_types))
 		return;
-	if (vm->shares[0]) {
-		strcat(vm->shares, " ");
-		strcat(vm->share_types, " ");
-	}
-	strcat(vm->shares, tag);
-	strcat(vm->share_types, type);
+	snprintf(vm->shares + ls, sizeof(vm->shares) - ls, "%s%s", ls ? " " : "", tag);
+	snprintf(vm->share_types + lt, sizeof(vm->share_types) - lt, "%s%s", lt ? " " : "", type);
 }
 
 static void detect_devices(struct vm *vm)

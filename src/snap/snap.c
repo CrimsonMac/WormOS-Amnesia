@@ -532,7 +532,7 @@ static int cmd_comment(int argc, char **argv)
 	if (store_get(parse_id_arg(argv[1]), &s) < 0)
 		die("no snapshot %s", argv[1]);
 	memset(s.comment, 0, sizeof(s.comment));
-	for (size_t i = 0; argv[2][i] && i < sizeof(s.comment) - 1; i++)
+	for (size_t i = 0; i < sizeof(s.comment) - 1 && argv[2][i]; i++)
 		s.comment[i] = iscntrl((unsigned char)argv[2][i]) ? ' ' : argv[2][i];
 	if (store_write_info(&s) < 0)
 		die("cannot update snapshot %d: %s", s.id, strerror(errno));

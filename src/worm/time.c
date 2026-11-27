@@ -84,7 +84,7 @@ static int cmd_show(void)
 	time_t t = time(NULL);
 	FILE *f;
 
-	strftime(now, sizeof(now), "%Y-%m-%d %H:%M:%S %Z", localtime(&t));
+	strftime(now, sizeof(now), "%Y-%m-%d %H:%M:%S %Z", localtime_r(&t, &(struct tm){ 0 }));
 	printf("Time:      %s\nTime zone: %s\n", now, current_zone());
 	if ((f = fopen(TIME_STATE, "re"))) {
 		if (fgets(state, sizeof(state), f))
@@ -170,7 +170,7 @@ static void save_state(const char *result)
 	time_t t = time(NULL);
 	FILE *f;
 
-	strftime(now, sizeof(now), "%Y-%m-%d %H:%M", localtime(&t));
+	strftime(now, sizeof(now), "%Y-%m-%d %H:%M", localtime_r(&t, &(struct tm){ 0 }));
 	/* Corrections also go to the system log (logread). */
 	if (!strncmp(result, "corrected", 9))
 		syslog(LOG_NOTICE, "worm time: clock %s", result);

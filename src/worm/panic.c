@@ -221,7 +221,7 @@ static int panic_on(void)
 		printf("Stopped %d blackhole%s (%s files are kept).\n", stopped,
 		       stopped == 1 ? "" : "s", stopped == 1 ? "its" : "their");
 
-	strftime(comment, sizeof(comment), "Panic at %Y-%m-%d %H:%M:%S", localtime(&now));
+	strftime(comment, sizeof(comment), "Panic at %Y-%m-%d %H:%M:%S", localtime_r(&now, &(struct tm){ 0 }));
 	if (run((char *[]){ "snap", "now", "--all", "--suspect", "-c", comment, NULL },
 		out, sizeof(out), 0) == 0 && (p = strstr(out, "Snapshot ")))
 		snapshot = atoi(p + 9);

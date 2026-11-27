@@ -28,6 +28,21 @@ void die(const char *fmt, ...)
 	exit(1);
 }
 
+size_t bufadd(char *buf, size_t size, size_t n, const char *fmt, ...)
+{
+	va_list ap;
+	int r;
+
+	if (!size || n >= size - 1)
+		return n;
+	va_start(ap, fmt);
+	r = vsnprintf(buf + n, size - n, fmt, ap);
+	va_end(ap);
+	if (r < 0)
+		return n;
+	return (size_t)r >= size - n ? size - 1 : n + (size_t)r;
+}
+
 void warn(const char *fmt, ...)
 {
 	va_list ap;

@@ -219,8 +219,8 @@ static void stage_begin(void)
 	for (tok = strtok_r(super, ",", &save); tok; tok = strtok_r(NULL, ",", &save))
 		if (strcmp(tok, "rw") && strcmp(tok, "ro") &&
 		    strncmp(tok, "subvol=", 7) && strncmp(tok, "subvolid=", 9))
-			n += snprintf(opts + n, sizeof(opts) - n, "%s,", tok);
-	snprintf(opts + n, sizeof(opts) - n, "subvol=@.next");
+			n = bufadd(opts, sizeof(opts), n, "%s,", tok);
+	bufadd(opts, sizeof(opts), n, "subvol=@.next");
 
 	mkdir(STAGE_DIR, 0700);
 	mkdir(STAGE_MNT, 0700);
@@ -828,8 +828,7 @@ static int cmd_remove(int argc, char **argv)
 			if (!leaving && word_in(installed[j].depends, argv[i]))
 				die("%s is needed by %s", argv[i], installed[j].name);
 		}
-		len += snprintf(names + len, sizeof(names) - len, "%s%s",
-				i > 1 ? " " : "", argv[i]);
+		len = bufadd(names, sizeof(names), len, "%s%s", i > 1 ? " " : "", argv[i]);
 	}
 	free(installed);
 	{

@@ -19,6 +19,10 @@ CC=${1:-${CC:-cc}}
 CFLAGS="-O2 -D_FORTIFY_SOURCE=3 -Werror -Wno-error=format-truncation"
 [ "$(basename "$CC")" = clang ] && CFLAGS="$CFLAGS -Wno-unknown-warning-option"
 dest=$BUILD/ci
+# Building in place for CodeQL: third-party sources (Monocypher, gtk4-
+# layer-shell) are unpacked outside the checkout, so they are not reported
+# as WormOS's code.
+[ "${CI_IN_PLACE:-0}" = 1 ] && dest=${RUNNER_TEMP:-${TMPDIR:-/tmp}}/wormos-ci
 mkdir -p "$dest"
 work=$(mktemp -d "$dest/build.XXXXXX")
 trap 'rm -rf "$work"' EXIT

@@ -1,6 +1,6 @@
 name=bh
 version=0.2.0
-release=3
+release=4
 description="Blackholes: disposable sandboxes for untrusted programs"
 depends=(glibc passt kvmtool)
 # Builds src/bh, which also uses sources from src/common.

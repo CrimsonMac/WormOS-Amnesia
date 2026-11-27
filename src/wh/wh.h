@@ -55,6 +55,10 @@ extern int root_fd;             /* open directory of the root */
 extern int verbose;
 
 /* util.c */
+/* Append to buf (size bytes, n used); stops at the end instead of
+ * overflowing. Returns the new length. */
+size_t bufadd(char *buf, size_t size, size_t n, const char *fmt, ...)
+	__attribute__((format(printf, 4, 5)));
 void die(const char *fmt, ...) __attribute__((noreturn, format(printf, 1, 2)));
 void warn(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void info(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
