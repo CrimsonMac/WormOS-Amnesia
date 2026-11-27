@@ -38,8 +38,9 @@ remains. It is not meant for real work: by design, nothing can be kept.
   the system, reach a disk or turn the protections off. Programs can still
   be installed into memory (`wh install`, `worm kit install`) for the
   session.
-- **Little to identify the machine.** A random MAC address on every start,
-  no host name on the network, UTC for everyone, no microphone and no
+- **Little to identify the machine.** A random MAC address on every start
+  (wired and Wi-Fi), no host name on the network, the same host name and
+  UTC for everyone, no TCP timestamps, no microphone and no
   camera, and a stricter kernel (memory unreadable even to root).
 
 ## Get it
@@ -57,7 +58,9 @@ remains. It is not meant for real work: by design, nothing can be kept.
 - **The start screen** comes before the desktop: choose your keyboard
   layout and how to reach Tor. Directly works on most networks; where Tor
   is blocked, or using it should not be noticed, pick the Tor Project's
-  snowflake, obfs4 or meek bridges, or paste your own. Tor waits for this
+  snowflake, obfs4 or meek bridges, let it find bridges that work where you
+  are (it asks the Tor Project, as Tor Browser's Connection Assist does), or
+  paste your own. Tor waits for this
   choice, so a network that blocks Tor never sees a direct attempt.
 - **The desktop** is grey, with the panel at the bottom and Tor Browser in
   the launcher. `worm anon status` shows how far Tor has connected; a

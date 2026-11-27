@@ -870,6 +870,7 @@ static const char *const ways[][2] = {
 	{ "snowflake", "Through snowflake bridges" },
 	{ "obfs4", "Through obfs4 bridges" },
 	{ "meek", "Through meek bridges (slow, hard to block)" },
+	{ "auto", "Find bridges that work here (asks the Tor Project)" },
 	{ "custom", "Through bridges I paste" },
 };
 static GtkWidget *way, *bridge_box, *bridge_text, *start_error, *start_button;

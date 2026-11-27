@@ -144,6 +144,12 @@ AMNESIA_CHECKS = [
      r"^700 tor\n0\n.*(Permission denied|can't open)"),
     ("no TCP timestamps, no core dumps", "sysctl -n net.ipv4.tcp_timestamps kernel.core_pattern",
      r"^0\n\|/bin/false$"),
+    # The same for everyone: what the local network and programs can see
+    # does not tell one Amnesia computer from another.
+    ("looks the same on every computer",
+     "hostname; date +%Z; cat /sys/class/net/eth0/address; "
+     "tr '\\0' ' ' < /proc/$(pidof udhcpc)/cmdline; echo; grep -c SendHostname=true /etc/iwd/main.conf",
+     r"^wormos\nUTC\n(?!52:54:00:12:34:56)[0-9a-f:]{17}\nudhcpc -f -S -i eth0 -V  -s \S+ \n0$"),
     ("Super+Shift+Escape shuts down at once",
      "grep -c 'key=\"W-S-Escape\".*/usr/lib/worm/power off' /etc/xdg/amnesia/labwc/rc.xml; "
      "grep -c 'quick-action new-circuits' /etc/xdg/amnesia/labwc/menu.xml", r"^1\n1$"),

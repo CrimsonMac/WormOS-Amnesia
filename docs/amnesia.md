@@ -54,7 +54,9 @@ does, and what comes next. It ships as
 - **Start screen.** Before the desktop, the login screen (wormlogin and the
   greeter in `amnesia` mode) asks for the keyboard layout (written to the
   live user's labwc environment, as that user) and how Tor should connect: directly, through
-  the Tor Project's default snowflake, obfs4 or meek bridges, or through
+  the Tor Project's default snowflake, obfs4 or meek bridges, bridges the
+  Tor Project's bridge service picks for the network it is asked from
+  (`worm anon bridges auto`, through a meek tunnel), or through
   pasted bridge lines (`worm anon bridges`, with the transports Tor Browser
   ships). Tor waits for the answer (`14-anon-hold` creates
   `/run/worm/anon-hold`, which `worm anon start` respects; wormlogin removes
@@ -252,8 +254,9 @@ does, and what comes next. It ships as
 ### Stage 3: more anonymity
 
 - **Bridges** are done (snowflake, obfs4, meek and pasted lines, including
-  webtunnel, on the start screen). Still to do: requesting bridges from
-  inside Amnesia (moat), and Conjure.
+  webtunnel, on the start screen), and so is asking the Tor Project which
+  bridges work here (the circumvention API through meek, "Find bridges that
+  work here"). Still to do: Conjure.
 - **Stream isolation:** done for destinations (`IsolateDestAddr`), and
   new circuits on request (`worm anon new-circuits`); still to do:
   separate SOCKS ports per program.

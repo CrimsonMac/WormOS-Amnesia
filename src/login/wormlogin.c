@@ -28,7 +28,8 @@
  *
  *     amnesia HOW BRIDGES LAYOUT
  *
- * HOW is direct, snowflake, obfs4, meek or custom (BRIDGES then holds the
+ * HOW is direct, snowflake, obfs4, meek, auto (worm anon bridges auto:
+ * the Tor Project's bridge service picks) or custom (BRIDGES then holds the
  * bridge lines); LAYOUT is the keyboard layout for the desktop (such as
  * de), written to the live user's labwc environment. wormlogin sets the bridges (worm anon bridges), lets Tor
  * start (it waits for this, /run/worm/anon-hold) and then starts the live
@@ -312,7 +313,7 @@ static int set_layout(const char *layout)
 /* Amnesia's start screen answered: keyboard layout, bridges, then Tor. */
 static int amnesia_start(char **f, char *msg, size_t len)
 {
-	static const char *const kinds[] = { "direct", "snowflake", "obfs4", "meek", "custom", NULL };
+	static const char *const kinds[] = { "direct", "snowflake", "obfs4", "meek", "auto", "custom", NULL };
 	int known = 0;
 
 	for (int i = 0; kinds[i]; i++)
