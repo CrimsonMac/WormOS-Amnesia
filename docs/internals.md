@@ -1600,7 +1600,12 @@ initramfs inside LUKS.
   cameras: uvcvideo as a module (WormOS Amnesia blocks it). I2C touchpads:
   Intel LPSS (DesignWare I2C, iDMA64), pinctrl for Tiger Lake to Meteor
   Lake (the touchpad's interrupt line), i2c-hid-acpi and hid-multitouch;
-  hp-wmi for HP's hotkeys. Backlight: `90-backlight.rules` runs
+  hp-wmi for HP's hotkeys. `06-idle-gpu` (`/usr/lib/worm/idle-gpu`): a
+  display-class NVIDIA or AMD PCI device with `boot_vga` 0 and no driver
+  gets its HDMI audio function removed from the bus (snd-hda-intel kept the
+  controller awake, which kept the card in D0), runtime PM `auto` on it and
+  on its PCIe port, which then puts the card in D3cold (seen on an HP
+  Victus: RTX 3050 off, across s2idle too). A sole or boot GPU is left alone. Backlight: `90-backlight.rules` runs
   `/usr/lib/worm/backlight add NAME`, which makes `brightness` writable
   for the group video and sets the level saved in
   `/var/lib/worm/backlight/NAME` (else at least 40%; never below 5%);

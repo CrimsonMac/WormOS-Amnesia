@@ -330,6 +330,9 @@ it, not because you need it:
   mice and keyboards that pair without a code); Forget removes it.
   Bluetooth audio goes through PipeWire like any other output. It starts
   switched off at every start. In a terminal: `bluetoothctl`.
+- A laptop's second graphics card (NVIDIA or AMD, next to Intel graphics)
+  has no driver in WormOS; it is switched off at start instead of draining
+  the battery. A screen connected to a port wired to that card stays dark.
 - Laptop sound through Intel's audio DSP (Smart Sound, on most Intel
   laptops since about 2020) uses Sound Open Firmware, so the speakers and
   built-in microphones work; USB webcams work as cameras.

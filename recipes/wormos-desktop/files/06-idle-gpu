@@ -1,0 +1,4 @@
+# A laptop's second graphics card, which WormOS has no driver for, is
+# powered off instead of draining the battery (/usr/lib/worm/idle-gpu).
+type = oneshot
+exec = /usr/lib/worm/idle-gpu

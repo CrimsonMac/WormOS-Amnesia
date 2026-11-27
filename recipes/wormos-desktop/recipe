@@ -21,6 +21,8 @@ package() {
 	install -Dm755 "$f/screenshot" "$pkgdir/usr/lib/worm/screenshot"
 	install -Dm755 "$f/quick-action" "$pkgdir/usr/lib/worm/quick-action"
 	install -Dm755 "$f/backlight" "$pkgdir/usr/lib/worm/backlight"
+	install -Dm755 "$f/idle-gpu" "$pkgdir/usr/lib/worm/idle-gpu"
+	install -Dm644 "$f/06-idle-gpu" "$pkgdir/etc/worm/services/06-idle-gpu"
 	install -Dm644 "$f/90-backlight.rules" "$pkgdir/usr/lib/udev/rules.d/90-backlight.rules"
 	install -Dm755 "$f/backlight-save" "$pkgdir/etc/worm/shutdown.d/20-backlight"
 	install -Dm755 "$f/update-notice" "$pkgdir/usr/lib/worm/update-notice"

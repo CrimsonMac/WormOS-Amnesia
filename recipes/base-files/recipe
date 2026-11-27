@@ -1,5 +1,5 @@
 name=base-files
-version=1.17
+version=1.18
 release=1
 description="Base system configuration and directory layout"
 

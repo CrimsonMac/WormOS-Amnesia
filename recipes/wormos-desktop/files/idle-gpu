@@ -1,0 +1,31 @@
+#!/bin/sh
+# Power off a second graphics card WormOS cannot drive (NVIDIA or AMD on a
+# laptop that shows its screen through the Intel one): no driver claims it,
+# so by default it stays powered and drains the battery. Only cards the
+# firmware did not pick to show the boot screen (boot_vga 0) and that no
+# driver has taken: a desktop's only graphics card (which shows the screen
+# through the firmware's framebuffer, with HDMI sound) is left alone.
+#
+# The card's own HDMI sound controller (function 1) keeps it awake and is
+# of no use without a driver for the card, so it is removed from the PCI
+# bus; then the card and the PCIe port above it may sleep, and the port
+# turns the card off (D3cold) on laptops that can.
+PATH=/usr/bin:/usr/sbin
+for gpu in /sys/bus/pci/devices/*; do
+	case $(cat "$gpu/class" 2>/dev/null) in 0x0300*|0x0302*) ;; *) continue ;; esac
+	[ "$(cat "$gpu/boot_vga" 2>/dev/null)" = 0 ] || continue
+	[ -e "$gpu/driver" ] && continue
+	case $(cat "$gpu/vendor") in 0x10de|0x1002) ;; *) continue ;; esac
+	slot=${gpu%.*}
+	for fn in "$slot".*; do
+		[ "$fn" = "$gpu" ] && continue
+		case $(cat "$fn/class" 2>/dev/null) in
+		0x0403*) echo 1 > "$fn/remove" ;;       # its HDMI sound
+		esac
+	done
+	echo auto > "$gpu/power/control"
+	port=$(dirname "$(readlink -f "$gpu")")
+	[ -e "$port/power/control" ] && echo auto > "$port/power/control"
+	echo "idle-gpu: ${gpu##*/} may power off"
+done
+exit 0
