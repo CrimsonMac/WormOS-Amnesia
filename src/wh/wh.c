@@ -292,10 +292,12 @@ static int history_add(const char *action, const char *packages, int snapshot)
 /* ---- applying pure additions to the running system ---- */
 
 /* Copy one entry of a package ("d PATH", "f PATH", "l PATH") from the
- * staged root to the running one, with its owner, mode and capabilities. */
+ * staged root to the running one, with its owner, mode and capabilities.
+ * Files and links are made under a temporary name and renamed into place,
+ * so one that replaces a BusyBox link does so in one step. */
 static int live_copy(const char *type, const char *path)
 {
-	char src[PATH_MAX], dst[PATH_MAX], buf[1 << 16], link[PATH_MAX], cap[256];
+	char src[PATH_MAX], dst[PATH_MAX], tmp[PATH_MAX + 8], buf[1 << 16], link[PATH_MAX], cap[256];
 	struct stat st;
 	ssize_t n, caplen;
 	int in, out;
@@ -315,13 +317,20 @@ static int live_copy(const char *type, const char *path)
 		if (n < 0)
 			return -1;
 		link[n] = '\0';
-		if (symlink(link, dst) < 0)
+		snprintf(tmp, sizeof(tmp), "%s.wh-new", dst);
+		unlink(tmp);
+		if (symlink(link, tmp) < 0 || lchown(tmp, st.st_uid, st.st_gid) < 0 ||
+		    rename(tmp, dst) < 0) {
+			unlink(tmp);
 			return -1;
-		return lchown(dst, st.st_uid, st.st_gid);
+		}
+		return 0;
 	}
 	if ((in = open(src, O_RDONLY | O_CLOEXEC)) < 0)
 		return -1;
-	out = open(dst, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
+	snprintf(tmp, sizeof(tmp), "%s.wh-new", dst);
+	unlink(tmp);
+	out = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0600);
 	if (out < 0) {
 		close(in);
 		return -1;
@@ -334,11 +343,25 @@ static int live_copy(const char *type, const char *path)
 	caplen = fgetxattr(in, "security.capability", cap, sizeof(cap));
 	close(in);
 	if (n < 0 || fchown(out, st.st_uid, st.st_gid) < 0 || fchmod(out, st.st_mode & 07777) < 0 ||
-	    (caplen > 0 && fsetxattr(out, "security.capability", cap, caplen, 0) < 0)) {
-		close(out);
+	    (caplen > 0 && fsetxattr(out, "security.capability", cap, caplen, 0) < 0) ||
+	    close(out) < 0 || rename(tmp, dst) < 0) {
+		unlink(tmp);
 		return -1;
 	}
-	return close(out);
+	return 0;
+}
+
+/* Is the running system's path a BusyBox applet link (which a package may
+ * take over)? */
+static int busybox_link(const char *path)
+{
+	char link[PATH_MAX];
+	ssize_t n = readlink(path, link, sizeof(link) - 1);
+
+	if (n < 0)
+		return 0;
+	link[n] = '\0';
+	return !strcmp(link, "busybox") || !strcmp(link, "../bin/busybox");
 }
 
 static int same_file(const char *path)
@@ -361,7 +384,7 @@ static int same_file(const char *path)
 /*
  * After a change that only added packages (none upgraded or removed, no
  * kernel, no new accounts) and none of whose files exists in the running
- * system: copy those files into it, so the programs work at once, and run
+ * system, BusyBox applet links aside (taken over as in the staged system): copy those files into it, so the programs work at once, and run
  * the hooks there. The staged system is still committed as usual and
  * becomes the system at the next restart, holding the same files.
  * Returns whether it applied the change.
@@ -369,7 +392,7 @@ static int same_file(const char *path)
 static int live_apply(void)
 {
 	char **paths[MAX_NEW];
-	int counts[MAX_NEW], ok = 1, copied = 0;
+	int counts[MAX_NEW], ok = 1, copied = 0, taken = 0;
 
 	if (live || direct || opt_try || kernel_changed || changed_existing || !n_new)
 		return 0;
@@ -385,7 +408,11 @@ static int live_apply(void)
 			struct stat st;
 
 			snprintf(dst, sizeof(dst), "/%s", paths[i][j] + 2);
-			if (paths[i][j][0] != 'd' && lstat(dst, &st) == 0)
+			if (paths[i][j][0] == 'd' || lstat(dst, &st) < 0)
+				continue;
+			if (busybox_link(dst))
+				taken = 1;
+			else
 				ok = 0;
 		}
 	}
@@ -413,6 +440,9 @@ static int live_apply(void)
 			   live_copy("f", (snprintf(db, sizeof(db), WH_DB_DIR "/%s/info", new_pkgs[i]), db)) < 0))
 			ok = 0;
 	}
+	/* BusyBox's record no longer lists the links taken over. */
+	if (ok && taken && live_copy("f", WH_DB_DIR "/busybox/files") < 0)
+		ok = 0;
 	if (copied) {
 		/* The caches the new files belong in, in the running system. */
 		set_root("/");

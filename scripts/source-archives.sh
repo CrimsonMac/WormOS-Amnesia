@@ -86,7 +86,7 @@ done
 # packages and the signed index).
 mkdir -p "$STAGE/wormos-build-tools/scripts" "$STAGE/wormos-build-tools/tools" \
 	"$STAGE/wormos-build-tools/toolchain" "$STAGE/wormos-build-tools/kernel"
-cp "$WORMOS_ROOT"/scripts/{env.sh,build-toolchain.sh,build-kernel.sh} \
+cp "$WORMOS_ROOT"/scripts/{env.sh,secureboot.sh,build-toolchain.sh,build-kernel.sh} \
 	"$STAGE/wormos-build-tools/scripts/"
 cp "$WORMOS_ROOT"/tools/{wbuild,wpack,wrepo} "$STAGE/wormos-build-tools/tools/"
 cp "$WORMOS_ROOT/toolchain/sources" "$STAGE/wormos-build-tools/toolchain/"

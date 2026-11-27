@@ -18,5 +18,6 @@ build() {
 package() {
 	make DESTDIR="$pkgdir" install_device-mapper
 	rm -rf "$pkgdir/usr/share" "$pkgdir/etc"
-	chmod u+w "$pkgdir"/usr/lib/*.so* "$pkgdir"/usr/bin/* 2>/dev/null || true
+	# LVM2 installs some files read-only: the sysroot must be able to replace them.
+	chmod -R u+w "$pkgdir"
 }

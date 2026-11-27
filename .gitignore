@@ -48,3 +48,4 @@
 __pycache__/
 /tests/unit/skew
 /tests/unit/newer
+*.key

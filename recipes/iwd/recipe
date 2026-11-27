@@ -17,6 +17,8 @@ package() {
 	make DESTDIR="$pkgdir" install
 	# Nothing starts iwd on demand: the 41-wifi service runs it.
 	rm -rf "$pkgdir/usr/share/dbus-1/system-services"
+	# Access is for wheel; WormOS has no netdev group.
+	sed -i '/<policy group="netdev">/,/<\/policy>/d' "$pkgdir/usr/share/dbus-1/system.d/iwd-dbus.conf"
 	install -Dm644 "$recipedir/files/main.conf" "$pkgdir/etc/iwd/main.conf"
 	install -Dm644 "$recipedir/files/41-wifi" "$pkgdir/etc/worm/services/41-wifi"
 	install -Dm755 "$recipedir/files/wifi" "$pkgdir/usr/lib/worm/wifi"

@@ -14,8 +14,8 @@ check it: from 1.17, `SHA256SUMS` is signed with the WormOS key, and
 [`scripts/verify-release.sh`](../scripts/verify-release.sh) checks the
 signature and the files with OpenSSL alone
 (`sh verify-release.sh DIR core.pem`, with
-[`keys/core.pem`](../keys/core.pem)). All of them start with UEFI or BIOS
-firmware (Secure Boot off).
+[`keys/core.pem`](../keys/core.pem)). All of them start with UEFI (Secure
+Boot on or off) or BIOS firmware.
 
 ### Editions
 
@@ -157,6 +157,33 @@ on top of this one.
   so there is no VMware bundle and the VMware guest tools are left out.
   The ISO may still work in VMware, but nothing is promised; QEMU,
   virt-manager (KVM) and real PCs are the supported targets.
+
+### Secure Boot
+
+WormOS starts with Secure Boot on, the way most Linux distributions do:
+the firmware starts a small loader (shim) that PCs trust out of the box,
+and shim starts WormOS's boot loader and kernel, which are signed with
+WormOS's own key. The firmware does not know that key yet, so the first
+start with Secure Boot on asks you to add it, once:
+
+1. A blue screen (shim's MokManager) says the verification failed. Press a
+   key, then choose **Enroll key from disk**.
+2. Pick the disk (on a USB stick or CD, the WormOS one; on an installed
+   system, the `WORMOS-EFI` partition), then `EFI`, `BOOT`, `wormos.cer`.
+3. Check that it is "WormOS Secure Boot 2026", choose **Continue**, **Yes**
+   and **Reboot**.
+
+From then on WormOS starts like any other system, and the firmware still
+refuses anything not signed by Microsoft's or WormOS's key. The kernel
+runs locked down (no unsigned modules, no access to its memory) either way.
+
+What it does not cover: the boot menu's settings and the initramfs are not
+signed, so someone with the disk in hand could change how the signed
+kernel starts. An encrypted install keeps the initramfs and the system on
+the encrypted part, which leaves only the boot loader's menu file.
+Releases from 1.17 on are signed; the certificate is
+[`keys/secureboot.crt`](../keys/secureboot.crt) (builds without that key
+sign with a key of their own, made for the build).
 
 ### In a virtual machine
 
@@ -642,6 +669,8 @@ that come with Tor Browser:
 worm anon bridges snowflake   # the Tor Project's default bridges of a kind:
 worm anon bridges obfs4       #   snowflake, obfs4 or meek
 worm anon bridges custom      # paste lines from bridges.torproject.org
+worm anon bridges auto        # ask the Tor Project which bridges work here
+worm anon bridges auto ir     #   ... or in the country given (two letters)
 worm anon bridges off         # connect directly again
 ```
 
@@ -649,6 +678,13 @@ With bridges, the transports look up their servers' names before Tor is
 connected, through the local resolver (encrypted DNS), as Tor Browser does
 with the system's resolver; snowflake also needs UDP for Tor's own user.
 Everything else still goes through Tor or is blocked.
+
+`auto` asks the Tor Project's bridge service, as Tor Browser's Connection
+Assist does, which transports work from where you are. The question goes
+through a meek tunnel to a large content delivery network, so a censor
+would have to block that whole network to stop it. If nothing is blocked,
+Tor connects directly; otherwise the answer's bridges are set up as above.
+Without an answer, the meek bridges stay set.
 
 ## Tor Browser
 

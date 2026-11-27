@@ -81,9 +81,10 @@ in [building.md](building.md); what each feature does for the user, in the
   `PACKAGES` with the host build of wh (`build/host/wh --root`) from
   `file://out/repo`, so the image has a complete `/usr/lib/wh/db`. It runs
   under fakeroot with state in `build/fakeroot.state`.
-- `scripts/build-initramfs.sh` builds the initramfs with the kernel's
-  `gen_init_cpio` (no root needed): wormrd, snap, busybox and the libraries
-  they need (found via readelf NEEDED).
+- `scripts/build-initramfs.sh` builds the initramfs with wormrd's
+  `mkinitramfs` (run through the target's loader, no root needed): wormrd,
+  snap, busybox, zstd, cryptsetup and the libraries they need (from their
+  ELF dynamic sections), times 0.
 - `scripts/mkimage.sh` writes `out/wormos.img` without loop devices: GPT with
   an ESP (GRUB) and a btrfs partition holding `@`, `@var`, `@home`,
   `@snapshots` and `@wormholes`.
@@ -100,6 +101,20 @@ in [building.md](building.md); what each feature does for the user, in the
     recorded (`find -printf` under fakeroot), copies the tree with sudo,
     replays owners and then modes with `scripts/apply-ownership.py` (which
     fails on any path without a record) and runs `sudo mkfs.btrfs` on the copy.
+  - Identifiers and dates are derived, not random: `SOURCE_DATE_EPOCH`
+    (the last commit's time unless set) and the edition give the fs UUID,
+    the partition and disk GUIDs and the ESP's volume ID (SHA-256 of
+    "EPOCH EDITION NAME"); the FAT images are made with `mkfs.fat
+    --invariant` and `mcopy -m` from files dated to the epoch, and the ISO's
+    files and volume are dated to it (xorriso reads `SOURCE_DATE_EPOCH`).
+    With the reproducible packages (wpack) and initramfs (times 0), two
+    builds of the same commit give the same boot files, partition table and
+    ESP (signatures record when they were made, so `sb_sign` reuses the
+    signed copy of an identical input from `build/host/secureboot/signed`;
+    others can compare after `sbattach --remove`). The btrfs image still
+    differs: mkfs.btrfs records the current time
+    in its trees and has no setting for it, so `system.img.zst` is only
+    the same in its files, not its bytes.
 
 ## Boot
 
@@ -124,6 +139,38 @@ in [building.md](building.md); what each feature does for the user, in the
   mount in `/proc/self/mountinfo` if it is missing (an initramfs older
   than the link), then `mount -a`.
 
+## Secure Boot
+
+`scripts/secureboot.sh` (sourced by `mkimage.sh`, `mkiso.sh` and
+`build-kernel.sh`) builds the UEFI boot folder `EFI/BOOT` of the disk's
+ESP and the ISO:
+
+- `BOOTX64.EFI` is Debian's shim (`shimx64.efi.signed`, signed by
+  Microsoft's UEFI CA 2011) and `mmx64.efi` its MokManager, both from
+  pinned Debian packages (`shim-signed`, `shim-helpers-amd64-signed`,
+  fetched like sources with their SHA-256).
+- `grubx64.efi` is GRUB from Debian's `grub-efi-amd64-bin` made with
+  `grub-mkimage`, every module built in (under Secure Boot GRUB loads
+  none from disk), with SBAT data: Debian's lines, taken from the signed
+  GRUB of the same version (the code is Debian's build; shim refuses GRUB
+  generations its revocation level lists), plus `grub.wormos,1`. It is
+  signed with `sbsign`.
+- `wormos.cer` is the certificate in DER form, for MokManager's "Enroll key
+  from disk".
+- The kernel (`vmlinuz`, an EFI stub image) is signed when it is packaged;
+  GRUB has shim verify it (shim_lock) against the firmware's db and
+  MokList. Modules are signed with the kernel's own build key as before.
+
+The key is `$WORMOS_SB_KEY` (default `~/.config/wormos/secureboot.key`,
+outside the repository) belonging to `keys/secureboot.crt` (RSA 2048,
+"WormOS Secure Boot 2026"); a build without it makes a development key in
+`build/host/secureboot/` and puts that certificate on the ESP. shim
+without Secure Boot just starts GRUB, so nothing changes there; BIOS boots
+as before. Not covered: `grub.cfg` (on the ESP, or the ISO) and the
+initramfs are not verified, so the kernel command line and early boot can
+be changed by someone with the disk; an encrypted install keeps the
+initramfs inside LUKS.
+
 ## Live system and ISO
 
 - `scripts/mkiso.sh` (`make iso`) runs `mkimage.sh` with `SHRINK=1` and
@@ -134,9 +181,13 @@ in [building.md](building.md); what each feature does for the user, in the
   command line. The ISO holds the kernel, the initramfs, `wormos/
   system.img.zst` (zstd; `--shrink` keeps whole allocated chunks, mostly
   empty, so the file is 1.2 GB raw and about half compressed),
-  `system.size`, `esp.img.zst` and `head.img`. `grub-mkrescue` makes it a
-  hybrid image (El Torito for BIOS and UEFI, MBR/GPT for USB sticks) with
-  the volume ID `WORMOS_LIVE`; its menu boots `wormos.live` plus the
+  `system.size`, `esp.img.zst` and `head.img`. xorriso makes it a
+  hybrid image in grub-mkrescue's layout (El Torito: `boot/grub/
+  eltorito.img`, GRUB for BIOS with every module built in; `boot/efi.img`,
+  a FAT image with the signed UEFI boot folder, also appended as an EFI
+  system partition for USB sticks; GRUB's hybrid MBR) with the volume ID
+  `WORMOS_LIVE`. Both GRUBs carry an early config that finds the ISO by
+  `/wormos/system.size` and reads `boot/grub/grub.cfg`; its menu boots `wormos.live` plus the
   installed system's command line without `root=`.
 - `wormrd` with `wormos.live` scans block devices for an ISO 9660 primary
   volume descriptor with that volume ID (30 s for USB sticks), mounts it,
@@ -646,6 +697,20 @@ in [building.md](building.md); what each feature does for the user, in the
   transports resolve their servers' names through it before Tor is up;
   Tor's own user is left out of the DNS redirect), and with snowflake UDP
   from Tor's user.
+- `worm anon bridges auto [CC]` (`bridges_auto`): sets the meek bridges
+  first (so the firewall lets the transports resolve names), then starts
+  `lyrebird` as Tor's user with the pluggable-transport environment
+  (`TOR_PT_MANAGED_TRANSPORT_VER=1`, `TOR_PT_CLIENT_TRANSPORTS=meek_lite`,
+  state in a temporary directory), reads its SOCKS port from the `CMETHOD`
+  line and POSTs the transports it knows (and `country` if given) to the circumvention API
+  (`https://bridges.torproject.org/moat/circumvention/settings`) with
+  `curl --proxy socks5h://` through it; meek's argument, as Tor Browser passes it
+  (`targets=URL|FRONT+FRONT` from its `bridgedb_targets` preference), goes
+  in the SOCKS user name and password, which lyrebird joins (split after
+  `https:`, percent-encoded in the proxy URL). `moat_parse` takes the first setting: its type and the
+  service's own bridge lines, or nothing for the defaults of that type
+  (unit test `tests/unit/moat.c`). An empty `settings` list means nothing
+  is blocked: bridges off. The settings helper accepts `auto` too.
 
 ## Tor Browser
 

@@ -36,6 +36,15 @@ display=(-nographic)
 extra=()
 firmware=(-drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE"
 	-drive if=pflash,format=raw,file="$OVMF_VARS")
+machine=q35
+# SECURE_BOOT_VARS=FILE: firmware with Secure Boot on, its variables (the
+# keys it trusts) from FILE.
+if [ -n "${SECURE_BOOT_VARS:-}" ]; then
+	firmware=(-global driver=cfi.pflash01,property=secure,value=on
+		-drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd
+		-drive if=pflash,format=raw,file="$SECURE_BOOT_VARS")
+	machine=q35,smm=on
+fi
 for arg in "$@"; do
 	case $arg in
 	--gui)      display=(-display gtk -serial mon:stdio) ;;
@@ -77,7 +86,7 @@ accel=(-accel tcg)
 [ -w /dev/kvm ] && accel=(-accel kvm -cpu host)
 
 exec qemu-system-x86_64 \
-	-machine q35 \
+	-machine "$machine" \
 	"${accel[@]}" \
 	-smp "${QEMU_CPUS:-4}" \
 	-m "${QEMU_MEM:-1024}" \

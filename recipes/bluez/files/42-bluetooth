@@ -1,4 +1,4 @@
-# Bluetooth: bluetoothd, after the message bus. It idles without an adapter.
+# Bluetooth: bluetoothd, after the message bus (it waits for its socket). It idles without an adapter.
 type = respawn
-exec = exec /usr/lib/bluetooth/bluetoothd --nodetach
+exec = for i in $(seq 50); do [ -S /run/dbus/system_bus_socket ] && break; sleep 0.1; done; exec /usr/lib/bluetooth/bluetoothd --nodetach
 safe = no

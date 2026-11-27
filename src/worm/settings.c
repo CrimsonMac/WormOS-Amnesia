@@ -102,7 +102,7 @@ int main(int argc, char **argv)
 		args[n++] = "status";
 	} else if (!strcmp(cmd, "bridges") && argc == 3 &&
 		   (!strcmp(argv[2], "snowflake") || !strcmp(argv[2], "obfs4") ||
-		    !strcmp(argv[2], "meek") || !strcmp(argv[2], "off") ||
+		    !strcmp(argv[2], "meek") || !strcmp(argv[2], "off") || !strcmp(argv[2], "auto") ||
 		    !strcmp(argv[2], "status"))) {
 		args[n++] = "anon";
 		args[n++] = "bridges";

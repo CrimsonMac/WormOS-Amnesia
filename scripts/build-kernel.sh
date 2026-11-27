@@ -2,6 +2,7 @@
 # Build the WormOS kernel and stage it as the "linux" package.
 
 . "$(dirname "$0")/env.sh"
+. "$(dirname "$0")/secureboot.sh"
 
 LINUX=linux-6.18.64
 KOBJ=$BUILD/kernel
@@ -73,7 +74,8 @@ kmake -j"$JOBS" bzImage modules
 kver=$(kmake -s kernelrelease)
 rm -rf "$PKGDIR/linux"
 mkdir -p "$PKGDIR/linux/boot"
-cp "$KOBJ/arch/x86/boot/bzImage" "$PKGDIR/linux/boot/vmlinuz-$kver"
+# Signed for Secure Boot: GRUB has shim check it (secureboot.sh).
+sb_sign "$KOBJ/arch/x86/boot/bzImage" "$PKGDIR/linux/boot/vmlinuz-$kver"
 cp "$KOBJ/.config" "$PKGDIR/linux/boot/config-$kver"
 ln -sfn "vmlinuz-$kver" "$PKGDIR/linux/boot/vmlinuz"
 kmake INSTALL_MOD_PATH="$PKGDIR/linux/usr" INSTALL_MOD_STRIP=1 modules_install

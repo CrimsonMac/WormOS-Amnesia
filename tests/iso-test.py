@@ -92,7 +92,7 @@ ENCRYPTED_CHECKS = [
     ("root from the encrypted disk", "readlink /dev/wormos-root; cat /sys/block/dm-0/dm/name",
      r"^/dev/dm-0\nwormos-root$"),
     ("LUKS2 with PBKDF2, which GRUB opens",
-     "cryptsetup luksDump /dev/vda2 | grep -c -e 'Version: *2' -e 'PBKDF: *pbkdf2'", r"^[3-9]$"),
+     "cryptsetup luksDump /dev/vda2 | grep -c -e 'Version:[[:space:]]*2' -e 'PBKDF:[[:space:]]*pbkdf2'", r"^[3-9]$"),
     ("the system's key is root's alone", "stat -c '%a %U' /etc/worm/luks.key /boot/initramfs.img",
      r"^400 root\n600 root$"),
     ("the initramfs opens the disk with it",

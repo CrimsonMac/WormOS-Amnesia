@@ -6,7 +6,9 @@
 #
 # Contents:
 #   boot/vmlinuz, boot/initramfs.img   the kernel and wormrd
-#   boot/grub/grub.cfg                 the menu (GRUB, from grub-mkrescue)
+#   boot/grub/grub.cfg                 the menu (GRUB)
+#   boot/grub/eltorito.img             GRUB for BIOS
+#   boot/efi.img                       shim and GRUB for UEFI (secureboot.sh)
 #   wormos/system.img.zst              the btrfs root filesystem, shrunk to
 #                                      its contents and compressed: copied
 #                                      into memory to run live, written to
@@ -25,6 +27,7 @@
 # kernel settings.
 
 . "$(dirname "$0")/env.sh"
+. "$(dirname "$0")/secureboot.sh"
 
 VARIANT_ID=standard
 VARIANT=
@@ -41,11 +44,12 @@ WORK=$BUILD/iso
 PARTS=$WORK/parts
 TREE=$WORK/tree
 
-command -v grub-mkrescue > /dev/null || die "grub-mkrescue is missing (apt install grub-common)"
+command -v grub-mkimage > /dev/null || die "grub-mkimage is missing (apt install grub-common)"
 command -v xorriso > /dev/null || die "xorriso is missing (apt install xorriso)"
 
 rm -rf "$WORK"
 mkdir -p "$TREE/boot/grub" "$TREE/wormos"
+export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$WORMOS_ROOT" log -1 --format=%ct 2> /dev/null || echo 0)}
 
 # The partitions, with the root filesystem shrunk; the disk image itself
 # is thrown away.
@@ -99,10 +103,39 @@ if [ "\$grub_platform" = efi ]; then
 fi
 EOF
 
+msg "Creating the boot loaders"
+# Both GRUBs find the ISO by a file only it has and read the menu above.
+cat > "$WORK/early.cfg" <<EOF
+search --no-floppy --file --set=root /wormos/system.size
+set prefix=(\$root)/boot/grub
+configfile \$prefix/grub.cfg
+EOF
+# UEFI: shim, signed GRUB, MokManager and the certificate in a FAT image,
+# which the ISO also carries as an EFI system partition for USB sticks.
+sb_efi_dir "$WORK/efi" "$WORK/early.cfg"
+touch -d "@$SOURCE_DATE_EPOCH" "$WORK"/efi/*
+mkfs.fat --invariant -n WORMOS-ISO -C "$TREE/boot/efi.img" 4096 > /dev/null
+mmd -i "$TREE/boot/efi.img" ::/EFI ::/EFI/BOOT
+mcopy -m -i "$TREE/boot/efi.img" "$WORK"/efi/* ::/EFI/BOOT/
+# BIOS: GRUB as a CD boot image, every module built in.
+grub-mkimage -O i386-pc-eltorito -p /boot/grub -c "$WORK/early.cfg" \
+	-o "$TREE/boot/grub/eltorito.img" \
+	biosdisk iso9660 part_msdos part_gpt normal linux search search_fs_file \
+	configfile echo test ls cat sleep reboot halt serial terminal \
+	all_video vbe vga font gfxterm
+
 msg "Writing $(basename "$ISO")"
 rm -f "$ISO"
-grub-mkrescue -o "$ISO" "$TREE" -- -volid "$VOLUME" 2> "$WORK/mkrescue.log" ||
-	{ cat "$WORK/mkrescue.log" >&2; die "grub-mkrescue failed"; }
+# Every file and the volume dated by SOURCE_DATE_EPOCH (xorriso reads it).
+find "$TREE" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+# The layout grub-mkrescue makes: a hybrid MBR for BIOS from USB, El Torito
+# for CDs, and the EFI image as an appended partition.
+xorriso -as mkisofs -r -V "$VOLUME" \
+	-b boot/grub/eltorito.img -no-emul-boot -boot-load-size 4 -boot-info-table \
+	--grub2-boot-info --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img \
+	--efi-boot boot/efi.img -efi-boot-part --efi-boot-image --protective-msdos-label \
+	-o "$ISO" "$TREE" 2> "$WORK/xorriso.log" ||
+	{ cat "$WORK/xorriso.log" >&2; die "xorriso failed"; }
 rm -rf "$WORK"
 
 msg "ISO ready: $ISO ($(du -h "$ISO" | cut -f1))"

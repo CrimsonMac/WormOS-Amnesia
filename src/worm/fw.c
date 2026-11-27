@@ -233,7 +233,13 @@ static void write_anon(FILE *f, long tor)
 		"%s"
 		"\t\tudp dport 53 redirect to :5353\n"
 		"\t\tip daddr 127.0.0.0/8 return\n"
-		"\t\tmeta nfproto ipv4 meta l4proto tcp redirect to :9040\n"
+		/*
+		 * The system's own connections (root and service accounts:
+		 * updates, the clock check) and the users' programs use
+		 * different TransPorts, so Tor never puts them on one circuit.
+		 */
+		"\t\tmeta skuid < 1000 meta nfproto ipv4 meta l4proto tcp redirect to :9040\n"
+		"\t\tmeta nfproto ipv4 meta l4proto tcp redirect to :9041\n"
 		"\t}\n", skuid);
 }
 

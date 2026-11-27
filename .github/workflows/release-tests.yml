@@ -39,6 +39,12 @@ jobs:
           - name: Barebones ISO
             asset: "wormos-*-barebones-x86_64.iso"
             test: tests/iso-test.py $GITHUB_WORKSPACE/out/release/wormos-$VERSION-barebones-x86_64.iso --live-only
+          - name: Encrypted install
+            asset: "wormos-*[0-9]-x86_64.iso"
+            test: tests/iso-test.py $GITHUB_WORKSPACE/out/release/wormos-$VERSION-x86_64.iso --live-only --encrypt
+          - name: Secure Boot
+            asset: "wormos-*[0-9]-x86_64.*"
+            test: tests/secureboot-test.py --release --image $GITHUB_WORKSPACE/out/release/wormos-$VERSION-x86_64.qcow2 --iso $GITHUB_WORKSPACE/out/release/wormos-$VERSION-x86_64.iso
           - name: Barebones edition
             asset: "wormos-*-barebones-x86_64.iso"
             test: tests/editions-test.py barebones $GITHUB_WORKSPACE/out/release/wormos-$VERSION-barebones-x86_64.iso --release
@@ -110,7 +116,7 @@ jobs:
       - name: Install QEMU
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf mtools python3-virt-firmware
       - name: Test
         working-directory: tagged
         run: |

@@ -405,6 +405,7 @@ static void overview(void)
 	       "  worm anon new-circuits   new connections get new Tor circuits (no password)\n"
 	       "  worm anon bridges snowflake  reach Tor where it is blocked (obfs4, meek,\n"
 	       "                           custom: lines from bridges.torproject.org; off)\n"
+	       "  worm anon bridges auto [CC]  ask the Tor Project which bridges work here\n"
 	       "  worm unlock / lock       make / writable for a moment, then read-only again\n"
 	       "  worm panic [off]         cut the network, close sandboxes, take a snapshot\n\n",
 	       m, r);

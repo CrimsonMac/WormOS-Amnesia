@@ -23,6 +23,7 @@
 # MiB: protective MBR with GRUB's boot code, GPT, GRUB's core.img).
 
 . "$(dirname "$0")/env.sh"
+. "$(dirname "$0")/secureboot.sh"
 
 STATE=$BUILD/fakeroot.state
 [ -f "$STATE" ] && [ -d "$ROOTFS" ] || die "run scripts/build-rootfs.sh first"
@@ -40,13 +41,22 @@ esp_size=$((ESP_MB * MB))
 root_start=$((esp_start + esp_size))
 root_size=$(((DISK_MB - 1) * MB - root_start))   # leave 1 MiB for the backup GPT
 
-new_uuid() { cat /proc/sys/kernel/random/uuid; }
-FS_UUID=$(new_uuid)
-ROOT_PARTUUID=$(new_uuid)
-ESP_PARTUUID=$(new_uuid)
-BIOS_PARTUUID=$(new_uuid)
+# Identifiers and dates come from the commit (SOURCE_DATE_EPOCH) and the
+# edition, so the same sources make the same boot files and partition
+# table (the btrfs image still differs: mkfs.btrfs records the time).
+export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$WORMOS_ROOT" log -1 --format=%ct 2> /dev/null || echo 0)}
+new_uuid() {
+	local h
+	h=$(echo "$SOURCE_DATE_EPOCH ${WORMOS_VARIANT:-standard} $1" | sha256sum)
+	echo "${h:0:8}-${h:8:4}-4${h:13:3}-a${h:17:3}-${h:20:12}"
+}
+FS_UUID=$(new_uuid fs)
+ROOT_PARTUUID=$(new_uuid root)
+ESP_PARTUUID=$(new_uuid esp)
+BIOS_PARTUUID=$(new_uuid bios)
+DISK_GUID=$(new_uuid disk)
 # The ESP's FAT volume ID, which GRUB for BIOS searches for (as XXXX-XXXX).
-ESP_ID=$(od -An -N4 -tx4 /dev/urandom | tr -d ' ' | tr a-f A-F)
+ESP_ID=$(new_uuid esp-id | cut -c1-8 | tr a-f A-F)
 
 TMP=$BUILD/image
 sudo rm -rf "$TMP"
@@ -82,11 +92,8 @@ sudo rm -rf "$TMP/fsroot"
 sudo chown "$(id -u):$(id -g)" "$TMP/root.img"
 
 msg "Creating the boot loaders and the EFI system partition"
-grub-mkimage -O x86_64-efi -p /EFI/BOOT -o "$TMP/BOOTX64.EFI" \
-	part_gpt fat btrfs zstd normal linux search search_fs_uuid \
-	configfile echo test ls cat sleep reboot halt \
-	serial terminal all_video efi_gop font gfxterm \
-	cryptodisk luks2 gcry_rijndael gcry_sha256 gcry_sha512 pbkdf2
+# UEFI: shim, signed GRUB, MokManager and the certificate (secureboot.sh).
+sb_efi_dir "$TMP/efi"
 
 # GRUB for BIOS finds the ESP by its volume ID and reads the same grub.cfg.
 cat > "$TMP/bios.cfg" <<EOF
@@ -135,15 +142,18 @@ else
 fi
 EOF
 
-mkfs.fat -F 32 -n WORMOS-EFI -i "$ESP_ID" -C "$TMP/esp.img" $((ESP_MB * 1024)) > /dev/null
+touch -d "@$SOURCE_DATE_EPOCH" "$TMP"/efi/* "$TMP/grub.cfg"
+mkfs.fat --invariant -F 32 -n WORMOS-EFI -i "$ESP_ID" -C "$TMP/esp.img" $((ESP_MB * 1024)) > /dev/null
 mmd -i "$TMP/esp.img" ::/EFI ::/EFI/BOOT
-mcopy -i "$TMP/esp.img" "$TMP/BOOTX64.EFI" "$TMP/grub.cfg" ::/EFI/BOOT/
+mcopy -m -i "$TMP/esp.img" "$TMP/efi/BOOTX64.EFI" "$TMP/efi/grubx64.efi" "$TMP/efi/mmx64.efi" \
+	"$TMP/efi/wormos.cer" "$TMP/grub.cfg" ::/EFI/BOOT/
 
 msg "Writing disk image"
 rm -f "$IMAGE"
 truncate -s ${DISK_MB}M "$IMAGE"
 sfdisk -q "$IMAGE" <<EOF
 label: gpt
+label-id: $DISK_GUID
 unit: sectors
 first-lba: 34
 start=$esp_start, size=$esp_size, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=$ESP_PARTUUID, name="EFI"

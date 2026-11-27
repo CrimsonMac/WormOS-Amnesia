@@ -3,7 +3,7 @@
 CC      ?= cc
 CFLAGS  ?= -O2
 override CFLAGS += -std=gnu17 -Wall -Wextra -Werror -Wno-error=format-truncation -I../../src/common
-TESTS = skew sha256 sig
+TESTS = skew sha256 sig moat
 # Monocypher (wh's signatures), for tests that need it: sources from
 # scripts/ci-build.sh, or the library where one is installed.
 MONO_CFLAGS ?=
@@ -17,6 +17,9 @@ check: $(TESTS)
 
 skew: skew.c unit.h ../../src/worm/anon.c ../../src/worm/worm.h
 	$(CC) $(CFLAGS) -o $@ skew.c
+
+moat: moat.c unit.h ../../src/worm/anon.c ../../src/worm/worm.h
+	$(CC) $(CFLAGS) -o $@ moat.c
 
 sha256: sha256.c unit.h ../../src/snap/sha256.c ../../src/snap/sha256.h
 	$(CC) $(CFLAGS) -o $@ sha256.c ../../src/snap/sha256.c

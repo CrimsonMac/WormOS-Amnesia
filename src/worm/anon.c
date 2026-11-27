@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pwd.h>
+#include <grp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,6 +44,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "worm.h"
@@ -381,25 +383,15 @@ static int valid_bridge(const char *line)
 	return 1;
 }
 
-static int bridges_set(const char *kind)
-{
-	char path[256], line[MAX_BRIDGE_LINE + 2];
-	int n = 0, relock, ok;
-	FILE *in, *out;
+static int bridges_off(void);
 
-	if (access(LYREBIRD, X_OK) < 0)
-		die("bridges need Tor Browser's transports; 'wh install tor-browser-bundle' first%s", "");
-	if (!strcmp(kind, "custom")) {
-		if (isatty(STDIN_FILENO))
-			printf("Paste the bridge lines (from bridges.torproject.org), then Ctrl+D:\n");
-		in = stdin;
-	} else {
-		if (strchr(kind, '/') || strchr(kind, '.'))
-			return 2;
-		snprintf(path, sizeof(path), "%s/%s", DEFAULT_BRIDGES, kind);
-		if (!(in = fopen(path, "re")))
-			die("no default bridges of the kind '%s' (snowflake, obfs4 or meek)", kind);
-	}
+/* Write the bridge lines from in as BRIDGES_CONF, named kind. */
+static int bridges_write(const char *kind, FILE *in)
+{
+	char line[MAX_BRIDGE_LINE + 2];
+	int n = 0, relock, ok;
+	FILE *out;
+
 	relock = root_begin_change();
 	mkdir(TORRC_D, 0755);
 	if (!(out = fopen(BRIDGES_CONF ".new", "we"))) {
@@ -425,8 +417,6 @@ static int bridges_set(const char *kind)
 		fprintf(out, "Bridge %s\n", p);
 		n++;
 	}
-	if (in != stdin)
-		fclose(in);
 	ok = fclose(out) == 0 && n > 0 && rename(BRIDGES_CONF ".new", BRIDGES_CONF) == 0;
 	if (!ok)
 		unlink(BRIDGES_CONF ".new");
@@ -436,6 +426,224 @@ static int bridges_set(const char *kind)
 	printf("Tor reaches the network through %d %s bridge%s.\n", n,
 	       strcmp(kind, "custom") ? kind : "custom", n == 1 ? "" : "s");
 	return 0;
+}
+
+static int bridges_set(const char *kind)
+{
+	char path[256];
+	FILE *in;
+	int r;
+
+	if (access(LYREBIRD, X_OK) < 0)
+		die("bridges need Tor Browser's transports; 'wh install tor-browser-bundle' first%s", "");
+	if (!strcmp(kind, "custom")) {
+		if (isatty(STDIN_FILENO))
+			printf("Paste the bridge lines (from bridges.torproject.org), then Ctrl+D:\n");
+		return bridges_write(kind, stdin);
+	}
+	if (strchr(kind, '/') || strchr(kind, '.'))
+		return 2;
+	snprintf(path, sizeof(path), "%s/%s", DEFAULT_BRIDGES, kind);
+	if (!(in = fopen(path, "re")))
+		die("no default bridges of the kind '%s' (snowflake, obfs4 or meek)", kind);
+	r = bridges_write(kind, in);
+	fclose(in);
+	return r;
+}
+
+/* ---- bridges that work here, from the Tor Project (Connection Assist) ---- */
+
+/*
+ * Tor Browser's way to its bridge service: a meek tunnel through a CDN
+ * (the bridgedb_targets preference), so a censor would have to block the
+ * CDN. The circumvention API answers, for the country the request comes
+ * from (or the one given), which transports work there: the Tor Project's
+ * defaults of a kind, or bridges of its own.
+ */
+#define MOAT_SETTINGS  "https://bridges.torproject.org/moat/circumvention/settings"
+/*
+ * meek's argument, "targets=URL|FRONT+FRONT" as Tor Browser passes it, goes
+ * in the SOCKS user name and password, which lyrebird joins: split after
+ * "https:" and written percent-encoded in curl's proxy URL, so the colon
+ * that separates them in the URL is not lost.
+ */
+#define MEEK_CREDS     "targets%3Dhttps%3A:%2F%2F1723079976.rsc.cdn77.org%7Ccdn.zk.mk%2Bwww.cdn77.com"
+
+/* Copy JSON string text at p (after the opening quote) into out, unescaped. */
+static const char *json_string(const char *p, char *out, size_t len)
+{
+	size_t n = 0;
+
+	while (*p && *p != '"') {
+		char c = *p++;
+
+		if (c == '\\' && *p) {
+			c = *p++;
+			c = c == 'n' ? ' ' : c == 't' ? ' ' : c;    /* \" \\ \/ stay themselves */
+		}
+		if (n + 1 < len)
+			out[n++] = c;
+	}
+	out[n] = '\0';
+	return *p ? p + 1 : p;
+}
+
+/*
+ * From the answer, the first setting: its transport type, and its bridge
+ * lines if the service gave its own (else the defaults of that type are
+ * used). Lines go to out, one per line. Returns the type, or NULL.
+ */
+static const char *moat_parse(const char *json, FILE *out, int *lines)
+{
+	static char type[32];
+	const char *p = strstr(json, "\"settings\""), *strings, *end;
+	char line[MAX_BRIDGE_LINE + 2];
+
+	*lines = 0;
+	if (!p || !(p = strstr(p, "\"type\"")) || !(p = strchr(p + 6, '"')))
+		return NULL;
+	json_string(p + 1, type, sizeof(type));
+	if (strspn(type, "abcdefghijklmnopqrstuvwxyz0123456789_") != strlen(type) || !*type)
+		return NULL;
+	strings = strstr(p, "\"bridge_strings\"");
+	end = strstr(p, "\"type\"");     /* the next setting, if any */
+	if (strings && (!end || strings < end) && (strings = strchr(strings, '['))) {
+		for (const char *q = strings + 1; *q && *q != ']'; q++) {
+			if (*q != '"')
+				continue;
+			q = json_string(q + 1, line, sizeof(line)) - 1;
+			if (valid_bridge(line)) {
+				fprintf(out, "%s\n", line);
+				(*lines)++;
+			}
+		}
+	}
+	return type;
+}
+
+/* Run argv as Tor's user; output to out (len bytes), status returned. */
+static int run_as_tor(char *const argv[], char *const envp[], char *out, size_t len, pid_t *bg)
+{
+	long uid = anon_tor_uid();
+	int p[2], status;
+	size_t got = 0;
+	ssize_t r;
+	pid_t pid;
+
+	if (uid < 0 || pipe2(p, O_CLOEXEC) < 0 || (pid = fork()) < 0)
+		return -1;
+	if (pid == 0) {
+		dup2(p[1], STDOUT_FILENO);
+		if (setgroups(0, NULL) < 0 || setgid((gid_t)uid) < 0 || setuid((uid_t)uid) < 0 ||
+		    chdir(TOR_RUN) < 0)
+			_exit(127);
+		execve(argv[0], argv, envp);
+		_exit(127);
+	}
+	close(p[1]);
+	if (bg) {
+		/* A daemon: read its first lines (up to "CMETHODS DONE"). */
+		while (got < len - 1 && (r = read(p[0], out + got, len - 1 - got)) > 0) {
+			got += (size_t)r;
+			out[got] = '\0';
+			if (strstr(out, "CMETHODS DONE") || strstr(out, "CMETHOD-ERROR"))
+				break;
+		}
+		out[got] = '\0';
+		*bg = pid;
+		return 0;
+	}
+	while (got < len - 1 && (r = read(p[0], out + got, len - 1 - got)) > 0)
+		got += (size_t)r;
+	out[got] = '\0';
+	while (read(p[0], (char[512]){ 0 }, 512) > 0)
+		;
+	close(p[0]);
+	if (waitpid(pid, &status, 0) < 0 || !WIFEXITED(status))
+		return -1;
+	return WEXITSTATUS(status);
+}
+
+static int bridges_auto(const char *country)
+{
+	static char reply[1 << 16];
+	char cmethods[1024], proxy[256], body[160], *port;
+	char *pt_env[] = { "TOR_PT_MANAGED_TRANSPORT_VER=1", "TOR_PT_CLIENT_TRANSPORTS=meek_lite",
+			   "TOR_PT_STATE_LOCATION=/run/tor/pt_state", "TOR_PT_EXIT_ON_STDIN_CLOSE=0",
+			   "HOME=/run/tor", "PATH=/usr/bin", NULL };
+	char *curl_env[] = { "PATH=/usr/bin", "HOME=/run/tor", NULL };
+	const char *type;
+	pid_t meek = 0;
+	int lines = 0, r;
+	FILE *tmp;
+
+	if (country && (strlen(country) != 2 || strspn(country, "abcdefghijklmnopqrstuvwxyz") != 2))
+		die("the country is two small letters, such as de or cn%s", "");
+	if (access(LYREBIRD, X_OK) < 0)
+		die("bridges need Tor Browser's transports; 'wh install tor-browser-bundle' first%s", "");
+	/*
+	 * meek bridges first: with them the firewall lets the transports look
+	 * names up (encrypted DNS), and they are a working fallback.
+	 */
+	if (bridges_set("meek") != 0)
+		return 1;
+	if (fw_reload() != 0)
+		warn("cannot reload the firewall rules%s", "");
+	printf("Asking the Tor Project which bridges work here (through a meek tunnel)...\n");
+	fflush(stdout);
+	/* Tor's folder, as tor_start makes it (Tor may not have run yet). */
+	if ((mkdir(TOR_RUN, 0750) < 0 && errno != EEXIST) ||
+	    chown(TOR_RUN, (uid_t)anon_tor_uid(), (gid_t)anon_tor_uid()) < 0 ||
+	    (mkdir(TOR_RUN "/pt_state", 0700) < 0 && errno != EEXIST) ||
+	    chown(TOR_RUN "/pt_state", (uid_t)anon_tor_uid(), (gid_t)anon_tor_uid()) < 0)
+		warn("cannot prepare the transport's folder%s", "");
+	if (run_as_tor((char *[]){ LYREBIRD, NULL }, pt_env, cmethods, sizeof(cmethods), &meek) < 0 ||
+	    !(port = strstr(cmethods, "CMETHOD meek_lite socks5 127.0.0.1:"))) {
+		if (meek)
+			kill(meek, SIGTERM);
+		warn("the meek transport did not start; keeping the meek bridges%s", "");
+		return 0;
+	}
+	port += strlen("CMETHOD meek_lite socks5 ");
+	port[strcspn(port, "\r\n")] = '\0';
+	snprintf(proxy, sizeof(proxy), "socks5h://%s@%s", MEEK_CREDS, port);
+	if (country)
+		snprintf(body, sizeof(body), "{\"country\":\"%s\",\"transports\":[\"obfs4\",\"snowflake\","
+			 "\"webtunnel\",\"meek\"]}", country);
+	else
+		snprintf(body, sizeof(body), "{\"transports\":[\"obfs4\",\"snowflake\",\"webtunnel\",\"meek\"]}");
+	r = run_as_tor((char *[]){ "/usr/bin/curl", "-sS", "--max-time", "90", "-x", proxy, "-X", "POST",
+				   "-H", "Content-Type: application/vnd.api+json", "-d", body,
+				   MOAT_SETTINGS, NULL }, curl_env, reply, sizeof(reply), NULL);
+	kill(meek, SIGTERM);
+	waitpid(meek, NULL, 0);
+	if (r != 0 || !*reply) {
+		warn("no answer from the Tor Project; keeping the meek bridges%s", "");
+		return 0;
+	}
+	if (!(tmp = tmpfile()))
+		die("cannot hold the bridges: %s", strerror(errno));
+	type = moat_parse(reply, tmp, &lines);
+	if (!type) {
+		fclose(tmp);
+		/* An empty answer: nothing is blocked from here. */
+		if (strstr(reply, "\"settings\":[]") || strstr(reply, "\"settings\": []") ||
+		    strstr(reply, "\"settings\":null")) {
+			printf("Nothing seems blocked from here: Tor connects directly.\n");
+			return bridges_off();
+		}
+		warn("an answer Tor Browser would not expect; keeping the meek bridges%s", "");
+		return 0;
+	}
+	if (lines > 0) {
+		rewind(tmp);
+		r = bridges_write("auto", tmp);
+		fclose(tmp);
+		return r;
+	}
+	fclose(tmp);
+	/* The Tor Project's defaults of the kind it named. */
+	return bridges_set(!strcmp(type, "meek_lite") ? "meek" : type);
 }
 
 static int bridges_off(void)
@@ -490,8 +698,16 @@ int cmd_anon(int argc, char **argv)
 		}
 		if (!strcmp(argv[1], "off"))
 			r = bridges_off();
+		else if (!strcmp(argv[1], "auto"))
+			r = bridges_auto(NULL);
 		else if ((r = bridges_set(argv[1])) != 0)
 			return r;
+		bridges_apply();
+		return r;
+	}
+	if (argc == 3 && !strcmp(argv[0], "bridges") && !strcmp(argv[1], "auto")) {
+		int r = bridges_auto(argv[2]);
+
 		bridges_apply();
 		return r;
 	}

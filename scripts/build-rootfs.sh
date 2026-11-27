@@ -34,7 +34,10 @@ SYSTEM=(base-files glibc gcc-libs busybox worminit wormrd snap wh worm linux
 	zstd curl gnupg wormhole-keyrings libmnl libnftnl nftables bh expat unbound
 	kmod eudev seatd linux-firmware dbus wormos-login licenses tzdata cryptsetup
 	wormos-desktop labwc wlroots mesa foot swaybg grim wlr-randr xcompose font-inter font-hack
-	nano)
+	nano
+	# GNU's versions of the everyday commands: BusyBox keeps only the shell,
+	# DHCP, the console login and a few system tools.
+	coreutils grep sed gawk findutils diffutils)
 # The standard edition's programs come with wormos-standard, which
 # recommends them (each stays removable on its own, and upgrades add what
 # new releases bring).

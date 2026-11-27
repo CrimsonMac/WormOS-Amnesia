@@ -15,6 +15,7 @@ A Debian 13 (or similar) host with roughly 35 GB of free disk space:
 sudo apt install build-essential bison flex gawk texinfo m4 help2man \
     libncurses-dev libssl-dev libelf-dev libgmp-dev libmpc-dev rsync curl xz-utils bzip2 \
     btrfs-progs dosfstools mtools fakeroot grub-efi-amd64-bin grub-pc-bin bc \
+    grub-efi-amd64-signed sbsigntool xorriso python3-virt-firmware \
     qemu-system-x86 qemu-utils ovmf zip unzip \
     ninja-build gperf pipx python3-mako python3-yaml python3-ply python3-packaging python3-cairo \
     cmake nasm sassc gettext \
@@ -70,6 +71,14 @@ place, the download cache emptied): it makes a second repository from
 `out/repo` with three packages changed, deltas for them with
 `scripts/make-deltas.sh`, and upgrades the development image to it, with
 one file of a package changed first so that its delta cannot be used.
+
+`make test-secureboot` starts the development image with OVMF in Secure
+Boot mode and Microsoft's keys (`OVMF_CODE_4M.secboot.fd`,
+`OVMF_VARS_4M.ms.fd`, as PCs ship): without WormOS's certificate nothing
+past shim may run; with it in MokList (written by `virt-fw-vars
+--add-mok`, as MokManager does) the image boots and the kernel reports
+Secure Boot and lockdown; then the ISO boots to the live system the same
+way. `run-qemu.sh` takes `SECURE_BOOT_VARS=FILE` for this.
 
 `make test-vm` checks the virtual machine support on the development
 image: QEMU gets a guest agent channel on a socket of this machine and a
@@ -144,7 +153,9 @@ results point at the real files).
 
 A full build takes hours, so images are not built there. Instead, on every
 release and every week, `release-tests.yml` boots the published images in
-QEMU with KVM and runs the release tests (desktop, live ISOs, Barebones),
+QEMU with KVM and runs the release tests (desktop, live ISOs, an
+encrypted install from the ISO, Secure Boot with Microsoft's keys and
+WormOS's certificate enrolled, Barebones),
 and takes the release before it and upgrades it from the published
 package repository (`tests/upgrade-test.py --published`), as its users
 do. `package-repo.yml` checks the published package repository every day
@@ -179,6 +190,13 @@ first run creates a signing key in `~/.config/wormos/core.key` (keep it
 safe and backed up); its public half is `keys/core.pub`, which is built
 into the system. The root filesystem is assembled by installing the base
 packages from that repository with `wh --root`.
+
+The kernel, GRUB for UEFI and the boot images are signed for Secure Boot
+with `~/.config/wormos/secureboot.key` (`WORMOS_SB_KEY`), which belongs to
+`keys/secureboot.crt`. Without it the build makes a development key in
+`build/host/secureboot/` and puts its certificate on the EFI system
+partition, so your images boot with Secure Boot once that certificate is
+enrolled (docs/internals.md, Secure Boot).
 
 The development image has an empty root password (the tests log in with
 it). `make release VERSION=1.5` builds the release images instead

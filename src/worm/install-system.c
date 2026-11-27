@@ -602,6 +602,11 @@ static int cmd_install(const char *name, const char *passphrase)
 		}
 		for (int i = 0; i < 100 && access(part, F_OK) < 0; i++)
 			usleep(50000);
+		/* An exclusive hold on the disk keeps cryptsetup from claiming
+		 * the partition: reopen it without one. */
+		close(fd);
+		if ((fd = open(dev, O_RDWR | O_CLOEXEC)) < 0)
+			fail("cannot open %s: %s", dev, strerror(errno));
 		keyfd = encrypt_root(part, passphrase);
 		if ((target = open("/dev/mapper/" CRYPT_NAME, O_RDWR | O_CLOEXEC)) < 0 ||
 		    ioctl(target, BLKGETSIZE64, &mapped) < 0)

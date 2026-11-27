@@ -1,5 +1,5 @@
 name=wormos-standard
-version=1.10
+version=1.11
 description="The standard WormOS edition: the programs it comes with, beyond the base system"
 # Recommended rather than required: each program can still be removed on
 # its own (wh remembers it and does not bring it back). A new release adds
@@ -10,7 +10,7 @@ recommends=(wormos-installer
 	# Shells, terminal and editors.
 	bash less vim htop btop tmux screen mc fastfetch file tree ncdu jq bc
 	# Full versions of BusyBox's commands.
-	grep sed gawk findutils diffutils patch
+	coreutils grep sed gawk findutils diffutils patch
 	# Development and analysis.
 	git python sqlite strace lsof binutils gdb yara ssdeep
 	# Archives.

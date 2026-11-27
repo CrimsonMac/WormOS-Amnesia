@@ -225,8 +225,8 @@ BLACKHOLE_CHECKS = [
      "bh open t1 -- sh -c 'echo kept > /root/note'; bh open t1 -- cat /root/note", r"^kept$"),
     ("running with limits",
      "bh open t1 -- sleep 60 & sleep 5; cd /sys/fs/cgroup/blackholes/0-t1 && "
-     "cat pids.max cpu.weight && echo m=$(( $(cat memory.max) * 2 / 1024 / $(sed -n 's/MemTotal: *//p' /proc/meminfo | cut -d' ' -f1) )); cd; bh list",
-     r"^4096\n50\nm=1$(.|\n)*^t1\s+running"),
+     "cat pids.max cpu.weight && echo m=$(( ($(cat memory.max) * 2 / 1024 + 64) * 10 / $(sed -n 's/MemTotal: *//p' /proc/meminfo | cut -d' ' -f1) )); cd; bh list",
+     r"^4096\n50\nm=10$(.|\n)*^t1\s+running"),
     ("a second session joins it",
      "bh open t1 -- sh -c 'echo n=$(pgrep sleep | wc -l) $(hostname) $(cat /root/note)'",
      r"^n=1 t1 kept$"),
@@ -363,7 +363,7 @@ KIT_CHECKS = [
     ("tool kits listed", "worm kit list",
      r"^basic(.|\n)*^forensics(.|\n)*^pentest(.|\n)*^web(.|\n)*^windows"),
     ("basic kit marks core packages", "worm kit show basic",
-     r"WormOS packages(.|\n)* coreutils (.|\n)* 7zip\*(.|\n)*Tools \(from Debian(.|\n)*bind9-dnsutils"),
+     r"WormOS packages(.|\n)* mtr (.|\n)* 7zip\*(.|\n)*Tools \(from Debian(.|\n)*bind9-dnsutils"),
     ("windows kit points at VM blackholes", "worm kit show windows", r"bh open --vm(.|\n)*wine"),
     ("kit contents", "worm kit show forensics", r"sleuthkit(.|\n)*Not installed"),
     ("unknown kit refused", "worm kit show nothing 2>&1; echo rc=$?", r"no kit(.|\n)*rc=1"),
@@ -404,7 +404,7 @@ WIRELESS_CHECKS = [
     ("Wi-Fi gets an address by DHCP", "for i in $(seq 20); do ip -4 addr show wlan0 | grep -q inet "
      "&& break; sleep 1; done; ip -4 addr show wlan0 | grep -c inet", r"^1$"),
     ("Wi-Fi uses a random MAC address",
-     "a=$(cat /sys/class/net/wlan0/address); p=$(ethtool -P wlan0 | awk '{print $3}'); "
+     "a=$(cat /sys/class/net/wlan0/address); p=$(cat /sys/class/net/wlan0/phy80211/macaddress); "
      "[ \"$a\" != \"$p\" ] && echo random", r"^random$"),
     ("known network remembered for the next time", "ls /var/lib/iwd", r"WormTest\.psk"),
     ("radios removed", "worm fw deny 67/udp > /dev/null; iwctl station wlan0 disconnect; "
@@ -436,6 +436,10 @@ ANON_CHECKS = [
     ("connections reach Tor", "busybox wget -q -T 10 -O- http://198.51.100.1/ 2>&1; echo rc=$?",
      r"\A(?![\s\S]*refused)[\s\S]*rc="),
     ("status shows it", "worm status", r"DNS\s+through Tor(.|\n)*Anonymity\s+on"),
+    ("the system and the users' programs never share a circuit",
+     "nft list chain inet worm anon_nat | grep -c -e 'skuid < 1000.*redirect to :9040' "
+     "-e 'redirect to :9041'; grep -c '^TransPort.*IsolateDestAddr IsolateDestPort' /etc/tor/torrc",
+     r"^2\n2$"),
     ("survives a firewall reload", "worm fw load && nft list chain inet worm anon_nat | grep -c 9040",
      r"^1$"),
     ("bridges through Tor Browser's transports",
@@ -993,8 +997,10 @@ def main():
             restart_with(con, "preinstalled package removed", "wh -y remove tcpdump diffutils",
                          "applied the package change")
             run_checks(con, FIRST_REMOVE_CHECKS)
-            restart_with(con, "install applied", f"wh --repo {repo} -y install tcpdump",
-                         "applied the package change")
+            # Only new files: applied to the running system, no restart.
+            run_checks(con, [("install applied without a restart",
+                              f"wh --repo {repo} -y install tcpdump 2>&1 | tail -1",
+                              r"ready to use now")])
             run_checks(con, AFTER_INSTALL_CHECKS)
             restart_with(con, "trial applied", "wh --try -y remove tcpdump",
                          "applied the package change (trial)")

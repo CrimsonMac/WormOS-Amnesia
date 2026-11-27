@@ -11,10 +11,14 @@ Log notice file /run/tor/notices.log
 AvoidDiskWrites 1
 
 SocksPort 127.0.0.1:9050
-# Every destination address gets its own circuit, so connections of
-# different programs (or to different sites) cannot be linked by an exit
-# relay. Tor Browser isolates its own sites through SOCKS on 9050.
-TransPort 127.0.0.1:9040 IsolateDestAddr
+# Every destination (address and port) gets its own circuit, so
+# connections of different programs (or to different sites) cannot be
+# linked by an exit relay. The firewall sends the system's own connections
+# (root and service accounts) to 9040 and the users' programs to 9041, so
+# those never share one either. Tor Browser isolates its own sites through
+# SOCKS on 9050; torsocks -i gives one program circuits of its own.
+TransPort 127.0.0.1:9040 IsolateDestAddr IsolateDestPort
+TransPort 127.0.0.1:9041 IsolateDestAddr IsolateDestPort
 DNSPort 127.0.0.1:5353
 DNSPort [::1]:5353
 
