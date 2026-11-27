@@ -115,7 +115,7 @@ jobs:
         if: matrix.previous
         run: |
           index=https://github.com/CrimsonMac/wormos-packages/releases/download/core/index
-          for i in $(seq 60); do
+          for _ in $(seq 60); do
             if curl -fsSL "$index" | grep -qx "file = base-files-$VERSION-[0-9]*.wpkg"; then
               echo "the package repository has $VERSION"
               exit 0
