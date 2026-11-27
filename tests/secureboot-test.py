@@ -11,8 +11,8 @@
 The certificate is the one on the image's EFI system partition (the release
 key, or the development key of a build without it).
 
-With --release (release images: root is locked until the first-boot setup)
-the disk image is only checked to reach its login prompt; the ISO's live
+With --release (release images: no login on the serial console) the disk
+image is only checked to start GRUB and pass the kernel's signature check; the ISO's live
 system, where root logs in on the serial console, gets the kernel checks.
 
 Usage: tests/secureboot-test.py [--image IMAGE] [--iso ISO] [--release] [--timeout SECONDS]
@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 spec = importlib.util.spec_from_file_location("boot_test", os.path.join(ROOT, "tests", "boot-test.py"))
@@ -92,7 +93,8 @@ def main():
         proc = qemu({"IMAGE": args.image, "SECURE_BOOT_VARS": vars1}, log)
         con = Console(proc, log)
         try:
-            out = con.expect("login:", 60)
+            # shim hands over to MokManager instead of GRUB.
+            out = con.expect("GNU GRUB", 60)
             check("refused without the certificate", False, out)
         except Exception:
             check("refused without the certificate", True)
@@ -106,10 +108,17 @@ def main():
         proc = qemu({"IMAGE": args.image, "SECURE_BOOT_VARS": vars2}, log)
         con = Console(proc, log)
         try:
+            if args.release:
+                # No login on the serial console: GRUB must start and the
+                # kernel pass shim's check (no "bad shim signature").
+                con.expect("GNU GRUB", 60)
+                end = time.time() + 30
+                while time.time() < end:
+                    con._read(1)
+                check("disk image boots", b"bad shim signature" not in con.buf, con.buf.decode(errors="replace"))
+                raise StopIteration
             con.expect("login:", args.timeout)
             check("disk image boots", True)
-            if args.release:
-                raise StopIteration
             con.send("root\n")
             con.expect("# ", 60)
             con.send("exec /bin/sh\n")

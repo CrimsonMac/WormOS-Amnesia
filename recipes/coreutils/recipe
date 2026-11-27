@@ -1,14 +1,19 @@
 name=coreutils
 version=9.12
+release=2
 description="GNU core utilities (ls, cp, date, sort...), full versions of BusyBox's"
 depends=(glibc openssl)
 source=(https://ftp.gnu.org/gnu/coreutils/coreutils-$version.tar.xz)
 sha256=(a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210)
 
+# Without GMP: expr and factor use their own big numbers, and the one
+# binary needs no library beyond glibc and OpenSSL (GMP is not in every
+# edition).
 build() {
 	./configure --build="$(gcc -dumpmachine)" --host="$TARGET" --prefix=/usr \
 		--disable-nls --disable-acl --disable-xattr --without-selinux \
 		--disable-libcap --with-openssl=yes --enable-single-binary=symlinks \
+		--without-libgmp \
 		--enable-no-install-program=kill,uptime,hostname,groups
 	make -j"$JOBS"
 }
