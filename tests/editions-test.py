@@ -63,7 +63,10 @@ BAREBONES_CHECKS = [
     ("the operating system is complete",
      "for f in wh snap worm bh nft unbound curl nano labwc worm-shell wormos-installer; do "
      "command -v $f > /dev/null || echo missing $f; done; echo end", r"^end$"),
-    ("network configured", "ip -4 addr show eth0", r"inet 10\.0\.2\.15"),
+    # Slow machines (CI) may still be waiting for the DHCP lease.
+    ("network configured",
+     "for i in $(seq 30); do ip -4 addr show eth0 | grep -q 'inet 10.0.2.15' && break; sleep 2; done; "
+     "ip -4 addr show eth0", r"inet 10\.0\.2\.15"),
     ("the basic kit offers the tools", "worm kit show basic",
      r"WormOS packages(.|\n)* coreutils\* (.|\n)* patch (.|\n)* 7zip (.|\n)*Not installed"),
 ]
