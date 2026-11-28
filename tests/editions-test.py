@@ -103,8 +103,8 @@ AMNESIA_CHECKS = [
      r"Done: changed in the running system(.|\n)*directories"),
     ("users remove only what they added, never Tor or the firewall",
      "su live -c 'wh remove tor nftables wormos-amnesia' 2>&1 | tail -1; "
-     "command -v tor nft; su live -c 'wh remove tree' 2>&1 | tail -1",
-     r"tor came with the system(.|\n)*/tor\n\S*/nft(.|\n)*Done: changed"),
+     "wh list | grep -cE '^(tor|nftables|wormos-amnesia) '; su live -c 'wh remove tree' 2>&1 | tail -1",
+     r"tor came with the system(.|\n)*^3$(.|\n)*Done: changed"),
     ("home folder private", "stat -c '%a' /home/live", r"^2?700$"),
     ("Bluetooth for the session's user (wheel)",
      "su live -c 'dbus-send --system --print-reply --dest=org.bluez / "
