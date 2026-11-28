@@ -346,7 +346,8 @@ def main():
             for name, cmd, pattern in checks:
                 if args.release:
                     cmd = re.sub(r"su live -c '([^']*)'", r"\1", cmd)
-                out = con.run(cmd, 180)
+                # Up to 180 s waiting for Tor, then an install through it.
+                out = con.run(cmd, 420)
                 check(name, re.search(pattern, out, re.M) is not None, out)
 
             # Straight to the host: a web server and a UDP listener.
