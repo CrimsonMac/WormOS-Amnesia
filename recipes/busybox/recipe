@@ -1,6 +1,6 @@
 name=busybox
 version=1.38.0
-release=6
+release=7
 description="Core command-line utilities (temporary userland)"
 depends=(glibc)
 source=(https://busybox.net/downloads/busybox-$version.tar.bz2)
@@ -17,6 +17,8 @@ bb_unset() {
 }
 
 build() {
+	# su and login wait for each other per account (see the patch).
+	patch -p1 < "$recipedir/files/auth-lock.patch"
 	make defconfig
 	bb_unset INIT            # worminit is PID 1
 	bb_unset LINUXRC
@@ -49,6 +51,8 @@ build() {
 	bb_set FEATURE_SHADOWPASSWDS y
 	bb_set USE_BB_CRYPT y
 	bb_set USE_BB_CRYPT_SHA y
+	# passwd and chpasswd write yescrypt: su must read it.
+	bb_set USE_BB_CRYPT_YES y
 	bb_set FEATURE_SUID y
 	bb_set LONG_OPTS y
 	bb_set EXTRA_CFLAGS "\"-std=gnu17\""

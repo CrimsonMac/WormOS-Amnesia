@@ -329,7 +329,9 @@ it, not because you need it:
   then Connect pairs, trusts and connects one (headphones, speakers,
   mice and keyboards that pair without a code); Forget removes it.
   Bluetooth audio goes through PipeWire like any other output. It starts
-  switched off at every start. In a terminal: `bluetoothctl`.
+  switched off at every start. In a terminal: `bluetoothctl`. Like Wi-Fi,
+  Bluetooth is for administrators (the group `wheel`, which the first user
+  is in); other accounts cannot pair or connect devices.
 - A laptop's second graphics card (NVIDIA or AMD, next to Intel graphics)
   has no driver in WormOS; it is switched off at start instead of draining
   the battery. A screen connected to a port wired to that card stays dark.
@@ -765,6 +767,12 @@ The lock is meant to hold against someone with the computer in hand:
   a new lock screen would appear.
 - Each wrong password costs two seconds; after 5 in a row the next try
   waits 30 seconds, after 10 two minutes, after 20 ten minutes.
+- The same holds for every other place that checks a password (the login
+  screen, the root terminal and `sudo`, Settings, Software, Snapshots,
+  `worm passwd`): checks of one account's password run one after another,
+  however many are started at once, and wrong ones in a row make each next
+  try wait longer (2, then 5, 15 and 30 seconds). A program running as you
+  cannot guess your password any faster than you could type it.
 - The laptop sleeps only once the screen is locked, never before.
 - Release images: GRUB's menu entries boot, but cannot be edited and GRUB's
   command line cannot be opened, so the kernel cannot be started with a

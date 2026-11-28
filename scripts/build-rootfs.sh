@@ -113,6 +113,9 @@ if [ -n "${WORMOS_TEST_SSH_KEY:-}" ]; then
 	install -m 600 "$WORMOS_TEST_SSH_KEY" "$ROOTFS/var/roothome/.ssh/authorized_keys"
 	printf '# Test build: SSH.\ntcp 22\n' > "$ROOTFS/etc/worm/firewall"
 fi
+# The packages the image came with: users allowed to change packages
+# (WormOS Amnesia) may remove only others (wh's user helper).
+ls "$ROOTFS/usr/lib/wh/db" | sort > "$ROOTFS/usr/lib/wh/image-packages"
 # The image keeps the index (newer ones must be at least as recent) but not
 # the downloaded packages.
 rm -rf "$ROOTFS/var/cache/wh"

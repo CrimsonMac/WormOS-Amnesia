@@ -6,6 +6,28 @@ awk -F: '$3 >= 1000 && $3 < 65534 { print $3, $4 }' /etc/passwd |
 while read -r uid gid; do
 	[ -d "/run/user/$uid" ] || install -d -m 0700 -o "$uid" -g "$gid" "/run/user/$uid"
 done
+# Every account's blackhole folder (the parent is shared like /tmp): made
+# here, before any user could make one in another account's name.
+if [ -d /var/lib/blackholes ]; then
+	[ -e /var/lib/blackholes/0 ] || install -d -m 0711 -o 0 -g 0 /var/lib/blackholes/0
+	awk -F: '$3 >= 1000 && $3 < 65534 { print $3, $4 }' /etc/passwd |
+	while read -r uid gid; do
+		[ -e "/var/lib/blackholes/$uid" ] ||
+			install -d -m 0700 -o "$uid" -g "$gid" "/var/lib/blackholes/$uid"
+	done
+fi
+# Home folders are private to their owners. Accounts made before WormOS
+# 1.19 got folders every user could read: closed once per system, so a
+# folder its owner opened up on purpose later stays open.
+if [ ! -e /var/lib/worm/private-homes ]; then
+	awk -F: '$3 >= 1000 && $3 < 65534 { print $6 }' /etc/passwd |
+	while read -r home; do
+		case $home in
+		/home/?*) [ -d "$home" ] && [ ! -L "$home" ] && chmod 700 "$home" ;;
+		esac
+	done
+	mkdir -p /var/lib/worm && touch /var/lib/worm/private-homes
+fi
 # X11's socket folder, shared by every user's Xwayland: root's, sticky and
 # writable for all. Created by a user's compositor instead, it would belong
 # to that user and lock the others out.

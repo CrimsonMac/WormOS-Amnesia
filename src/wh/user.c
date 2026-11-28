@@ -14,7 +14,10 @@
  * current package index first (the system's may be as old as its image,
  * WormOS Amnesia's always is). Packages come only from the signed
  * repositories wh trusts, so a user can add programs, never write
- * anywhere else.
+ * anywhere else; removals are only of packages users added (wh refuses
+ * the ones listed in /usr/lib/wh/image-packages, the image's own, when
+ * WH_FOR_USER is set), so Tor, the firewall or the edition itself cannot
+ * be taken out, not even by naming them all at once.
  */
 
 #define _GNU_SOURCE
@@ -109,6 +112,8 @@ int main(int argc, char **argv)
 	if (setgroups(0, NULL) < 0 || setresgid(0, 0, 0) < 0 || setresuid(0, 0, 0) < 0)
 		fail("cannot become root");
 	clearenv();
+	/* wh then refuses to remove what came with the system. */
+	setenv("WH_FOR_USER", pw ? pw->pw_name : "?", 1);
 	setenv("PATH", "/usr/sbin:/usr/bin", 1);
 	setenv("HOME", "/root", 1);
 	setenv("LANG", "C.UTF-8", 1);

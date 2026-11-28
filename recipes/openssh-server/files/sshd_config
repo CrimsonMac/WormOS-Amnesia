@@ -10,3 +10,6 @@ Subsystem sftp /usr/lib/ssh/sftp-server
 # Host keys live on /var (the system itself is read-only).
 HostKey /var/lib/ssh/ssh_host_ed25519_key
 HostKey /var/lib/ssh/ssh_host_rsa_key
+# Fewer tries per connection, and no half-open logins left waiting.
+MaxAuthTries 3
+LoginGraceTime 30

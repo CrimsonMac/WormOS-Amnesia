@@ -15,6 +15,7 @@
 #define WH_LIVE_FLAG    "/etc/wh/live"
 #define WH_USERS_FLAG   "/etc/wh/users-may-install"
 #define WH_USER_HELPER  "/usr/lib/wh/user"
+#define WH_IMAGE_LIST   "/usr/lib/wh/image-packages"
 #define WH_KEY          "usr/share/wh/keys/core.pub"
 #define WH_REPO_CONF    "etc/wh/repo"
 #define WH_STATE_DIR    "var/lib/wh"

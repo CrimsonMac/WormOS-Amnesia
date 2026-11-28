@@ -336,7 +336,12 @@ initramfs inside LUKS.
   is built after the published index, which wh would otherwise refuse as
   older.
   Packages still come only from the signed repositories, so users can add
-  programs but write nowhere else.
+  programs but write nowhere else. Removals are of what users added only
+  (since 1.19): the helper sets `WH_FOR_USER`, and wh then refuses any
+  package listed in `/usr/lib/wh/image-packages` (written by
+  `build-rootfs.sh`: the image's own packages; without the list, all), so
+  `wh remove tor nftables wormos-amnesia` cannot take the edition apart
+  even though each is only "needed" by another one on that list.
 - Editions: `wh upgrade` also installs the edition's package when it is
   missing and not declined: `wormos-standard` without `/etc/worm/variant`,
   `wormos-VARIANT_ID` otherwise, if the index has it. `wormos-standard`
@@ -1628,7 +1633,9 @@ initramfs inside LUKS.
 - Bluetooth: BlueZ 5.88 (`recipes/bluez`: no OBEX, CUPS, mesh, MIDI or udev
   tools; library and headers for PipeWire) as `42-bluetooth`;
   `/etc/bluetooth/main.conf` has `AutoEnable=false`; a D-Bus policy lets
-  wheel use it. PipeWire is built with its bluez5 plugin (SBC, native
+  wheel use it, and upstream's default policy (any user on the system bus)
+  is turned into a deny in the recipe, as iwd's netdev rule is removed:
+  root and wheel only (since 1.19). PipeWire is built with its bluez5 plugin (SBC, native
   HSP/HFP backends; `recipes/sbc`). Settings > Bluetooth drives
   `bluetoothctl` (power, a 12-second scan, pair + trust + connect with the
   NoInputNoOutput agent, disconnect, remove).
@@ -1847,9 +1854,11 @@ initramfs inside LUKS.
   entry), `prctl(PR_SET_DUMPABLE, 0)`. The password goes to
   `/usr/lib/worm/checkpass` (setuid, `src/worm/checkpass.c`) on stdin with
   `g_subprocess_communicate_utf8_async`: it checks the real user's own
-  password (`password_ok`, 2 s pause on failure), keeps wrong tries in
-  `/run/worm/checkpass/UID` (root 0600) and refuses to check for 30 s /
-  2 min / 10 min after 5 / 10 / 20 of them (exit 3, seconds on stdout);
+  password (`password_ok`, see Passwords), keeps wrong tries in
+  `/run/worm/checkpass/UID` (root 0600, `flock`ed from before the wait
+  check to the end, so checks started together each see the last count)
+  and refuses to check for 30 s / 2 min / 10 min after 5 / 10 / 20 of them
+  (exit 3, seconds on stdout);
   `--status` says whether the user has a hash libxcrypt can check (`$`...;
   none, locked or DES: exit 2, and nothing locks). While locked,
   `$XDG_RUNTIME_DIR/wormos-locked` exists. labwc ignores keybindings while
@@ -1871,7 +1880,26 @@ initramfs inside LUKS.
   command line; `etc/worm/rescue-shell` is only made for development and
   test images, and mkinitramfs adds `/rescue-allowed` from it, without which
   wormrd never starts its rescue shell (not on failures, not with
-  `wormos.rescue`). BusyBox `passwd`/`chpasswd` hash with yescrypt.
+  `wormos.rescue`). BusyBox `passwd`/`chpasswd` hash with yescrypt, and
+  so do first-boot and `worm passwd-apply` (`chpasswd -c yescrypt`; until
+  1.19 they wrote SHA-512 crypt).
+
+## Passwords
+
+- `password_ok` (`src/common/password.c`) is the one password check of
+  wormlogin and every setuid helper. It takes an exclusive `flock` on
+  `/run/worm/auth/USER` (root 0700 folder, 0600 file) for the whole check,
+  the wait after a wrong password included: checks of one account run one
+  after another, so starting many helpers at once (each used to wait its
+  own two seconds in parallel) guesses no faster. The file counts wrong
+  passwords in a row; the wait after a wrong one is 2 s, 5 s from 5 in a
+  row, 15 s from 10, 30 s from 20; a right one resets it and never waits.
+  Users only reach their own account's record (the helpers check the
+  caller's own password), so nobody can slow another account down except
+  at the login screen.
+- Home folders are 0700: first-boot and live-setup `chmod` the new home
+  (BusyBox `adduser` makes it 0755); `runtime-dirs` closes the homes of
+  older accounts once per system (`/var/lib/worm/private-homes`).
 
 ## Login
 
@@ -1910,7 +1938,10 @@ initramfs inside LUKS.
   creates `/run/wormlogin/console` and runs the console login instead,
   until the next restart. tty2 always has a console login.
 - `su` is a separate, minimal busybox build holding only `su`, installed
-  setuid root; the main busybox binary has no setuid applets.
+  setuid root; the main busybox binary has no setuid applets. The boot
+  test checks the exact list of setuid programs (su, `bh/limits`,
+  `wh/user` and the helpers in `/usr/lib/worm`); OpenSSH's
+  `ssh-keysign` is not shipped (host-based logins only, since 1.19).
 
 ## Releases
 

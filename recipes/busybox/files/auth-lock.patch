@@ -1,0 +1,75 @@
+--- a/libbb/correct_password.c
++++ b/libbb/correct_password.c
+@@ -28,6 +28,54 @@
+  * SUCH DAMAGE.
+  */
+ #include "libbb.h"
++#include <sys/file.h>
++
++/*
++ * WormOS: the same record of wrong passwords as WormOS's own password
++ * check (src/common/password.c): checks of one account's password run one
++ * after another, held by an flock on /run/worm/auth/USER, waits included,
++ * so su or login started many times at once guess no faster.
++ */
++static int auth_lock(const char *user)
++{
++	char path[128];
++	int fd;
++
++	if (!user[0] || strchr(user, '/') || user[0] == '.'
++	 || snprintf(path, sizeof(path), "/run/worm/auth/%s", user) >= (int)sizeof(path))
++		return -1;
++	mkdir("/run/worm", 0711);
++	mkdir("/run/worm/auth", 0700);
++	fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
++	if (fd >= 0 && flock(fd, LOCK_EX) < 0) {
++		close(fd);
++		return -1;
++	}
++	return fd;
++}
++
++static void auth_done(int fd, int ok)
++{
++	char buf[16] = "";
++	unsigned n = 0;
++	int len;
++
++	if (fd < 0)
++		return;
++	if (pread(fd, buf, sizeof(buf) - 1, 0) > 0)
++		sscanf(buf, "%u", &n);
++	if (ok) {
++		if (n && ftruncate(fd, 0) == 0)
++			len = pwrite(fd, "0\n", 2, 0);
++	} else {
++		len = snprintf(buf, sizeof(buf), "%u\n", n + 1);
++		if (ftruncate(fd, 0) == 0)
++			len = pwrite(fd, buf, len, 0);
++		sleep(n >= 20 ? 30 : n >= 10 ? 15 : n >= 5 ? 5 : 2);
++	}
++	(void)len;
++	close(fd);
++}
+ 
+ #define SHADOW_BUFSIZE 256
+ 
+@@ -79,9 +127,14 @@
+ 		return CHECKPASS_PW_HAS_EMPTY_PASSWORD;
+ 	}
+ 
+-	encrypted = pw_encrypt(plaintext, /*salt:*/ pw_pass, 1);
+-	r = (strcmp(encrypted, pw_pass) == 0);
+-	free(encrypted);
++	{
++		int fd = pw ? auth_lock(pw->pw_name) : -1;
++
++		encrypted = pw_encrypt(plaintext, /*salt:*/ pw_pass, 1);
++		r = (strcmp(encrypted, pw_pass) == 0);
++		free(encrypted);
++		auth_done(fd, r);
++	}
+ 	return r;
+ }
+ 

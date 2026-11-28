@@ -35,11 +35,13 @@ create_account() {
 	shell=/bin/sh
 	[ -x /usr/bin/zsh ] && shell=/usr/bin/zsh
 	adduser -D -s "$shell" -g "${2:-$1}" "$1" || ok=
+	# Private to its owner (adduser makes it readable for every user).
+	[ -n "$ok" ] && { chmod 700 "/home/$1" || ok=; }
 	if [ -n "$ok" ]; then
 		for group in wheel video input audio render kvm; do
 			addgroup "$1" "$group" || ok=
 		done
-		printf '%s:%s\nroot:%s\n' "$1" "$4" "$5" | chpasswd -c sha512 || ok=
+		printf '%s:%s\nroot:%s\n' "$1" "$4" "$5" | chpasswd -c yescrypt || ok=
 	fi
 	worm lock -c "First boot: created $1" > /dev/null
 	[ -n "$ok" ] || return 1

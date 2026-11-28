@@ -35,6 +35,14 @@ CHECKS = [
     ("kernel", "uname -r", r"-wormos"),
     ("os-release", ". /etc/os-release; echo $NAME", r"WormOS"),
     ("init is worminit", "readlink /proc/1/exe", r"/worminit$"),
+    ("root's blackhole folder made at boot", "stat -c '%a %U' /var/lib/blackholes/0",
+     r"^711 root$"),
+    ("only the expected setuid programs",
+     "find / -xdev -perm -4000 -type f | sort | tr '\\n' ' '",
+     r"^/usr/bin/su /usr/lib/bh/limits /usr/lib/wh/user /usr/lib/worm/checkpass "
+     r"/usr/lib/worm/elevate /usr/lib/worm/install /usr/lib/worm/install-system "
+     r"/usr/lib/worm/passwd /usr/lib/worm/power /usr/lib/worm/settings "
+     r"/usr/lib/worm/snapshots /usr/lib/worm/software\s*$"),
     ("booted through initramfs", "dmesg | grep -c 'Freeing initrd memory'", r"^1$"),
     ("udev rules name only known groups", "dmesg | grep -c 'Unknown group'", r"^0$"),
     ("root on @ subvolume", "grep ' / ' /proc/mounts", r"subvol=/@\s"),
@@ -354,6 +362,22 @@ PASSWD_CHECKS = [
      r"^changed$"),
     ("new password works", "su tester -c 'printf \"second2\\nthird3\\n\" | /usr/lib/worm/passwd' "
      "&& echo ok", r"^ok$"),
+    ("new passwords are hashed with yescrypt", "grep '^tester:' /etc/shadow | cut -d: -f2 | cut -c1-3",
+     r"^\$y\$$"),
+    # Guesses started at once still wait for each other (two seconds each).
+    ("guesses at once wait for each other",
+     "su tester -c 's=$(date +%s); for i in 1 2 3 4; do printf \"bad$i\\nx\\n\" | "
+     "/usr/lib/worm/passwd >/dev/null 2>&1 & done; wait; echo took=$(( $(date +%s) - s ))'; "
+     "cat /run/worm/auth/tester", r"^took=([89]|1\d)\n4$"),
+    ("the right password still works and clears the count",
+     "su tester -c 'printf \"third3\\nfourth4\\n\" | /usr/lib/worm/passwd' && cat /run/worm/auth/tester",
+     r"^0$"),
+    ("su reads yescrypt passwords",
+     "su tester -c \"echo fourth4 | su tester -c 'id -un'\" 2>&1", r"tester\s*$"),
+    ("su waits for other password checks of the account",
+     "su tester -c \"echo bad | su tester -c true\" >/dev/null 2>&1; cat /run/worm/auth/tester",
+     r"^1$"),
+    ("password records are root's alone", "stat -c '%a %U' /run/worm/auth", r"^700 root$"),
     ("root stays read-only", "touch /probe 2>&1", r"Read-only file system"),
     ("only one's own account", "su tester -c '/usr/bin/worm passwd-apply root < /dev/null' 2>&1",
      r"needs root"),
@@ -413,6 +437,10 @@ WIRELESS_CHECKS = [
     ("Bluetooth daemon running", "pidof bluetoothd", r"^\d+$"),
     ("Bluetooth answers without an adapter", "bluetoothctl show 2>&1 | head -1",
      r"No default controller available"),
+    ("Bluetooth closed to users outside wheel",
+     "su tester -c 'dbus-send --system --print-reply --dest=org.bluez / "
+     "org.freedesktop.DBus.ObjectManager.GetManagedObjects' 2>&1 | tail -1",
+     r"AccessDenied"),
 ]
 
 # Anonymous mode (worm anon). Tor cannot connect here; what matters is
@@ -753,6 +781,9 @@ LIVE_INSTALL_CHECKS = [
      r"only install(.|\n)*invalid package name(.|\n)*(managed by root|Permission denied)"),
     ("a user removes it again", "su tester -c 'wh remove cmatrix' 2>&1 | tail -1; test -e /usr/bin/cmatrix || echo gone",
      r"Done: changed(.|\n)*^gone$"),
+    ("but not what came with the system, not even all at once",
+     "su tester -c 'wh remove nano tor nftables' 2>&1 | tail -1; command -v nano",
+     r"nano came with the system(.|\n)*^/usr/bin/nano$"),
     ("back to normal", "mount -o remount,bind,rw / && cp /tmp/repo.saved /etc/wh/repo && "
      "rm /etc/wh/live /etc/wh/users-may-install && mount -o remount,bind,ro / && "
      "su tester -c 'wh install cmatrix' 2>&1", r"managed by root"),

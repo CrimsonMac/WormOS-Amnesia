@@ -107,7 +107,7 @@ int cmd_passwd_apply(const char *user)
 	snprintf(line, sizeof(line), "%s:%s\n", user, pw);
 	explicit_bzero(pw, sizeof(pw));
 	relock = root_begin_change();
-	r = feed((char *[]){ "chpasswd", "-c", "sha512", NULL }, line);
+	r = feed((char *[]){ "chpasswd", "-c", "yescrypt", NULL }, line);
 	explicit_bzero(line, sizeof(line));
 	root_end_change(relock);
 	if (r != 0)

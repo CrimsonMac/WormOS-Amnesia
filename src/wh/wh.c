@@ -93,6 +93,24 @@ static void usage(FILE *out)
 	      out);
 }
 
+/* Was the package in the image the system was built from? */
+static int came_with_system(const char *name)
+{
+	char line[NAME_MAX_LEN + 2];
+	FILE *f = fopen(WH_IMAGE_LIST, "re");
+	int found = 0;
+
+	/* Without the list, nothing can be told apart: refuse them all. */
+	if (!f)
+		return 1;
+	while (!found && fgets(line, sizeof(line), f)) {
+		line[strcspn(line, "\n")] = '\0';
+		found = strcmp(line, name) == 0;
+	}
+	fclose(f);
+	return found;
+}
+
 static int is_essential(const char *name)
 {
 	for (int i = 0; essential[i]; i++)
@@ -819,6 +837,10 @@ static int cmd_remove(int argc, char **argv)
 			die("%s is not installed", argv[i]);
 		if (is_essential(argv[i]) && !opt_force)
 			die("%s is part of the base system and cannot be removed", argv[i]);
+		/* Users (through wh's user helper) remove only what users added. */
+		if (getenv("WH_FOR_USER") && came_with_system(argv[i]))
+			die("%s came with the system; users can only remove programs they added",
+			    argv[i]);
 		/* Refuse if something that stays needs it. */
 		for (int j = 0; j < n; j++) {
 			int leaving = 0;

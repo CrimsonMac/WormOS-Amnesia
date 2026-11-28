@@ -14,6 +14,7 @@ mount -o remount,bind,rw / || exit 1
 shell=/bin/sh
 [ -x /usr/bin/zsh ] && shell=/usr/bin/zsh
 adduser -D -s "$shell" -g "Live user" live
+chmod 700 /home/live
 for group in wheel video input audio render kvm; do
 	addgroup live "$group"
 done

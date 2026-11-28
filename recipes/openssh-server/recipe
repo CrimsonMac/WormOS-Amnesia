@@ -1,5 +1,6 @@
 name=openssh-server
 version=10.6p2
+release=2
 description="SSH server (sshd): log in to this computer from others, with keys only"
 depends=(glibc openssl zlib openssh)
 # Signed by Damien Miller (7168B983815A5EEF59A4ADFD2A3F414E736060BA).

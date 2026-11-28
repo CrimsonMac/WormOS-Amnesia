@@ -1,5 +1,6 @@
 name=bluez
 version=5.88
+release=2
 description="Bluetooth daemon (bluetoothd) and its command line client bluetoothctl"
 depends=(glibc glib dbus readline)
 source=(https://mirrors.edge.kernel.org/pub/linux/bluetooth/bluez-$version.tar.xz)
@@ -21,6 +22,11 @@ package() {
 	rm -f "$pkgdir"/usr/lib/*.la
 	rm -rf "$pkgdir/usr/share/dbus-1/system-services" "$pkgdir/usr/share/dbus-1/services"
 	install -Dm644 "$recipedir/files/42-bluetooth" "$pkgdir/etc/worm/services/42-bluetooth"
+	# Upstream lets every user on the system bus drive Bluetooth (pair,
+	# connect, advertise); here only root and wheel may, as with Wi-Fi.
+	sed -i '/<policy context="default">/,/<\/policy>/s|<allow send_destination="org.bluez"/>|<deny send_destination="org.bluez"/>|' \
+		"$pkgdir/usr/share/dbus-1/system.d/bluetooth.conf"
+	grep -q '<deny send_destination="org.bluez"/>' "$pkgdir/usr/share/dbus-1/system.d/bluetooth.conf"
 	install -Dm644 "$recipedir/files/wheel.conf" \
 		"$pkgdir/usr/share/dbus-1/system.d/bluetooth-wheel.conf"
 	install -Dm644 "$recipedir/files/main.conf" "$pkgdir/etc/bluetooth/main.conf"
