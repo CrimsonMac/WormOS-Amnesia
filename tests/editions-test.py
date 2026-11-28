@@ -101,6 +101,14 @@ AMNESIA_CHECKS = [
      "for i in $(seq 90); do worm anon status | grep -q connected && break; sleep 2; done; "
      "su live -c 'wh install tree' 2>&1 | tail -1; su live -c 'tree -d /etc/xdg | tail -1'",
      r"Done: changed in the running system(.|\n)*directories"),
+    ("users remove only what they added, never Tor or the firewall",
+     "su live -c 'wh remove tor nftables wormos-amnesia' 2>&1 | tail -1; "
+     "command -v tor nft; su live -c 'wh remove tree' 2>&1 | tail -1",
+     r"tor came with the system(.|\n)*/usr/bin/tor\n/usr/bin/nft(.|\n)*Done: changed"),
+    ("home folder private", "stat -c '%a' /home/live", r"^2?700$"),
+    ("Bluetooth for the session's user (wheel)",
+     "su live -c 'dbus-send --system --print-reply --dest=org.bluez / "
+     "org.freedesktop.DBus.ObjectManager.GetManagedObjects' 2>&1 | head -1", r"method return"),
     ("welcome says what it is", "welcome | head -12",
      r"WormOS [\d.]+ Amnesia(.|\n)*Nothing here is kept"),
     ("the keyboard layout from the start screen",
